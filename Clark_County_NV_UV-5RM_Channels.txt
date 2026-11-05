@@ -1,0 +1,531 @@
+CLARK COUNTY, NEVADA - RADIO CHANNEL LIST FOR BAOFENG UV-5RM
+Compiled 2026-11-01.  349 programmable channels (radio holds 999).
+====================================================================================================
+
+RADIO COVERAGE (5RM tri-band per Miklor review; check your unit's label):
+  RX : 108-136 AM (airband) | 136-174 | 200-260 | 350-390 | 400-520 MHz   (+ 65-108 broadcast FM radio)
+  TX : 136-174 | 220-260 | 400-480 MHz  (US units may be locked to 144-148 / 222-225 / 420-450 MHz)
+  Analog FM/AM only - it CANNOT decode P25, DMR, D-STAR, Fusion or trunked systems.
+
+WHAT WAS DISCARDED
+  * Everything in 700/800 MHz (outside the radio's range). That's the bulk of Las Vegas public safety:
+      - SNACC P25 Phase II trunked: Las Vegas Fire, Clark County Fire, Henderson PD/FD, North Las Vegas
+        PD/FD, Boulder City, Las Vegas City Marshals, Primm/Laughlin fire
+      - LVMPD P25 Phase II trunked (fully encrypted): all LVMPD patrol, Moapa Valley FD, Laughlin, Primm
+      - Nevada Shared Radio System (NHP primary, NDOT), RTC 851-853 MHz, Henderson Detention 855.4875,
+        LVMPD Info 800 (851.375), 8CALL90/8TAC91-94 crossband sides, NHP/NDOT 851-853 talkarounds
+  * Low band below 65 MHz (LADWP 48.180, NV Air Guard 32.350).
+  * Military UHF aircraft 225-350 MHz (Nellis/Red Flag/NTTR/LAS UHF ground and tower).
+  * In-range DIGITAL channels you'd only hear as noise: FBI 167.2125/167.2625/167.4375 (P25),
+    Federal Protective Service 409.400, TSA LAS 406.7375, Hoover Dam PD 163.125, BLM & Lake Mead
+    P25 law nets, Nellis-Creech/NNSS P25 trunk, USPS DMR, NV Energy DMR, school/airline DMR.
+  * Schools, casinos, airline ground crews and other business channels (not requested).
+
+READ BEFORE PROGRAMMING
+  1. "RX ONLY" = set the channel to TX-inhibit (in CHIRP: Duplex = "off"). Transmitting on police,
+     fire, federal, aviation, rail or marine frequencies is a federal crime.
+  2. Ham channels need an FCC amateur license to transmit. GMRS needs a GMRS license (no test).
+     The UV-5RM is not type-accepted for FRS/GMRS/MURS, so legally treat those as receive-only too.
+  3. TONE is the receive tone/code as logged. For SCANNING public safety, leave RX tone OFF
+     (carrier squelch) so you hear every user on the frequency; many share one channel with
+     different tones. Dnnn N = DCS code (normal). Ham/GMRS repeaters need the tone set as TX tone.
+  4. MODE: FM = wide (25 kHz), NFM = narrow (12.5 kHz), AM = airband. Airband channels must be in
+     108-136 MHz; if a memory won't save in AM, use VFO mode for those (some firmware is VFO-only).
+  5. A frequency shared by several agencies is programmed once (NOTES list every user). Ham/GMRS
+     repeaters that share a frequency but use different tones/sites are kept as separate channels.
+  6. Sources: RadioReference.com database (Clark Co. NV, NV DPS, NV Federal, NV Railroads,
+     NV Tactical Crossband, Clark Co GMRS/ham), NOAA/NWS, NIFOG national interop plan. Community
+     data goes stale - entries marked "older"/"OLD" may be inactive. Verify with a scan.
+
+====================================================================================================
+1. WEATHER, EMERGENCY & CALLING CHANNELS
+====================================================================================================
+CH   NAME        RX MHz     TX MHz     TONE    MODE  NOTES
+----------------------------------------------------------------------------------------------------
+001  WX LV       162.550    RX ONLY    -       NFM   NOAA WXL36 Red Mtn (Las Vegas Valley) - PRIMARY
+002  WX POTOSI   162.400    RX ONLY    -       NFM   NOAA WNG634 Mt Potosi (W Clark / S Nye Co)
+003  WX3         162.475    RX ONLY    -       NFM   NOAA weather channel 3 (travel)
+004  WX4         162.425    RX ONLY    -       NFM   NOAA weather channel 4 (travel)
+005  WX5         162.450    RX ONLY    -       NFM   NOAA weather channel 5 (travel)
+006  WX6         162.500    RX ONLY    -       NFM   NOAA weather channel 6 (travel)
+007  WX7         162.525    RX ONLY    -       NFM   NOAA weather channel 7 (travel)
+008  AIR GUARD   121.500    RX ONLY    -       AM    Aircraft emergency / ELT guard frequency
+009  AIR SAR     123.100    RX ONLY    -       AM    Search and rescue air-to-ground
+010  MARINE 16   156.800    RX ONLY    -       FM    Marine distress/calling - Lake Mead NPS monitors
+011  MARINE 09   156.450    RX ONLY    -       FM    Marine boater calling channel
+012  GMRS 20     462.675    462.675    141.3   FM    REACT/travelers emergency channel (GMRS license to TX)
+013  HAM CALL    146.520    146.520    -       FM    2m national simplex calling (ham license to TX)
+
+====================================================================================================
+2. LAS VEGAS METRO POLICE (LVMPD) - ANALOG CHANNELS STILL LISTED
+====================================================================================================
+CH   NAME        RX MHz     TX MHz     TONE    MODE  NOTES
+----------------------------------------------------------------------------------------------------
+014  LVMPD 9     158.790    RX ONLY    77.0    FM    Ch 9 Administration
+015  LVMPD 9 RU  158.850    RX ONLY    173.8   NFM   Rural admin (repeat of Ch 9)
+016  LVMPD 10    159.135    RX ONLY    D223N   FM    Ch 10 Tactical 1
+017  LVMPD 12    153.965    RX ONLY    D411N   FM    Ch 12 car-to-car / STR Mt Charleston
+018  LVMPD INFO  154.770    RX ONLY    77.0    NFM   Metro Info (Arden Peak)
+019  LVMPD INF2  159.150    RX ONLY    77.0    NFM   Metro Info (Gass Peak) - also NTAC21
+020  LVMPD MAC   153.995    RX ONLY    D311N   NFM   VHF MAC countywide (Angel/Frenchman/Potosi)
+021  LVMPD TAC   155.595    RX ONLY    173.8   FM    Tactical simplex
+022  LVMPD HELO  156.030    RX ONLY    -       NFM   Helicopter ops & Search and Rescue
+023  LVMPD STR   152.7275   RX ONLY    173.8   NFM   Specialty Traffic Response main
+
+====================================================================================================
+3. CLARK COUNTY INTEROP (I-CALL / I-TAC) & NEVADA MUTUAL AID
+====================================================================================================
+CH   NAME        RX MHz     TX MHz     TONE    MODE  NOTES
+----------------------------------------------------------------------------------------------------
+024  ICALL CC    155.145    RX ONLY    203.5   NFM   Interop I-Call (linked 8CALL90) / NDEM EOC 1
+025  ITAC1       154.265    RX ONLY    156.7   NFM   I-TAC1 / VFIRE22 / NDF White 2 (Potosi, Virgin Pk)
+026  ITAC2       154.280    RX ONLY    156.7   NFM   I-TAC2 / VFIRE21 / NDF White 1 (Arden Peak)
+027  ITAC3       154.295    RX ONLY    156.7   NFM   I-TAC3 / VFIRE23 / NDF White 3 (Angel, Xmas Tree)
+028  ITAC4       156.075    RX ONLY    156.7   NFM   I-TAC4 (Frenchman Mountain)
+029  NLEMA       155.655    RX ONLY    -       NFM   Nevada Law Enforcement Mutual Aid
+030  VLAW31      155.475    RX ONLY    -       NFM   National law mutual aid (LLEMA)
+031  VLAW32      155.4825   RX ONLY    156.7   NFM   National law interop
+032  NDEM EOC2   155.715    RX ONLY    -       NFM   NV Div of Emergency Management EOC 2
+033  VMED28      155.340    RX ONLY    -       NFM   NEVCORD 1 / EMS-hospital, air-ground primary
+034  VMED29      155.3475   RX ONLY    -       NFM   NEVCORD 2 / EMS-hospital alternate
+035  VCALL10     155.7525   RX ONLY    156.7   NFM   National VHF interop calling
+036  VTAC11      151.1375   RX ONLY    156.7   NFM   National VHF interop tac
+037  VTAC12      154.4525   RX ONLY    156.7   NFM   National VHF interop tac
+038  VTAC13      158.7375   RX ONLY    156.7   NFM   National VHF interop tac
+039  VTAC14      159.4725   RX ONLY    156.7   NFM   National VHF interop tac
+040  VFIRE24     154.2725   RX ONLY    156.7   NFM   National fire interop
+041  VFIRE25     154.2875   RX ONLY    156.7   NFM   National fire interop
+042  VFIRE26     154.3025   RX ONLY    156.7   NFM   National fire interop
+043  UCALL40     453.2125   RX ONLY    156.7   NFM   National UHF interop calling
+044  UTAC41      453.4625   RX ONLY    156.7   NFM   National UHF interop tac
+045  UTAC42      453.7125   RX ONLY    156.7   NFM   National UHF interop tac
+046  UTAC43      453.8625   RX ONLY    156.7   NFM   National UHF interop tac
+
+====================================================================================================
+4. NEVADA TACTICAL CROSSBAND REPEATERS (NCALL / NTAC - all 156.7 PL)
+====================================================================================================
+CH   NAME        RX MHz     TX MHz     TONE    MODE  NOTES
+----------------------------------------------------------------------------------------------------
+047  NCALL1      151.070    RX ONLY    156.7   NFM   Statewide calling 1
+048  NCALL2      151.100    RX ONLY    156.7   NFM   Statewide calling 2
+049  NCALL3      159.420    RX ONLY    156.7   NFM   Calling 3 - Beacon Hill & Mesquite sites
+050  NCALL4      151.085    RX ONLY    156.7   NFM   Calling 4 - Frenchman Mountain site
+051  NTAC01      151.205    RX ONLY    156.7   NFM   Beacon Hill site
+052  NTAC02      151.265    RX ONLY    156.7   NFM   Statewide
+053  NTAC03      151.310    RX ONLY    156.7   NFM   Statewide
+054  NTAC04      151.2725   RX ONLY    156.7   NFM   Statewide
+055  NTAC05      151.355    RX ONLY    156.7   NFM   Statewide
+056  NTAC06/07   151.430    RX ONLY    156.7   NFM   Beacon Hill site
+057  NTAC08      153.785    RX ONLY    156.7   NFM   Frenchman Mountain site
+058  NTAC09      153.845    RX ONLY    156.7   NFM   Statewide
+059  NTAC10      153.875    RX ONLY    156.7   NFM   Statewide
+060  NTAC11      153.905    RX ONLY    156.7   NFM   Statewide
+061  NTAC12      153.920    RX ONLY    156.7   NFM   Statewide
+062  NTAC13/14   158.7525   RX ONLY    156.7   NFM   Statewide
+063  NTAC15      158.760    RX ONLY    156.7   NFM   Statewide
+064  NTAC16      159.015    RX ONLY    156.7   NFM   Statewide
+065  NTAC17      159.045    RX ONLY    156.7   NFM   Frenchman Mountain site
+066  NTAC18      159.0525   RX ONLY    156.7   NFM   Statewide
+067  NTAC19      159.075    RX ONLY    156.7   NFM   Statewide
+068  NTAC20      159.0825   RX ONLY    156.7   NFM   Statewide
+069  NTAC22      159.180    RX ONLY    156.7   NFM   Mesquite site
+070  NTAC23      159.2475   RX ONLY    156.7   NFM   Statewide
+  (NTAC21 = 159.150, already programmed as LVMPD INF2)
+
+====================================================================================================
+5. NEVADA HIGHWAY PATROL - VHF BACKUP REPEATERS (all 151.4 PL)
+====================================================================================================
+CH   NAME        RX MHz     TX MHz     TONE    MODE  NOTES
+----------------------------------------------------------------------------------------------------
+071  NHP ANGEL   155.190    RX ONLY    151.4   NFM   Angel Peak (US-95 NW) & Spirit Mtn (Laughlin)
+072  NHP APEX A  151.010    RX ONLY    151.4   NFM   Apex Peak (I-15 NE)
+073  NHP APEX B  154.175    RX ONLY    151.4   NFM   Apex Peak (I-15 NE)
+074  NHP ARDN A  154.415    RX ONLY    151.4   NFM   Arden Peak (SE LV) - also Mesquite Fire Tac
+075  NHP ARDN B  155.070    RX ONLY    151.4   NFM   Arden Peak (SE LV)
+076  NHP BEACON  155.790    RX ONLY    151.4   NFM   Beacon Hill (I-15 NE of Glendale)
+077  NHP POTO A  154.9425   RX ONLY    151.4   NFM   Low Potosi (NV-160 SW)
+078  NHP POTO B  155.4525   RX ONLY    151.4   NFM   Low Potosi (NV-160 SW)
+079  NHP WSTG A  151.130    RX ONLY    151.4   NFM   Westgate (3000 Paradise Rd)
+080  NHP WSTG B  154.1825   RX ONLY    151.4   NFM   Westgate (3000 Paradise Rd)
+081  NHP WSTG C  154.310    RX ONLY    151.4   NFM   Westgate (3000 Paradise Rd)
+
+====================================================================================================
+6. FIRE - CLARK CO RURAL, MESQUITE, NV FORESTRY, NELLIS
+====================================================================================================
+CH   NAME        RX MHz     TX MHz     TONE    MODE  NOTES
+----------------------------------------------------------------------------------------------------
+082  CCFD ROLL   154.370    RX ONLY    146.2   NFM   CCFD all-station roll call
+083  CCFD F7     154.340    RX ONLY    -       NFM   Rural Fire 7 dispatch (103.5 Potosi / 162.2 Virgin Pk)
+084  CCFD F71    159.030    RX ONLY    -       NFM   Rural Fire 71 dispatch - Bunkerville
+085  CCFD F75    150.995    RX ONLY    118.8   NFM   Rural Fire 75 dispatch - Searchlight
+086  CCFD F8 GP  158.970    RX ONLY    131.8   NFM   Rural Fire 8 dispatch (Gass Peak)
+087  CCFD F8 IS  154.400    RX ONLY    131.8   NFM   Rural Fire 8 dispatch (Indian Springs)
+088  CCFD PAGE   154.430    RX ONLY    123.0   FM    Rural fire paging (Valley rebroadcast of F7)
+089  CCFD PAGE2  152.0075   RX ONLY    71.9    FM    Rural fire paging
+090  MESQ FD     155.400    RX ONLY    71.9    FM    Mesquite Fire dispatch
+091  NDF RPT     158.895    RX ONLY    -       NFM   NV Div of Forestry repeaters (multiple tones)
+092  NDF RED1    159.345    RX ONLY    -       NFM   NDF Red Net 1 fire tac
+093  NDF RED2    158.865    RX ONLY    -       NFM   NDF Red Net 2 crew net
+094  NDF RED3    159.375    RX ONLY    -       NFM   NDF Red Net 3 (State Parks)
+095  NELLIS FC1  173.5875   RX ONLY    -       FM    Nellis AFB fire & crash (older entry)
+096  NELLIS FC2  173.8375   RX ONLY    -       FM    Nellis AFB fire & crash (older entry)
+
+====================================================================================================
+7. FEDERAL WILDLAND FIRE / AIR ATTACK
+====================================================================================================
+CH   NAME        RX MHz     TX MHz     TONE    MODE  NOTES
+----------------------------------------------------------------------------------------------------
+097  LVICC A2G   166.7625   RX ONLY    -       NFM   Las Vegas Interagency air-to-ground 23 primary
+098  LVICC A2G2  166.875    RX ONLY    -       NFM   Las Vegas air-to-ground 08 secondary
+099  LVICC A2A   123.675    RX ONLY    -       AM    Las Vegas air-to-air 1 primary
+100  LVICC A2A2  120.525    RX ONLY    -       AM    Air-to-air 2 / NTTR firefighting aircraft
+101  NIFC TAC1   168.050    RX ONLY    -       NFM   National wildland fire tactical 1
+102  NIFC TAC2   168.200    RX ONLY    -       NFM   National wildland fire tactical 2
+103  NIFC TAC3   168.600    RX ONLY    -       NFM   National wildland fire tactical 3
+104  NIFC GUARD  168.625    RX ONLY    -       NFM   National fire Air Guard (emergency)
+105  NIFC NFF    168.650    RX ONLY    -       NFM   National Flight Following
+
+====================================================================================================
+8. FEDERAL - BLM, NPS LAKE MEAD, FOREST SERVICE, NDOW, MILITARY
+====================================================================================================
+CH   NAME        RX MHz     TX MHz     TONE    MODE  NOTES
+----------------------------------------------------------------------------------------------------
+106  BLM SONV    173.050    RX ONLY    114.8   NFM   BLM Southern Nevada district repeaters
+107  BLM SOA     171.675    RX ONLY    114.8   NFM   NV BLM scene of action (analog)
+108  BLM TAC2    164.475    RX ONLY    114.8   NFM   NV BLM Tac 2
+109  BLM TAC3    172.750    RX ONLY    114.8   NFM   NV BLM Tac 3
+110  GOV COM1    163.100    RX ONLY    -       NFM   BLM gov common 1 / wild horse roundup 1
+111  GOV COM2    168.350    RX ONLY    -       NFM   BLM gov common 2 / wild horse roundup 2
+112  REDROCK T   168.225    RX ONLY    156.7   NFM   Red Rock Canyon NCA tactical
+113  REDROCK A   171.700    RX ONLY    114.8   NFM   Red Rock Canyon NCA admin
+114  REDROCK 3   172.525    RX ONLY    114.8   NFM   Red Rock Canyon NCA
+115  MTCHAR LE   170.3875   RX ONLY    141.3   NFM   BLM Mount Charleston law enforcement
+116  POTOSI EX   166.9625   RX ONLY    192.8   NFM   BLM "Potosi Ext" (NPS zone)
+117  HTNF SPRNG  172.275    RX ONLY    -       NFM   Forest Service - Spring Mountains NRA
+118  HTNF SOA    168.775    RX ONLY    -       NFM   Humboldt-Toiyabe NF scene of action
+119  LM LE PERK  167.125    RX ONLY    123.0   NFM   Lake Mead law net - Mount Perkins
+120  LM LE WILS  170.050    RX ONLY    107.2   NFM   Lake Mead law net - Mount Wilson
+121  LM LE SCRB  168.250    RX ONLY    -       NFM   Lake Mead law net - Scrub Peak
+122  LM OPS      171.775    RX ONLY    -       NFM   Lake Mead ops (Grand Wash/Perkins/Virgin Pk)
+123  LM OPS PRK  172.600    RX ONLY    -       NFM   Lake Mead ops - Mount Perkins
+124  LM OPS WIL  166.300    RX ONLY    -       NFM   Lake Mead ops - Mount Wilson
+125  NDOW BOAT   151.475    RX ONLY    79.7    NFM   NV Dept of Wildlife boating safety
+126  CAP 1       148.125    RX ONLY    146.2   NFM   Civil Air Patrol statewide primary
+127  CAP 2       148.150    RX ONLY    118.8   NFM   Civil Air Patrol statewide secondary / Nellis flight line
+128  NELLIS 1    148.075    RX ONLY    -       FM    Nellis flight line (older entry)
+129  NELLIS 2    148.175    RX ONLY    -       FM    Nellis flight line (older entry)
+130  NELLIS 3    148.300    RX ONLY    -       FM    Nellis flight line (older entry)
+131  NELLIS 4    148.400    RX ONLY    -       FM    Nellis flight line (older entry)
+132  NELLIS 5    148.450    RX ONLY    -       FM    Nellis flight line (older entry)
+133  NELLIS OP1  148.525    RX ONLY    -       FM    Nellis base ops (older entry)
+134  NELLIS OP2  148.545    RX ONLY    -       FM    Nellis base ops (older entry)
+135  NELLIS 6    148.700    RX ONLY    -       FM    Nellis flight line (older entry)
+136  NELLIS 7    149.265    RX ONLY    -       FM    Nellis flight line (older entry)
+137  NELLIS 8    149.300    RX ONLY    -       FM    Nellis flight line (older entry)
+
+====================================================================================================
+9. COUNTY GOVERNMENT, CORRECTIONS, NEIGHBORING AGENCIES
+====================================================================================================
+CH   NAME        RX MHz     TX MHz     TONE    MODE  NOTES
+----------------------------------------------------------------------------------------------------
+138  CC EMA      158.940    RX ONLY    103.5   NFM   Clark County Emergency Management
+139  CC DETENT   158.880    RX ONLY    D411N   NFM   Clark County Detention Center
+140  CC JUV DET  154.055    RX ONLY    D703N   NFM   Clark County Juvenile Detention
+141  JUV DET U   453.100    RX ONLY    167.9   NFM   Juvenile Detention Center (UHF)
+142  JUSTICE SC  460.075    RX ONLY    94.8    NFM   Regional Justice Center security
+143  MESQ PD     154.845    RX ONLY    131.8   FM    Mesquite Police (OLD entry - may be inactive)
+144  MOHAVE SO   155.640    RX ONLY    192.8   NFM   Mohave Co AZ Sheriff (heard near Laughlin)
+145  AZ DPS      460.475    RX ONLY    100.0   NFM   AZ DPS District 1 Kingman (near Laughlin)
+146  ADOT ENF    154.905    RX ONLY    100.0   NFM   AZ DOT motor carrier enforcement
+
+====================================================================================================
+10. PUBLIC WORKS & UTILITIES (USEFUL DURING OUTAGES/DISASTERS)
+====================================================================================================
+CH   NAME        RX MHz     TX MHz     TONE    MODE  NOTES
+----------------------------------------------------------------------------------------------------
+147  CC DPW      154.100    RX ONLY    -       NFM   Clark County Public Works
+148  BC PW       154.040    RX ONLY    -       NFM   Boulder City Public Works
+149  MESQ PW     153.755    RX ONLY    123.0   NFM   Mesquite Public Works
+150  SNWA LV     151.025    RX ONLY    203.5   NFM   SNWA reclamation (Las Vegas)
+151  SNWA BC     155.745    RX ONLY    D023N   NFM   SNWA reclamation (Boulder City)
+152  SWGAS BLK   153.635    RX ONLY    151.4   NFM   Southwest Gas - Black Mountain
+153  SWGAS SUN   153.695    RX ONLY    151.4   NFM   Southwest Gas - Frenchman Mountain
+154  SWGAS SPR   153.035    RX ONLY    151.4   NFM   Southwest Gas - Spring Mountain Rd
+155  SWGAS LAU   153.3425   RX ONLY    -       FM    Southwest Gas - Laughlin
+156  OVERTON PD  452.625    RX ONLY    -       NFM   Overton Power District #5 (Mesquite)
+157  LV WASTEW   451.325    RX ONLY    D263N   NFM   City of LV water pollution control
+
+====================================================================================================
+11. RAILROAD - UNION PACIFIC (carrier squelch)
+====================================================================================================
+CH   NAME        RX MHz     TX MHz     TONE    MODE  NOTES
+----------------------------------------------------------------------------------------------------
+158  UP ROAD     160.515    RX ONLY    -       NFM   UP AAR 27 road ch - Cima/Caliente/BMI/Mead Lk subs
+159  UP 40       160.710    RX ONLY    -       NFM   LV terminal local 40
+160  UP 41       160.725    RX ONLY    -       NFM   LV terminal local 41
+161  UP 42       160.740    RX ONLY    -       NFM   LV terminal local 42
+162  UP 46       160.800    RX ONLY    -       NFM   LV terminal local 46
+163  UP 47       160.815    RX ONLY    -       NFM   LV terminal local 47
+164  UP 48       160.830    RX ONLY    -       NFM   LV terminal local 48
+165  UP 49       160.845    RX ONLY    -       NFM   LV terminal local 49
+166  UP 55       160.935    RX ONLY    -       NFM   LV terminal local 55
+167  UP ARDEN    161.115    RX ONLY    -       NFM   Arden Yard
+
+====================================================================================================
+12. AIRCRAFT - HARRY REID INTL (LAS)   [AM airband, receive only]
+====================================================================================================
+CH   NAME        RX MHz     TX MHz     TONE    MODE  NOTES
+----------------------------------------------------------------------------------------------------
+168  LAS ATIS    132.400    RX ONLY    -       AM    ATIS
+169  LAS CLR     118.000    RX ONLY    -       AM    Clearance delivery
+170  LAS GND W   121.900    RX ONLY    -       AM    Ground (west of 01/19)
+171  LAS GND E   121.100    RX ONLY    -       AM    Ground (east of 01/19)
+172  LAS GMETER  133.725    RX ONLY    -       AM    Ground metering
+173  LAS TWR 25  119.900    RX ONLY    -       AM    Tower rwys 07/25
+174  LAS TWR 19  118.750    RX ONLY    -       AM    Tower rwys 01/19
+175  LAS HELO    123.825    RX ONLY    -       AM    LAS helicopter control
+176  LAS APP SW  125.600    RX ONLY    -       AM    Approach SW
+177  LAS APPDEP  125.050    RX ONLY    -       AM    Approach/Departure
+178  LAS APP NW  125.025    RX ONLY    -       AM    Approach/Departure, Class B NW
+179  LAS APP NE  119.400    RX ONLY    -       AM    Approach, Class B NE
+180  LAS CLB SE  118.400    RX ONLY    -       AM    Class B SE
+181  LAS DEP NE  133.950    RX ONLY    -       AM    Departure, Class B NE
+182  LAS DEP SW  125.900    RX ONLY    -       AM    Departure, Class B SW
+183  LAS FINAL   135.000    RX ONLY    -       AM    Final approach
+184  LAS VFR FN  120.450    RX ONLY    -       AM    VFR final
+185  LAS RAMPAB  124.400    RX ONLY    -       AM    Ramp A/B/C gates
+186  LAS RAMPDE  127.900    RX ONLY    -       AM    Ramp D/E gates & cargo
+187  LAS RAMPMT  126.975    RX ONLY    -       AM    Ramp metering
+188  LV FSS      122.350    RX ONLY    -       AM    Flight Service Station
+189  LA CTR 16   124.625    RX ONLY    -       AM    Los Angeles Center sector 16
+190  LA CTR 34   132.625    RX ONLY    -       AM    Los Angeles Center sector 34
+191  AMC         130.650    RX ONLY    -       AM    Air Mobility Command
+192  SF RADIO    128.900    RX ONLY    -       AM    ARINC San Francisco Radio
+193  JANET       118.700    RX ONLY    -       AM    EG&G "Janet" ops / Desert Rock CTAF
+194  SWA DISP    131.700    RX ONLY    -       AM    Southwest dispatch
+195  SWA OPS     131.875    RX ONLY    -       AM    Southwest ops & maintenance
+196  ALLEGIANT   129.825    RX ONLY    -       AM    Allegiant weight & balance
+197  AA OPS      131.775    RX ONLY    -       AM    American ops
+198  DELTA OPS   131.450    RX ONLY    -       AM    Delta ops
+199  UNITED OPS  129.500    RX ONLY    -       AM    United ops
+200  ALASKA OPS  132.000    RX ONLY    -       AM    Alaska ops
+201  FRONTIER    130.075    RX ONLY    -       AM    Frontier ops
+202  SPIRIT      130.525    RX ONLY    -       AM    Spirit ops
+203  FEDEX       131.925    RX ONLY    -       AM    FedEx ops
+
+====================================================================================================
+13. AIRCRAFT - OTHER AIRPORTS, NELLIS, HELICOPTERS   [AM, receive only]
+====================================================================================================
+CH   NAME        RX MHz     TX MHz     TONE    MODE  NOTES
+----------------------------------------------------------------------------------------------------
+204  VGT ATIS    118.050    RX ONLY    -       AM    North Las Vegas ATIS
+205  VGT CLR     124.000    RX ONLY    -       AM    North Las Vegas clearance
+206  VGT GND     121.700    RX ONLY    -       AM    North Las Vegas ground
+207  VGT TWR 1   125.700    RX ONLY    -       AM    North Las Vegas tower 1
+208  VGT TWR 2   119.150    RX ONLY    -       AM    North Las Vegas tower 2
+209  VGT UNICOM  122.950    RX ONLY    -       AM    North Las Vegas unicom
+210  NEL APP     118.125    RX ONLY    -       AM    Nellis approach / VGT approach
+211  NEL CLR     120.900    RX ONLY    -       AM    Nellis clearance
+212  NEL GND     121.800    RX ONLY    -       AM    Nellis ground
+213  NEL TWR     132.550    RX ONLY    -       AM    Nellis tower
+214  NEL DEP     135.100    RX ONLY    -       AM    Nellis departure
+215  CREECH TWR  118.300    RX ONLY    -       AM    Creech AFB tower/ground
+216  NTTR RNG W  119.350    RX ONLY    -       AM    NTTR range control west
+217  MORMN MESA  126.650    RX ONLY    -       AM    Nellis exercise - Mormon Mesa
+218  HND AWOS    120.775    RX ONLY    -       AM    Henderson Exec weather
+219  HND TWR     125.100    RX ONLY    -       AM    Henderson Exec tower/CTAF
+220  HND GND     127.800    RX ONLY    -       AM    Henderson Exec ground
+221  HND CLR     135.350    RX ONLY    -       AM    Henderson Exec clearance
+222  BVU AWOS    118.475    RX ONLY    -       AM    Boulder City weather
+223  BVU UNICOM  122.700    RX ONLY    -       AM    Boulder City unicom
+224  KDRA ASOS   119.675    RX ONLY    -       AM    Desert Rock (Mercury) weather
+225  KDRA UNIC   122.800    RX ONLY    -       AM    Desert Rock unicom
+226  MERCURY AP  126.300    RX ONLY    -       AM    Mercury approach / coordination
+227  HELO A2A    123.025    RX ONLY    -       AM    National helicopter air-to-air
+228  HELO CC     123.800    RX ONLY    -       AM    Clark County helicopter air control
+229  HELO CC2    126.025    RX ONLY    -       AM    Clark County helicopter air-to-air
+230  MAVERICK    129.725    RX ONLY    -       AM    Maverick helicopter tours (Strip)
+231  MAVERICK2   133.050    RX ONLY    -       AM    Maverick helicopters (Henderson)
+232  SUNDANCE1   130.750    RX ONLY    -       AM    Sundance helicopter ramp
+233  SUNDANCE2   129.600    RX ONLY    -       AM    Sundance helicopters
+
+====================================================================================================
+14. AMATEUR (HAM) REPEATERS - 2 METER   [license required to TX]
+====================================================================================================
+CH   NAME        RX MHz     TX MHz     TONE    MODE  NOTES
+----------------------------------------------------------------------------------------------------
+234  SKY/ARES    147.180    147.780    D244N   FM    K7CCN Angel Peak - Clark Co ARES/RACES (SKYWARN)
+235  ARES LAUGH  147.180    147.780    127.3   FM    K7CCN Spirit Mtn (Laughlin) ARES
+236  ARES BEACN  145.300    144.700    D244N   FM    K7CCN Beacon Hill (Moapa) ARES/RACES
+237  LV EOC      146.910    146.310    100.0   NFM   K7UGE City of Las Vegas EOC
+238  WESTGATE    146.940    146.340    100.0   NFM   K7UGE Westgate
+239  NELLIS ARC  147.060    147.660    100.0   FM    KC7TMC Apex Peak (Nellis ARC)
+240  ANGEL PK    147.360    147.960    141.3   FM    WB6TNP Angel Peak
+241  HI POTOSI   146.880    146.280    100.0   FM    WA7HXO High Potosi (Intermountain)
+242  RED MTN     147.945    147.345    100.0   FM    WA7HXO Red Mtn (Boulder City)
+243  BLUE DIAM   147.000    147.600    123.0   FM    N7ARR Blue Diamond
+244  WIN SYS     146.970    146.370    100.0   FM    KB6XN Sahara & Buffalo (WIN)
+245  KB6XN 145   145.250    144.650    100.0   FM    KB6XN Sahara & Buffalo
+246  CENT HILLS  147.210    147.810    107.2   FM    N4NJJ Centennial Hills
+247  SUNRISE MR  146.670    146.070    136.5   FM    WA7CYC Sunrise Manor
+248  NLV         145.460    144.860    100.0   FM    KE7ZHN North Las Vegas
+249  HENDERSON   145.390    144.790    114.8   FM    W7IVK Downtown Henderson
+250  ANTHEM      145.280    144.680    123.0   FM    WA7SCA Sun City Anthem
+251  MOAPA       147.390    147.990    100.0   FM    W7MVR Beacon Hill (Moapa Valley ARC)
+252  CC SIMPLX   146.415    146.415    -       FM    Clark County simplex
+
+====================================================================================================
+15. AMATEUR (HAM) REPEATERS - 1.25 METER (222 MHz)
+====================================================================================================
+CH   NAME        RX MHz     TX MHz     TONE    MODE  NOTES
+----------------------------------------------------------------------------------------------------
+253  N7MLF 222   223.920    222.320    -       FM    Coyote Springs (input assumed std -1.6)
+254  W7EB 222    224.480    222.880    110.9   FM    Low Potosi (input assumed std -1.6)
+255  N8NDI 222   224.500    222.900    156.7   FM    Las Vegas (input assumed std -1.6)
+256  N7RSL 222   224.540    222.940    141.3   FM    Tropical & Ann Rd
+
+====================================================================================================
+16. AMATEUR (HAM) REPEATERS - 70 CM   [analog FM only]
+====================================================================================================
+CH   NAME        RX MHz     TX MHz     TONE    MODE  NOTES
+----------------------------------------------------------------------------------------------------
+257  ARES RED M  447.325    444.325    100.0   FM    K7CCN Red Mtn Boulder City ARES/RACES
+258  HEN H1      447.925    442.925    156.7   FM    W7HEN Low Potosi (Henderson ARC)
+259  HEN H2      449.850    444.850    131.8   FM    W7HEN Angel Peak (203.5 also listed)
+260  HEN H3      447.725    442.725    114.8   FM    W7HEN Mission Hills
+261  HEN H4      446.475    441.475    156.7   FM    W7HEN Blue Diamond Hill
+262  HEN H5      449.925    444.925    156.7   FM    W7HEN Pahrump Valley
+263  HEN H6      445.525    440.525    91.5    FM    W7HEN Henderson City Hall
+264  HEN B1      446.500    441.500    156.7   FM    W7HEN Red Mtn Boulder City
+265  NELLIS 449  449.875    444.875    127.3   FM    KC7TMC Apex Peak
+266  TNP ANGEL   448.575    443.575    141.3   FM    WB6TNP Angel Peak
+267  TNP SUNCST  448.675    443.675    141.3   FM    WB6TNP Suncoast
+268  TNP SPIRIT  448.700    443.700    141.3   FM    WB6TNP Spirit Mtn (Laughlin)
+269  TNP SCRUB   448.725    443.725    141.3   FM    WB6TNP Scrub Peak (Mesquite)
+270  TNP OPAL    448.800    443.800    141.3   FM    WB6TNP Opal Mtn (Boulder City)
+271  TNP LOPOT   449.250    444.250    141.3   FM    WB6TNP Low Potosi
+272  HXO MESQ    448.020    443.020    136.5   FM    WA7HXO Mesquite Airport
+273  HXO RED M   449.100    444.100    136.5   FM    WA7HXO Red Mountain
+274  HXO HIPOT   449.175    444.175    136.5   FM    WA7HXO High Potosi
+275  OQF LOPOT   449.400    444.400    136.5   FM    W7OQF Low Potosi
+276  N6DD HIPOT  449.000    444.000    131.8   FM    N6DD High Potosi
+277  YES LOPOT   448.400    443.400    141.3   FM    WB7YES Low Potosi (127.3 also listed)
+278  TND ANGEL   449.500    444.500    146.2   FM    N7TND Angel Peak
+279  SIN ANGEL   448.325    443.325    107.2   FM    N4NJJ Angel Peak (mixed FM/P25)
+280  SIN LOPOT   449.700    444.700    107.2   FM    N4NJJ Low Potosi (mixed FM/P25)
+281  SIN LONE    445.400    440.400    107.2   FM    N4NJJ Lone Mountain
+282  SIN CH 1    420.850    425.850    107.2   FM    N4NJJ Centennial Hills 1 (mixed FM/P25)
+283  SIN CH 2    445.975    440.975    107.2   FM    N4NJJ Centennial Hills 2 (mixed FM/P25)
+284  LVMS        445.375    440.375    107.2   FM    LV Motor Speedway (mixed FM/P25)
+285  WESTGT 2    447.200    442.200    100.0   NFM   K7UGE Westgate 2
+286  WESTGT 3    448.500    443.500    100.0   NFM   K7UGE Westgate 3
+287  WIN BD      447.950    442.950    100.0   FM    K6JSI Blue Diamond WIN (input listed 442.925)
+288  N7ARR BD    447.000    442.000    123.0   FM    N7ARR Blue Diamond
+289  MTN VIEW    447.300    444.300    100.0   FM    KG7SS Mountain View Hospital
+290  SUN CTY SM  447.475    442.475    110.9   FM    W7SCS Sun City Summerlin
+291  FREMONT     448.075    443.075    127.3   FM    WN9ANF The D, Fremont St
+292  K7RSW HEN   448.875    443.875    114.8   FM    K7RSW Henderson (mixed FM/P25)
+293  K7GIO HEN   445.800    440.800    107.2   FM    K7GIO Henderson (mixed FM/P25)
+294  ANTHEM 445  445.680    440.680    123.0   FM    WA7SCA Henderson Anthem
+295  N6YKE ANTH  446.125    441.125    146.2   FM    N6YKE Henderson Anthem
+296  AA7SC ANTH  446.350    441.350    127.3   FM    AA7SC Henderson Anthem
+297  WATER ST    446.625    441.625    D754N   FM    N7YOR Henderson Water St
+298  K7ILO LV    446.275    441.275    100.0   FM    K7ILO Alexander & Buffalo
+299  SUNRISE 44  446.875    441.875    114.8   FM    N7RMK Sunrise Manor
+300  AZ CHARLIE  445.875    440.875    100.0   FM    W7JCA Arizona Charlie's
+301  N7HWM LV    445.200    440.200    127.3   FM    N7HWM Las Vegas
+302  NX7R ITIN   420.625    425.625    D754N   FM    NX7R itinerant (mixed FM/DMR)
+303  NX7R NLV    445.625    450.625    D754N   FM    NX7R Cannery (TX 450.625 may be blocked)
+304  HAM UHF SX  446.000    446.000    -       FM    70cm national simplex calling
+
+====================================================================================================
+17. FRS / GMRS (22 channels) - FRS 8-14 narrow, low power
+====================================================================================================
+CH   NAME        RX MHz     TX MHz     TONE    MODE  NOTES
+----------------------------------------------------------------------------------------------------
+305  FRS 1       462.5625   462.5625   -       FM    FRS/GMRS 1
+306  FRS 2       462.5875   462.5875   -       FM    FRS/GMRS 2
+307  FRS 3       462.6125   462.6125   -       FM    FRS/GMRS 3
+308  FRS 4       462.6375   462.6375   -       FM    FRS/GMRS 4
+309  FRS 5       462.6625   462.6625   -       FM    FRS/GMRS 5
+310  FRS 6       462.6875   462.6875   -       FM    FRS/GMRS 6
+311  FRS 7       462.7125   462.7125   -       FM    FRS/GMRS 7
+312  FRS 8       467.5625   467.5625   -       NFM   FRS 8 (0.5 W max)
+313  FRS 9       467.5875   467.5875   -       NFM   FRS 9 (0.5 W max)
+314  FRS 10      467.6125   467.6125   -       NFM   FRS 10 (0.5 W max)
+315  FRS 11      467.6375   467.6375   -       NFM   FRS 11 (0.5 W max)
+316  FRS 12      467.6625   467.6625   -       NFM   FRS 12 (0.5 W max)
+317  FRS 13      467.6875   467.6875   -       NFM   FRS 13 (0.5 W max)
+318  FRS 14      467.7125   467.7125   -       NFM   FRS 14 (0.5 W max)
+319  FRS 15      462.550    462.550    -       FM    FRS/GMRS 15
+320  FRS 16      462.575    462.575    -       FM    FRS/GMRS 16
+321  FRS 17      462.600    462.600    -       FM    FRS/GMRS 17
+322  FRS 18      462.625    462.625    -       FM    FRS/GMRS 18
+323  FRS 19      462.650    462.650    -       FM    FRS/GMRS 19
+324  FRS 20      462.675    462.675    -       FM    FRS/GMRS 20 (emergency/travel)
+325  FRS 21      462.700    462.700    -       FM    FRS/GMRS 21
+326  FRS 22      462.725    462.725    -       FM    FRS/GMRS 22
+
+====================================================================================================
+18. GMRS REPEATERS - CLARK COUNTY   [GMRS license required to TX]
+====================================================================================================
+CH   NAME        RX MHz     TX MHz     TONE    MODE  NOTES
+----------------------------------------------------------------------------------------------------
+327  KYLE CYN    462.550    467.550    100.0   FM    Kyle Canyon Rd
+328  ANGEL 550   462.550    467.550    107.2   FM    Angel Peak
+329  HEND 550    462.550    467.550    123.0   FM    Henderson "Area 27"
+330  MTCHAR 550  462.550    467.550    141.3   FM    Mt Charleston (Kyle Canyon)
+331  SUNCTY 550  462.550    467.550    D205N   FM    Sun City Summerlin
+332  LAKES 575   462.575    467.575    123.0   FM    The Lakes
+333  ANGEL 575   462.575    467.575    141.3   FM    Angel Peak (county comms bldg)
+334  NLV 600     462.600    467.600    141.3   FM    LDS Deseret Industries NLV
+335  BLUDIA 600  462.600    467.600    162.2   FM    Blue Diamond
+336  HIPOT 625   462.625    467.625    141.3   FM    High Potosi 1
+337  SUMTPC 650  462.650    467.650    206.5   FM    Summerlin TPC
+338  SUMMR 650   462.650    467.650    250.3   FM    Summerlin
+339  BEARCM 650  462.650    467.650    82.5    FM    BearCom (Russell & Arville)
+340  HIPOT 675   462.675    467.675    162.2   FM    High Potosi 2
+341  LOPOT 700   462.700    467.700    100.0   FM    Low Potosi (Tri-State bldg)
+342  LONE 700    462.700    467.700    162.2   FM    Lone Mountain
+343  LONE 725    462.725    467.725    131.8   FM    Lone Mountain
+344  TEMPLE 725  462.725    467.725    141.3   FM    LDS Las Vegas Temple (D411N also)
+
+====================================================================================================
+19. MURS (license-free business band, 2 W max)
+====================================================================================================
+CH   NAME        RX MHz     TX MHz     TONE    MODE  NOTES
+----------------------------------------------------------------------------------------------------
+345  MURS 1      151.820    151.820    -       NFM   MURS 1
+346  MURS 2      151.880    151.880    -       NFM   MURS 2
+347  MURS 3      151.940    151.940    -       NFM   MURS 3
+348  MURS 4      154.570    154.570    -       FM    MURS 4 (Blue Dot)
+349  MURS 5      154.600    154.600    -       FM    MURS 5 (Green Dot)
+
+====================================================================================================
+APPENDIX A - MARGINAL: inside the 5RM's receive range but AM outside 108-136 MHz
+====================================================================================================
+Military/aviation AM in the 136-174, 350-390 and 400-520 MHz bands. The 5RM only switches to AM in
+108-136 MHz, so these will be received in FM and usually sound garbled or silent.
+They are NOT numbered in the main list. Add them at the end only if you want to try.
+
+     NAME        RX MHz     TX MHz             MODE  NOTES
+----------------------------------------------------------------------------------------------------
+     LAS APP U   379.150    RX ONLY            AM    Approach UHF, Class B north
+     LAS SE U    353.700    RX ONLY            AM    Class B SE (UHF)
+     LAS CLR U   379.950    RX ONLY            AM    Clearance delivery UHF
+     VGT TWR U   360.750    RX ONLY            AM    North Las Vegas tower UHF
+     CREECH TWU  360.625    RX ONLY            AM    Creech tower UHF
+     NEL DEP U   385.400    RX ONLY            AM    Nellis departure UHF
+     BARON MOA   379.400    RX ONLY            AM    Baron MOA
+     RANGE CTL   357.500    RX ONLY            AM    Nellis range control
+     RED FLAG 1  383.300    RX ONLY            AM    Red Flag exercise
+     RED FLAG 2  384.800    RX ONLY            AM    Red Flag exercise
+     HAVE QUICK  381.300    RX ONLY            AM    Have Quick / Raymond 22
+     GROOM MOA   361.300    RX ONLY            AM    Groom Lake MOA
+     BLACKJACK   377.800    RX ONLY            AM    Blackjack range
+     BLACKJ VHF  139.750    RX ONLY            AM    Blackjack (VHF)
+     BLKJ CTL    138.150    RX ONLY            AM    Nellis range control "Blackjack"
+     BIRD DOG    138.900    RX ONLY            AM    NNSS airspace "Bird Dog"
+     RANGE 141   141.700    RX ONLY            AM    Nellis range control
+     JETBLUE     136.600    RX ONLY            AM    JetBlue ops (just above airband)
+     AIR COMBAT  408.000    RX ONLY            AM    Nellis exercise air combat

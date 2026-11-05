@@ -1,0 +1,59 @@
+"""Wrap a raw app image as a one-region .BF, using the rule from uv5rm-wrap-tool's main.c.
+
+Packages 0, 1 and the last two stay plain; the rest XOR with KDHT/RBGI by index % 3.
+Checks the implementation against the factory images before trusting it.
+"""
+import glob, os, struct, sys
+
+K1, K2, PKG = b"KDHT", b"RBGI", 1024
+
+
+def xor(data, key):
+    out = bytearray()
+    for i, x in enumerate(data):
+        k = key[i % 4]
+        out.append(x ^ k if x not in (0, 0xFF) and x != k and x != k ^ 0xFF else x)
+    return bytes(out)
+
+
+def crypt(data):
+    n = len(data) // PKG + (1 if len(data) % PKG else 0)
+    out = bytearray()
+    for i in range(n):
+        block = data[i * PKG:(i + 1) * PKG]
+        if 2 <= i < n - 2 and i % 3 == 1:
+            block = xor(block, K1)
+        elif 2 <= i < n - 2 and i % 3 == 2:
+            block = xor(block, K2)
+        out += block
+    return bytes(out)
+
+
+image_path, out_path, stock_dir = sys.argv[1:4]
+
+# The transform must undo itself and turn factory files into real firmware.
+checked = 0
+for bf in sorted(glob.glob(os.path.join(stock_dir, "*", "*.BF"))):
+    raw = open(bf, "rb").read()
+    _, s1, _ = struct.unpack(">BLL", raw[:9])
+    enc = raw[16:16 + s1]
+    dec = crypt(enc)
+    assert crypt(dec) == enc, bf
+    sp, reset = struct.unpack("<II", dec[:8])
+    assert 0x20000000 < sp <= 0x20004000 and 0x08001000 < reset < 0x08010000, bf
+    assert b"PROGRAMBFNORMALU" in dec and b"VER:%s" in dec, bf
+    checked += 1
+assert checked >= 5, checked
+print("crypto verified against", checked, "factory images")
+
+image = open(image_path, "rb").read()
+assert len(image) <= 0xF000, len(image)
+sp, reset = struct.unpack("<II", image[:8])
+assert 0x20000000 < sp <= 0x20004000 and 0x08001000 < reset < 0x08010000 and reset & 1
+enc = crypt(image)
+assert crypt(enc) == image
+header = struct.pack(">BLL", 1, len(enc), 0) + b"\x00" * 7
+assert len(header) == 16
+open(out_path, "wb").write(header + enc)
+pkgs = -(-len(enc) // PKG)
+print(f"wrote {out_path}: {len(enc)} bytes, {pkgs} packages, SP={sp:#x} reset={reset:#x}")

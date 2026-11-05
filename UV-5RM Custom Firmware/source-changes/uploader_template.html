@@ -1,0 +1,873 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UV-5RM Channels</title>
+<style>
+:root {
+  color-scheme: dark;
+  --bg: #000; --panel: rgba(14, 3, 3, .62); --panel-solid: #120404; --ink: #f5ecec; --muted: #b39a9a;
+  --line: #4a1616; --red: #8b0000; --red-hi: #b01212; --red-ink: #ff6b5e; --select: #520707; --warn: #ffb347; --ok: #6fd09c;
+}
+* { box-sizing: border-box; }
+html { background: var(--bg); }
+body { margin: 0; color: var(--ink); font: 14px/1.4 "Segoe UI", system-ui, sans-serif; }
+body::before {
+  content: ""; position: fixed; inset: 0; z-index: -1; opacity: .8;
+  background: url("__SKULL__") center center / min(96vw, 1180px) auto no-repeat;
+}
+header { background: rgba(50, 0, 0, .92); border-bottom: 2px solid var(--red-hi); padding: 12px 20px; display: flex; gap: 14px; align-items: center; flex-wrap: wrap; position: sticky; top: 0; z-index: 4; }
+h1 { font-size: 20px; margin: 0; letter-spacing: .03em; }
+.spacer { flex: 1; }
+main { max-width: 1320px; margin: 0 auto; padding: 14px 20px 110px; }
+button, .filebtn { font: inherit; padding: 7px 12px; border: 1px solid var(--line); border-radius: 6px; background: rgba(30, 6, 6, .95); color: var(--ink); cursor: pointer; display: inline-block; }
+button:hover:not(:disabled), .filebtn:hover { border-color: var(--red-hi); background: var(--select); }
+button:disabled { opacity: .45; cursor: not-allowed; }
+button.primary { background: var(--red); border-color: var(--red-hi); font-weight: 600; }
+button.primary:hover:not(:disabled) { background: var(--red-hi); }
+button.link { background: none; border: 0; padding: 0; color: var(--red-ink); text-decoration: underline; }
+:focus-visible { outline: 2px solid var(--red-ink); outline-offset: 1px; }
+input, select, textarea { font: inherit; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; background: #0c0202; color: var(--ink); min-width: 0; }
+input[type=checkbox] { accent-color: var(--red-hi); width: 16px; height: 16px; padding: 0; }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; margin-bottom: 10px; }
+.toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+#search { flex: 1 1 240px; }
+.hidden { display: none !important; }
+#notice { margin: 0; }
+#notice.err { color: var(--warn); font-weight: 600; }
+#notice.ok { color: var(--ok); }
+details.sec { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; margin-bottom: 8px; overflow: hidden; }
+details.sec > summary { background: rgba(70, 0, 0, .5); padding: 8px 10px; cursor: pointer; display: flex; gap: 8px; align-items: center; font-weight: 600; }
+summary .count { margin-left: auto; font-weight: 400; color: var(--muted); font-size: 12px; white-space: nowrap; }
+.tablewrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { text-align: left; font-size: 12px; color: var(--muted); font-weight: 600; padding: 5px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+td { padding: 4px 8px; border-bottom: 1px solid rgba(74, 22, 22, .55); }
+tr:last-child td { border-bottom: 0; }
+tbody tr { cursor: pointer; }
+tbody tr:hover td { background: var(--select); }
+td.nm { font-weight: 600; white-space: nowrap; }
+td.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.tag { font-size: 11px; padding: 1px 6px; border-radius: 10px; border: 1px solid var(--red-hi); color: var(--red-ink); white-space: nowrap; }
+.tag.new { border-color: var(--warn); color: var(--warn); }
+.muted { color: var(--muted); font-size: 12px; }
+.bar { position: fixed; left: 0; right: 0; bottom: 0; background: rgba(32, 0, 0, .96); border-top: 2px solid var(--red-hi); padding: 10px 20px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; z-index: 4; }
+#tally { font-weight: 600; }
+progress { flex: 1 1 200px; height: 12px; accent-color: var(--red-hi); }
+dialog { background: var(--panel-solid); color: var(--ink); border: 2px solid var(--red-hi); border-radius: 10px; max-width: min(620px, 94vw); padding: 16px; }
+dialog::backdrop { background: rgba(0, 0, 0, .75); }
+dialog h2 { margin: 0 0 10px; font-size: 17px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; }
+.grid label { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--muted); }
+.grid label.wide { grid-column: 1 / -1; }
+.grid label.check { flex-direction: row; align-items: center; gap: 8px; color: var(--ink); font-size: 14px; }
+.actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px; flex-wrap: wrap; }
+.actions .danger { margin-right: auto; }
+#formErr { color: var(--warn); font-weight: 600; margin: 8px 0 0; min-height: 1.2em; }
+#diffList { max-height: 240px; overflow: auto; margin: 8px 0; padding: 0; list-style: none; font-size: 13px; }
+#diffList li { padding: 2px 0; border-bottom: 1px solid rgba(74, 22, 22, .55); }
+</style>
+</head>
+<body>
+<header>
+  <h1>UV-5RM Channels</h1>
+  <span id="source" class="muted"></span>
+  <span class="spacer"></span>
+  <label class="filebtn" tabindex="0">Open CSV or backup<input type="file" id="fileIn" accept=".csv,.bin,text/csv" class="hidden"></label>
+  <button id="saveCsv">Save CSV</button>
+</header>
+
+<main>
+  <div id="noSerial" class="panel hidden"><p style="margin:0"><b>This browser can't reach the radio.</b> Open this file in Chrome or Edge to read and upload.</p></div>
+  <div class="panel"><p id="notice" role="status">Connect the radio, turn it on, and leave it on its normal screen. Close any other program using the cable first.</p></div>
+  <div class="panel toolbar">
+    <input type="search" id="search" placeholder="Search name, frequency, or notes" aria-label="Search channels">
+    <label class="toolbar" style="gap:6px"><input type="checkbox" id="onlyChanged"> Different from radio</label>
+    <button id="addCh">Add channel</button>
+  </div>
+  <div id="sections"></div>
+  <div id="noMatch" class="panel hidden muted">No channels match.</div>
+</main>
+
+<div class="bar">
+  <span id="tally"></span>
+  <progress id="prog" class="hidden" max="100" value="0"></progress>
+  <span class="spacer"></span>
+  <button id="readBtn">Compare with radio</button>
+  <button id="useRadio" class="hidden">Use radio's channels</button>
+  <button id="uploadBtn" class="primary">Upload to radio</button>
+</div>
+
+<dialog id="editDlg" aria-labelledby="editTitle">
+  <h2 id="editTitle">Edit channel</h2>
+  <div class="grid">
+    <label>Channel number <input type="number" id="fNum" min="1" max="1000"></label>
+    <label>Name (12 characters) <input type="text" id="fName" maxlength="12"></label>
+    <label>Receive MHz <input type="text" id="fFreq" inputmode="decimal"></label>
+    <label>Transmit
+      <select id="fDuplex"><option value="off">Receive only</option><option value="">Same as receive</option><option value="+">Offset up (+)</option><option value="-">Offset down (-)</option></select>
+    </label>
+    <label>Offset MHz <input type="text" id="fOffset" inputmode="decimal"></label>
+    <label>Tone type
+      <select id="fTone"><option value="">None</option><option value="Tone">Transmit tone</option><option value="TSQL">Tone both ways</option><option value="DTCS">DCS</option></select>
+    </label>
+    <label>Tone Hz or DCS code <input type="text" id="fToneVal" placeholder="100.0 or 244"></label>
+    <label>Bandwidth
+      <select id="fMode"><option>FM</option><option>NFM</option><option>AM</option></select>
+    </label>
+    <label>Power
+      <select id="fPower"><option value="2">Mid (5 W setting)</option><option value="1">Low (0.5-2 W setting)</option><option value="0">High (8 W setting)</option></select>
+    </label>
+    <label class="check"><input type="checkbox" id="fScan"> Include in scans</label>
+    <label class="wide">Notes (saved in the CSV, not on the radio) <input type="text" id="fNote"></label>
+  </div>
+  <p class="muted">The radio's modes go by channel number, so moving a channel can move it to a different mode.</p>
+  <p id="formErr" role="alert"></p>
+  <div class="actions">
+    <button id="delBtn" class="danger">Delete channel</button>
+    <button id="cancelBtn">Cancel</button>
+    <button id="okBtn" class="primary">Apply</button>
+  </div>
+</dialog>
+
+<dialog id="confirmDlg" aria-labelledby="confirmTitle">
+  <h2 id="confirmTitle">Upload to radio?</h2>
+  <p id="confirmText" style="margin:0"></p>
+  <ul id="diffList"></ul>
+  <p class="muted" style="margin:0">A backup of the radio's channels downloads first. The radio restarts when it finishes. Don't unplug it until this page says it's done.</p>
+  <div class="actions">
+    <button id="confirmNo">Cancel</button>
+    <button id="confirmYes" class="primary">Upload</button>
+  </div>
+</dialog>
+
+<script>
+const BUILTIN_CSV = __CSV__;
+const SECTIONS = __SECTIONS__;
+const DCS_CODES = __DCS__;
+const MAX_CHANNELS = 1000, REC = 32, TABLE_BYTES = MAX_CHANNELS * REC, SECTOR_CH = 128;
+const REQUIRED = ["Location", "Name", "Frequency", "Duplex", "Offset", "Tone", "rToneFreq", "cToneFreq", "DtcsCode", "DtcsPolarity", "RxDtcsCode", "Mode", "Skip", "Power", "Comment"];
+// Transmit plan built into the firmware. Outside it the radio shows TX PROHIBITED.
+const TX_PLAN = [[144e6, 148e6], [222e6, 225e6], [420e6, 450e6], [462.55e6, 462.725e6], [467.55e6, 467.725e6], [151.82e6, 151.94e6], [154.57e6, 154.6e6]];
+
+/* ---------- CSV (raw fields kept so unedited rows save byte for byte) ---------- */
+function parseCsv(text) {
+  const bom = text.charCodeAt(0) === 0xFEFF ? "﻿" : "";
+  const s = bom ? text.slice(1) : text;
+  const rows = [];
+  let fields = [], start = 0, quoted = false;
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    if (ch === '"') quoted = !quoted;
+    else if (!quoted && ch === ",") { fields.push(s.slice(start, i)); start = i + 1; }
+    else if (!quoted && ch === "\n") {
+      const end = s[i - 1] === "\r" && i - 1 >= start ? i - 1 : i;
+      fields.push(s.slice(start, end));
+      rows.push({ fields, eol: s.slice(end, i + 1) });
+      fields = []; start = i + 1;
+    }
+  }
+  if (start < s.length || fields.length) { fields.push(s.slice(start)); rows.push({ fields, eol: "" }); }
+  return { bom, rows };
+}
+const unquote = raw => raw.length > 1 && raw[0] === '"' && raw[raw.length - 1] === '"' ? raw.slice(1, -1).replace(/""/g, '"') : raw;
+const quote = v => /[",\r\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
+
+function channelsFromCsv(text) {
+  const parsed = parseCsv(text);
+  if (!parsed.rows.length) throw new Error("That file is empty.");
+  const header = parsed.rows[0].fields.map(unquote);
+  const col = Object.fromEntries(header.map((h, i) => [h, i]));
+  const missing = REQUIRED.filter(h => !(h in col));
+  if (missing.length) throw new Error("That doesn't look like a channel CSV. Missing: " + missing.join(", ") + ".");
+  const chans = [], seen = new Set();
+  parsed.rows.slice(1).forEach((row, i) => {
+    if (row.fields.length === 1 && !row.fields[0].trim()) return;
+    const get = h => unquote(row.fields[col[h]] ?? "");
+    const num = Number(get("Location"));
+    if (!Number.isInteger(num) || num < 1 || num > MAX_CHANNELS) throw new Error(`Line ${i + 2}: channel number "${get("Location")}" isn't 1 to ${MAX_CHANNELS}.`);
+    if (seen.has(num)) throw new Error(`Channel ${num} appears twice in that file.`);
+    seen.add(num);
+    chans.push({
+      num, name: get("Name"), freq: get("Frequency"), duplex: get("Duplex"), offset: get("Offset"), tone: get("Tone"),
+      rtone: get("rToneFreq"), ctone: get("cToneFreq"), dcs: get("DtcsCode"), rxdcs: get("RxDtcsCode"), pol: get("DtcsPolarity"),
+      mode: get("Mode"), skip: get("Skip"), powerRaw: powerRawFromText(get("Power")), powerText: get("Power"), note: get("Comment"),
+      extra: null, csvRow: row,
+    });
+  });
+  if (!chans.length) throw new Error("That file has no channels.");
+  return { parsed, col, chans };
+}
+
+function powerRawFromText(t) {
+  const w = parseFloat(t);
+  if (!Number.isFinite(w)) return 2;
+  return w > 6 ? 0 : w > 2 ? 2 : 1;
+}
+
+/* ---------- 32-byte channel record: same layout CHIRP wrote and the firmware reads ---------- */
+const to10Hz = mhz => Math.round(parseFloat(mhz) * 1e5);
+function bcdBytes(v10hz) {
+  const s = String(v10hz).padStart(8, "0");
+  return [s.slice(6, 8), s.slice(4, 6), s.slice(2, 4), s.slice(0, 2)].map(p => parseInt(p, 16));
+}
+const fromBcd = (b, o) => { let v = 0; for (let i = 3; i >= 0; i--) v = v * 100 + (b[o + i] >> 4) * 10 + (b[o + i] & 15); return v; };
+
+function toneCode(hz) { return Math.round(parseFloat(hz) * 10); }
+function dcsCode(code, pol) {
+  const i = DCS_CODES.indexOf(String(code).padStart(3, "0"));
+  if (i < 0) throw new Error(`DCS code ${code} isn't a standard code.`);
+  return i + 1 + (pol === "R" ? 105 : 0);
+}
+
+function encode(c) {
+  const b = new Uint8Array(REC).fill(0xFF);
+  const rx = to10Hz(c.freq);
+  b.set(bcdBytes(rx), 0);
+  if (c.duplex !== "off") {
+    const off = to10Hz(c.offset || "0");
+    b.set(bcdBytes(c.duplex === "+" ? rx + off : c.duplex === "-" ? rx - off : rx), 4);
+  }
+  let rxc = 0, txc = 0;
+  if (c.rawCodes) [rxc, txc] = c.rawCodes;
+  else if (c.tone === "Tone") txc = toneCode(c.rtone);
+  else if (c.tone === "TSQL") rxc = txc = toneCode(c.ctone);
+  else if (c.tone === "DTCS") {
+    const pol = c.pol || "NN";
+    txc = dcsCode(c.dcs, pol[0]);
+    rxc = dcsCode(c.rxdcs || c.dcs, pol[1]);
+  }
+  b[8] = rxc & 255; b[9] = rxc >> 8; b[10] = txc & 255; b[11] = txc >> 8;
+  const x = c.extra || {};
+  b[12] = x.group ?? 0;
+  b[13] = x.ptt ?? 0;
+  b[14] = c.powerRaw;
+  b[15] = ((x.flags ?? 0) & ~0x44) | (c.skip === "S" ? 0 : 0x04) | (c.mode === "NFM" ? 0x40 : 0);
+  if (x.decoder) b.set(x.decoder, 16);
+  const name = (c.name || "").slice(0, 12);
+  for (let i = 0; i < name.length; i++) {
+    const code = name.charCodeAt(i);
+    if (code < 32 || code > 126) throw new Error(`Channel ${c.num}: the name can only use plain keyboard characters.`);
+    b[20 + i] = code;
+  }
+  return b;
+}
+
+const isBlank = (t, n) => { for (let i = 0; i < REC; i++) if (t[n * REC + i] !== 0xFF) return false; return true; };
+
+function decode(t, n) {
+  const r = t.subarray(n * REC, (n + 1) * REC);
+  const rx = fromBcd(r, 0), rxOnly = r[4] === 0xFF && r[5] === 0xFF && r[6] === 0xFF && r[7] === 0xFF;
+  const tx = rxOnly ? rx : fromBcd(r, 4);
+  const mhz = v => (v / 1e5).toFixed(6);
+  const rxc = r[8] | r[9] << 8, txc = r[10] | r[11] << 8;
+  const c = {
+    num: n + 1, freq: mhz(rx), duplex: rxOnly ? "off" : tx === rx ? "" : tx > rx ? "+" : "-", offset: mhz(rxOnly ? 0 : Math.abs(tx - rx)),
+    tone: "", rtone: "88.5", ctone: "88.5", dcs: "023", rxdcs: "023", pol: "NN",
+    mode: rx >= 10800000 && rx <= 13600000 ? "AM" : r[15] & 0x40 ? "NFM" : "FM",
+    skip: r[15] & 0x04 ? "" : "S", powerRaw: r[14], powerText: "", note: "",
+    extra: { group: r[12], ptt: r[13], flags: r[15], decoder: r.slice(16, 20) }, csvRow: null,
+  };
+  const dcsOf = v => { const inv = v > 105; const i = (inv ? v - 105 : v) - 1; return [DCS_CODES[i], inv ? "R" : "N"]; };
+  const isDcs = v => v >= 1 && v <= 210, isTone = v => v > 250;
+  if (rxc === 0 && isTone(txc)) { c.tone = "Tone"; c.rtone = (txc / 10).toFixed(1); }
+  else if (rxc === txc && isTone(txc)) { c.tone = "TSQL"; c.ctone = (txc / 10).toFixed(1); }
+  else if (isDcs(rxc) && isDcs(txc)) {
+    const [a, ap] = dcsOf(txc), [b, bp] = dcsOf(rxc);
+    c.tone = "DTCS"; c.dcs = a; c.rxdcs = b; c.pol = ap + bp;
+  } else if (rxc || txc) { c.tone = "Mixed"; c.rawCodes = [rxc, txc]; }
+  const nameBytes = [];
+  for (let i = 20; i < 32 && r[i] !== 0xFF && r[i] !== 0; i++) nameBytes.push(r[i]);
+  c.name = String.fromCharCode(...nameBytes);
+  return c;
+}
+
+function buildTable(chans) {
+  const t = new Uint8Array(TABLE_BYTES).fill(0xFF);
+  for (const c of chans) t.set(encode(c), (c.num - 1) * REC);
+  return t;
+}
+
+function validate(c) {
+  const hz = parseFloat(c.freq) * 1e6;
+  if (!Number.isFinite(hz) || !((hz >= 16e6 && hz <= 560e6) || (hz >= 740e6 && hz <= 1120e6))) return `Channel ${c.num}: receive frequency must be within 16-560 or 740-1120 MHz.`;
+  if (c.duplex === "+" || c.duplex === "-") {
+    const off = parseFloat(c.offset);
+    if (!Number.isFinite(off) || off <= 0 || off > 100) return `Channel ${c.num}: enter an offset in MHz.`;
+  }
+  if (c.tone === "Tone" || c.tone === "TSQL") {
+    const v = parseFloat(c.tone === "Tone" ? c.rtone : c.ctone);
+    if (!(v >= 60 && v <= 260)) return `Channel ${c.num}: tone must be 60-260 Hz, like 100.0.`;
+  }
+  if (c.tone === "DTCS" && !DCS_CODES.includes(String(c.dcs).padStart(3, "0"))) return `Channel ${c.num}: ${c.dcs} isn't a standard DCS code.`;
+  if (!/^[\x20-\x7E]{0,12}$/.test(c.name || "")) return `Channel ${c.num}: names are up to 12 plain keyboard characters.`;
+  return null;
+}
+
+function txHz(c) {
+  if (c.duplex === "off") return null;
+  const rx = to10Hz(c.freq), off = to10Hz(c.offset || "0");
+  return (c.duplex === "+" ? rx + off : c.duplex === "-" ? rx - off : rx) * 10;
+}
+const txAllowed = c => { const hz = txHz(c); return hz === null || TX_PLAN.some(([a, b]) => hz >= a && hz <= b); };
+
+function fmtFreq(mhz) { const s = parseFloat(mhz).toFixed(4); return s.endsWith("0") ? s.slice(0, -1) : s; }
+function toneLabel(c) {
+  if (c.tone === "Tone") return parseFloat(c.rtone).toFixed(1);
+  if (c.tone === "TSQL") return parseFloat(c.ctone).toFixed(1) + " both";
+  if (c.tone === "DTCS") return "D" + c.dcs + (c.pol && c.pol !== "NN" ? " " + c.pol : "");
+  return c.tone === "Mixed" ? "mixed" : "-";
+}
+const POWER_NAMES = { 0: "High", 1: "Low", 2: "Mid" };
+
+/* ---------- radio link: frames match the firmware's programming protocol ---------- */
+const HANDSHAKE = new TextEncoder().encode("PROGRAMBF-5RH");
+const F_HEADER = 0xA6, CMD_READ = 0x52, CMD_WRITE = 0x57, CMD_END = 0x45, CMD_ERROR = 0xEE;
+
+function crc16(data, init = 0) {
+  let crc = init;
+  for (const byte of data) {
+    crc ^= byte << 8;
+    for (let i = 0; i < 8; i++) crc = crc & 0x8000 ? ((crc << 1) ^ 0x1021) & 0xFFFF : (crc << 1) & 0xFFFF;
+  }
+  return crc;
+}
+
+function makeFrame(cmd, addr, data = new Uint8Array(0)) {
+  const body = new Uint8Array(5 + data.length);
+  body[0] = cmd; body[1] = addr >> 8; body[2] = addr & 255; body[3] = data.length >> 8; body[4] = data.length & 255;
+  body.set(data, 5);
+  const crc = crc16(body);
+  const f = new Uint8Array(body.length + 3);
+  f[0] = F_HEADER; f.set(body, 1); f[f.length - 2] = crc >> 8; f[f.length - 1] = crc & 255;
+  return f;
+}
+
+class Link {
+  constructor(port) { this.port = port; this.buf = []; this.closed = false; this.waiter = null; }
+
+  async open() {
+    await this.port.open({ baudRate: 115200 });
+    if (this.port.setSignals) await this.port.setSignals({ dataTerminalReady: true, requestToSend: true }).catch(() => {});
+    this.writer = this.port.writable.getWriter();
+    this.reader = this.port.readable.getReader();
+    this.pump = (async () => {
+      try {
+        while (true) {
+          const { value, done } = await this.reader.read();
+          if (done) break;
+          for (const b of value) this.buf.push(b);
+          if (this.waiter) { this.waiter(); this.waiter = null; }
+        }
+      } catch (e) { /* port closed */ }
+      this.closed = true;
+      if (this.waiter) { this.waiter(); this.waiter = null; }
+    })();
+  }
+
+  async close() {
+    try { await this.reader.cancel(); } catch (e) {}
+    await this.pump;
+    try { this.reader.releaseLock(); } catch (e) {}
+    try { await this.writer.close(); } catch (e) {}
+    try { this.writer.releaseLock(); } catch (e) {}
+    try { await this.port.close(); } catch (e) {}
+  }
+
+  async take(n, deadline) {
+    while (this.buf.length < n) {
+      const left = deadline - performance.now();
+      if (left <= 0 || this.closed) return null;
+      await new Promise(res => {
+        const t = setTimeout(res, left);
+        this.waiter = () => { clearTimeout(t); res(); };
+      });
+    }
+    return this.buf.splice(0, n);
+  }
+
+  async handshake(attempts = 10) {
+    for (let i = 0; i < attempts; i++) {
+      this.buf.length = 0;
+      await this.writer.write(HANDSHAKE);
+      const r = await this.take(1, performance.now() + 1000);
+      if (r && r[0] === 0x06) return;
+    }
+    throw new Error("The radio didn't answer. Make sure it's on at its normal screen and the cable is pushed fully in.");
+  }
+
+  async recvFrame(deadline) {
+    while (true) {
+      const h = await this.take(1, deadline);
+      if (!h) return null;
+      if (h[0] === F_HEADER) break;
+    }
+    const head = await this.take(5, deadline);
+    if (!head) return null;
+    const n = head[3] << 8 | head[4];
+    const data = n ? await this.take(n, deadline) : [];
+    if (!data) return null;
+    const tail = await this.take(2, deadline);
+    if (!tail) return null;
+    if ((tail[0] << 8 | tail[1]) !== crc16([...head, ...data])) return null;
+    return { cmd: head[0], addr: head[1] << 8 | head[2], data: Uint8Array.from(data) };
+  }
+
+  async send(cmd, addr, data, timeoutMs = 2000) {
+    const frame = makeFrame(cmd, addr, data);
+    for (let i = 0; i < 5; i++) {
+      this.buf.length = 0;
+      await this.writer.write(frame);
+      const r = await this.recvFrame(performance.now() + timeoutMs);
+      if (!r) continue;
+      if (r.cmd === CMD_ERROR) throw new Error(`The radio refused a command (error ${r.data[0]}).`);
+      if (r.cmd !== cmd || r.addr !== addr) continue;
+      return r;
+    }
+    throw new Error("Lost contact with the radio. Check the cable and try again.");
+  }
+
+  async readChannels(onProgress) {
+    const t = new Uint8Array(TABLE_BYTES);
+    for (let n = 0; n < MAX_CHANNELS; n++) {
+      const r = await this.send(CMD_READ, n * REC);
+      if (r.data.length !== REC) throw new Error("The radio sent an unexpected reply.");
+      t.set(r.data, n * REC);
+      if (onProgress && n % 8 === 0) onProgress(n / MAX_CHANNELS);
+    }
+    return t;
+  }
+
+  async readSector(s) {
+    const t = new Uint8Array(SECTOR_CH * REC);
+    for (let i = 0; i < SECTOR_CH; i++) {
+      const r = await this.send(CMD_READ, (s * SECTOR_CH + i) * REC);
+      t.set(r.data, i * REC);
+    }
+    return t;
+  }
+
+  async end() {
+    try { await this.send(CMD_END, 0); } catch (e) { /* radio may reset before replying */ }
+  }
+}
+
+/* The first write to a sector erases all 128 channels in it, so a touched sector is always
+   rewritten whole, in one session, from a fresh read. */
+function touchedSectors(current, target) {
+  const out = [];
+  for (let s = 0; s < MAX_CHANNELS / SECTOR_CH; s++) {
+    const a = s * SECTOR_CH * REC, b = Math.min(a + SECTOR_CH * REC, TABLE_BYTES);
+    for (let i = a; i < b; i++) if (current[i] !== target[i]) { out.push(s); break; }
+  }
+  return out;
+}
+
+function sameBytes(a, b) { if (a.length !== b.length) return false; for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false; return true; }
+
+async function writeSectors(link, target, sectors, onProgress) {
+  let done = 0;
+  const total = sectors.length * SECTOR_CH * 2;
+  for (const s of sectors) {
+    for (let i = 0; i < SECTOR_CH; i++) {
+      const n = s * SECTOR_CH + i;
+      if (n >= MAX_CHANNELS) break;
+      await link.send(CMD_WRITE, n * REC, target.subarray(n * REC, (n + 1) * REC));
+      done++;
+      if (onProgress && i % 4 === 0) onProgress(done / total);
+    }
+  }
+  const bad = [];
+  for (const s of sectors) {
+    const back = await link.readSector(s);
+    const want = target.subarray(s * SECTOR_CH * REC, (s + 1) * SECTOR_CH * REC);
+    if (!sameBytes(back, want)) bad.push(s);
+    done += SECTOR_CH;
+    if (onProgress) onProgress(done / total);
+  }
+  return bad;
+}
+
+/* ---------- app state and rendering ---------- */
+const $ = id => document.getElementById(id);
+let chans = [], csvBase = null, sourceName = "", dirty = false, radioTable = null, busy = false, port = null, editing = null;
+
+function setNotice(msg, kind) { const n = $("notice"); n.textContent = msg; n.className = kind || ""; }
+function setDirty(v) { dirty = v; $("source").textContent = sourceName + (dirty ? " (unsaved changes)" : ""); }
+function setBusy(v) { busy = v; for (const id of ["readBtn", "uploadBtn", "useRadio", "saveCsv", "addCh"]) $(id).disabled = v; $("prog").classList.toggle("hidden", !v); if (!v) $("prog").value = 0; }
+const progress = f => { $("prog").value = Math.round(f * 100); };
+
+function channelDiff(c) {
+  if (!radioTable) return null;
+  try {
+    const a = encode(c), n = c.num - 1;
+    if (isBlank(radioTable, n)) return "new";
+    for (let i = 0; i < REC; i++) if (a[i] !== radioTable[n * REC + i]) return "changed";
+  } catch (e) { return "changed"; }
+  return null;
+}
+
+function sectionGroups() {
+  const byNum = new Map(chans.map(c => [c.num, c]));
+  const used = new Set(), groups = [];
+  for (const s of SECTIONS) {
+    const list = s.channels.filter(n => byNum.has(n)).map(n => { used.add(n); return byNum.get(n); });
+    if (list.length) groups.push({ title: s.title, list });
+  }
+  const rest = chans.filter(c => !used.has(c.num)).sort((a, b) => a.num - b.num);
+  if (rest.length) groups.push({ title: "Other channels", list: rest });
+  return groups;
+}
+
+function matches(c) {
+  const q = $("search").value.trim().toLowerCase();
+  if ($("onlyChanged").checked && !channelDiff(c)) return false;
+  if (!q) return true;
+  return (c.num + " " + c.name + " " + fmtFreq(c.freq) + " " + c.mode + " " + (c.note || "")).toLowerCase().includes(q);
+}
+
+const open = new Set();
+function render() {
+  const host = $("sections");
+  host.textContent = "";
+  let any = false;
+  for (const g of sectionGroups()) {
+    const shown = g.list.filter(matches);
+    if (!shown.length) continue;
+    any = true;
+    const d = document.createElement("details");
+    d.className = "sec";
+    d.open = open.has(g.title) || !!$("search").value.trim() || $("onlyChanged").checked;
+    d.addEventListener("toggle", () => { d.open ? open.add(g.title) : open.delete(g.title); });
+    const sum = document.createElement("summary");
+    const box = document.createElement("input");
+    box.type = "checkbox";
+    box.setAttribute("aria-label", "Include all shown in " + g.title + " in scans");
+    const on = shown.filter(c => c.skip !== "S").length;
+    box.checked = on === shown.length;
+    box.indeterminate = on > 0 && on < shown.length;
+    box.addEventListener("change", () => {
+      for (const c of shown) setField(c, { skip: box.checked ? "" : "S" });
+      setDirty(true); render();
+    });
+    const title = document.createElement("span"); title.textContent = g.title;
+    const count = document.createElement("span"); count.className = "count";
+    const changed = g.list.filter(c => channelDiff(c)).length;
+    count.textContent = g.list.length + " channels" + (changed ? `, ${changed} different` : "");
+    sum.append(box, title, count);
+    d.append(sum);
+    const wrap = document.createElement("div"); wrap.className = "tablewrap";
+    const table = document.createElement("table");
+    table.innerHTML = "<thead><tr><th>Scan</th><th>CH</th><th>Name</th><th>RX MHz</th><th>TX MHz</th><th>Tone</th><th>Mode</th><th>Power</th><th></th><th>Notes</th></tr></thead>";
+    const tb = document.createElement("tbody");
+    for (const c of shown) {
+      const tr = document.createElement("tr");
+      const hz = txHz(c);
+      const cells = [["", ""], ["num", String(c.num).padStart(3, "0")], ["nm", c.name], ["num", fmtFreq(c.freq)],
+        ["num", hz === null ? "RX only" : fmtFreq(hz / 1e6)], ["", toneLabel(c)], ["", c.mode], ["", POWER_NAMES[c.powerRaw] ?? "?"], ["", ""], ["", c.note || ""]];
+      cells.forEach(([cls, text]) => { const td = document.createElement("td"); if (cls) td.className = cls; td.textContent = text; tr.append(td); });
+      const cb = document.createElement("input");
+      cb.type = "checkbox"; cb.checked = c.skip !== "S";
+      cb.setAttribute("aria-label", "Include channel " + c.num + " in scans");
+      cb.addEventListener("click", e => e.stopPropagation());
+      cb.addEventListener("change", () => { setField(c, { skip: cb.checked ? "" : "S" }); setDirty(true); render(); });
+      tr.children[0].append(cb);
+      const flag = channelDiff(c);
+      if (flag) { const t = document.createElement("span"); t.className = "tag" + (flag === "new" ? " new" : ""); t.textContent = flag === "new" ? "not on radio" : "different"; tr.children[8].append(t); }
+      if (!txAllowed(c)) { const t = document.createElement("span"); t.className = "tag new"; t.textContent = "TX blocked"; t.title = "Outside the radio's transmit plan"; tr.children[8].append(" ", t); }
+      tr.addEventListener("click", () => openEditor(c));
+      tb.append(tr);
+    }
+    table.append(tb); wrap.append(table); d.append(wrap); host.append(d);
+  }
+  $("noMatch").classList.toggle("hidden", any);
+  const scanning = chans.filter(c => c.skip !== "S").length;
+  $("tally").textContent = `${chans.length} channels, ${scanning} in scans`;
+}
+
+/* Edits go through here so the row's original CSV text is only replaced when it really changes. */
+function setField(c, patch) { Object.assign(c, patch); c.edited = true; }
+
+function loadCsvText(text, label) {
+  const r = channelsFromCsv(text);
+  chans = r.chans; csvBase = r; sourceName = label; radioTable = null;
+  $("useRadio").classList.add("hidden");
+  setDirty(false);
+  render();
+}
+
+function exportCsv() {
+  const header = csvBase ? csvBase.parsed.rows[0].fields.map(unquote) : ["Location", "Name", "Frequency", "Duplex", "Offset", "Tone", "rToneFreq", "cToneFreq", "DtcsCode", "DtcsPolarity", "RxDtcsCode", "CrossMode", "Mode", "TStep", "Skip", "Power", "Comment", "URCALL", "RPT1CALL", "RPT2CALL", "DVCODE"];
+  const eol = csvBase ? (csvBase.parsed.rows[0].eol || "\r\n") : "\r\n";
+  const headLine = csvBase ? csvBase.parsed.rows[0].fields.join(",") + csvBase.parsed.rows[0].eol : header.join(",") + eol;
+  const sorted = chans.slice().sort((a, b) => a.num - b.num);
+  const lines = sorted.map(c => {
+    if (c.csvRow && !c.edited) return c.csvRow.fields.join(",") + c.csvRow.eol;
+    const val = {
+      Location: String(c.num), Name: c.name, Frequency: parseFloat(c.freq).toFixed(6), Duplex: c.duplex, Offset: parseFloat(c.offset || 0).toFixed(6),
+      Tone: c.tone === "Mixed" ? "" : c.tone, rToneFreq: c.rtone || "88.5", cToneFreq: c.ctone || "88.5", DtcsCode: c.dcs || "023", DtcsPolarity: c.pol || "NN",
+      RxDtcsCode: c.rxdcs || c.dcs || "023", CrossMode: "Tone->Tone", Mode: c.mode, TStep: "5.00", Skip: c.skip,
+      Power: c.powerText && powerRawFromText(c.powerText) === c.powerRaw ? c.powerText : { 0: "8.0W", 1: "1.0W", 2: "5.0W" }[c.powerRaw], Comment: c.note || "",
+    };
+    return header.map(h => quote(val[h] ?? "")).join(",") + eol;
+  });
+  return (csvBase ? csvBase.parsed.bom : "") + headLine + lines.join("");
+}
+
+function saveFile(name, data, type) {
+  const url = URL.createObjectURL(new Blob([data], { type }));
+  const a = document.createElement("a");
+  a.href = url; a.download = name;
+  document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+}
+
+const stamp = () => new Date().toISOString().slice(0, 19).replace(/[-:]/g, "").replace("T", "-");
+
+/* ---------- editor ---------- */
+function openEditor(c) {
+  editing = c;
+  $("editTitle").textContent = c ? `Edit channel ${c.num}` : "Add channel";
+  const v = c || { num: nextFree(), name: "", freq: "146.520000", duplex: "off", offset: "0", tone: "", mode: "FM", powerRaw: 2, skip: "", note: "" };
+  $("fNum").value = v.num; $("fName").value = v.name; $("fFreq").value = parseFloat(v.freq).toString();
+  $("fDuplex").value = v.duplex; $("fOffset").value = parseFloat(v.offset || 0).toString();
+  $("fTone").value = v.tone === "Mixed" ? "" : v.tone;
+  $("fToneVal").value = v.tone === "Tone" ? v.rtone : v.tone === "TSQL" ? v.ctone : v.tone === "DTCS" ? v.dcs : "";
+  $("fMode").value = v.mode; $("fPower").value = String(v.powerRaw); $("fScan").checked = v.skip !== "S"; $("fNote").value = v.note || "";
+  $("delBtn").classList.toggle("hidden", !c);
+  $("formErr").textContent = "";
+  $("editDlg").showModal();
+}
+
+function nextFree() {
+  const used = new Set(chans.map(c => c.num));
+  for (let n = 1; n <= MAX_CHANNELS; n++) if (!used.has(n)) return n;
+  return MAX_CHANNELS;
+}
+
+function applyEditor() {
+  const num = Number($("fNum").value);
+  if (!Number.isInteger(num) || num < 1 || num > MAX_CHANNELS) { $("formErr").textContent = `Channel number must be 1 to ${MAX_CHANNELS}.`; return; }
+  if (chans.some(c => c.num === num && c !== editing)) { $("formErr").textContent = `Channel ${num} is already in use.`; return; }
+  const tone = $("fTone").value, tv = $("fToneVal").value.trim();
+  const patch = {
+    num, name: $("fName").value, freq: $("fFreq").value.trim(), duplex: $("fDuplex").value, offset: $("fOffset").value.trim() || "0", tone,
+    mode: $("fMode").value, powerRaw: Number($("fPower").value), skip: $("fScan").checked ? "" : "S", note: $("fNote").value, rawCodes: undefined,
+  };
+  if (tone === "Tone") patch.rtone = tv;
+  if (tone === "TSQL") patch.ctone = tv;
+  if (tone === "DTCS") { patch.dcs = tv.padStart(3, "0"); patch.rxdcs = patch.dcs; patch.pol = "NN"; }
+  const trial = { ...(editing || { extra: null, csvRow: null, rtone: "88.5", ctone: "88.5", dcs: "023", rxdcs: "023", pol: "NN", powerText: "" }), ...patch };
+  const err = validate(trial);
+  if (err) { $("formErr").textContent = err.replace(/^Channel \d+: /, ""); return; }
+  if (editing) setField(editing, patch); else { trial.edited = true; chans.push(trial); }
+  setDirty(true);
+  $("editDlg").close();
+  render();
+}
+
+/* ---------- radio actions ---------- */
+async function getPort() {
+  if (!port) port = await navigator.serial.requestPort();
+  return port;
+}
+
+async function withLink(fn) {
+  let link;
+  try {
+    link = new Link(await getPort());
+    await link.open();
+    await link.handshake();
+    return await fn(link);
+  } finally {
+    if (link) await link.close();
+  }
+}
+
+function describeError(e) {
+  if (e && e.name === "NotFoundError") return "No port was selected. Pick the USB-SERIAL CH340 entry.";
+  if (e && (e.name === "InvalidStateError" || e.name === "NetworkError")) return "The cable's port is busy or unplugged. Close other radio programs and try again.";
+  return e && e.message ? e.message : String(e);
+}
+
+function diffSummary(current, target) {
+  const lines = [];
+  let changed = 0, added = 0, removed = 0;
+  for (let n = 0; n < MAX_CHANNELS; n++) {
+    const a = current.subarray(n * REC, (n + 1) * REC), b = target.subarray(n * REC, (n + 1) * REC);
+    if (sameBytes(a, b)) continue;
+    const was = isBlank(current, n), gone = isBlank(target, n);
+    if (was) added++; else if (gone) removed++; else changed++;
+    const before = was ? null : decode(current, n), after = gone ? null : decode(target, n);
+    const label = (after || before).name || "(no name)";
+    lines.push(`CH ${String(n + 1).padStart(3, "0")} ${label}: ` + (was ? "added" : gone ? "removed from radio" : "changed"));
+  }
+  return { lines, changed, added, removed };
+}
+
+function checkAll() {
+  for (const c of chans) {
+    const err = validate(c);
+    if (err) throw new Error(err);
+  }
+  return buildTable(chans);
+}
+
+async function compareWithRadio() {
+  setBusy(true);
+  setNotice("Reading the radio...");
+  try {
+    const table = await withLink(async link => {
+      const t = await link.readChannels(progress);
+      await link.end();
+      return t;
+    });
+    radioTable = table;
+    const target = checkAll();
+    const d = diffSummary(table, target);
+    const total = d.changed + d.added + d.removed;
+    $("useRadio").classList.remove("hidden");
+    if (!total) setNotice("The radio matches this list exactly.", "ok");
+    else setNotice(`${d.changed} changed, ${d.added} not on the radio, and ${d.removed} on the radio but not in this list. Different channels are marked below.`);
+    render();
+    return table;
+  } catch (e) {
+    setNotice(describeError(e), "err");
+    return null;
+  } finally { setBusy(false); }
+}
+
+function useRadioChannels() {
+  if (!radioTable) return;
+  const notes = new Map(chans.map(c => [c.num, c]));
+  const next = [];
+  for (let n = 0; n < MAX_CHANNELS; n++) {
+    if (isBlank(radioTable, n)) continue;
+    const c = decode(radioTable, n);
+    const old = notes.get(n + 1);
+    if (old && old.name === c.name && to10Hz(old.freq) === to10Hz(c.freq)) c.note = old.note;
+    c.edited = true;
+    next.push(c);
+  }
+  chans = next; sourceName = "Read from radio"; setDirty(true);
+  setNotice(`Now showing the ${next.length} channels from the radio. Use Save CSV to keep them.`, "ok");
+  render();
+}
+
+let pendingTarget = null, pendingCurrent = null;
+async function startUpload() {
+  let target;
+  try { target = checkAll(); } catch (e) { setNotice(e.message, "err"); return; }
+  setBusy(true);
+  setNotice("Reading the radio to see what would change...");
+  try {
+    const current = await withLink(async link => {
+      const t = await link.readChannels(progress);
+      await link.end();
+      return t;
+    });
+    radioTable = current;
+    render();
+    const d = diffSummary(current, target);
+    if (!d.lines.length) { setNotice("Nothing to upload. The radio already matches this list.", "ok"); return; }
+    pendingTarget = target; pendingCurrent = current;
+    const parts = [];
+    if (d.changed) parts.push(`${d.changed} changed`);
+    if (d.added) parts.push(`${d.added} added`);
+    if (d.removed) parts.push(`${d.removed} removed`);
+    $("confirmText").textContent = parts.join(", ") + ". The radio will match this list exactly.";
+    const list = $("diffList"); list.textContent = "";
+    for (const l of d.lines.slice(0, 200)) { const li = document.createElement("li"); li.textContent = l; list.append(li); }
+    if (d.lines.length > 200) { const li = document.createElement("li"); li.textContent = `...and ${d.lines.length - 200} more`; list.append(li); }
+    setNotice("Waiting for you to confirm the upload.");
+    $("confirmDlg").showModal();
+  } catch (e) {
+    setNotice(describeError(e), "err");
+  } finally { setBusy(false); }
+}
+
+async function finishUpload() {
+  const target = pendingTarget, preview = pendingCurrent;
+  pendingTarget = pendingCurrent = null;
+  setBusy(true);
+  setNotice("Uploading. Don't unplug the radio...");
+  let wrote = false;
+  try {
+    const result = await withLink(async link => {
+      const current = await link.readChannels(f => progress(f * 0.3));
+      if (!sameBytes(current, preview)) throw new Error("The radio's channels changed since the preview, so nothing was written. Try the upload again.");
+      saveFile(`radio-backup-${stamp()}.bin`, current, "application/octet-stream");
+      const sectors = touchedSectors(current, target);
+      wrote = true;
+      const bad = await writeSectors(link, target, sectors, f => progress(0.3 + f * 0.7));
+      await link.end();
+      return { sectors, bad, current };
+    });
+    if (result.bad.length) {
+      setNotice("Some channels didn't match when read back. Upload again, and if it repeats, restore your backup. It was saved before writing.", "err");
+      return;
+    }
+    radioTable = target;
+    setNotice("Done and verified. The radio is restarting.", "ok");
+    render();
+  } catch (e) {
+    const msg = describeError(e);
+    setNotice(wrote ? msg + " The upload was interrupted, so some channels may be blank until you upload again. Your backup was saved first." : msg, "err");
+  } finally { setBusy(false); }
+}
+
+/* ---------- wiring ---------- */
+$("search").addEventListener("input", render);
+$("onlyChanged").addEventListener("change", render);
+$("addCh").addEventListener("click", () => openEditor(null));
+$("okBtn").addEventListener("click", applyEditor);
+$("cancelBtn").addEventListener("click", () => $("editDlg").close());
+$("delBtn").addEventListener("click", () => {
+  if (editing) { chans = chans.filter(c => c !== editing); setDirty(true); }
+  $("editDlg").close(); render();
+});
+$("readBtn").addEventListener("click", compareWithRadio);
+$("useRadio").addEventListener("click", useRadioChannels);
+$("uploadBtn").addEventListener("click", startUpload);
+$("confirmNo").addEventListener("click", () => { $("confirmDlg").close(); pendingTarget = pendingCurrent = null; setNotice("Upload canceled. Nothing was written."); });
+$("confirmYes").addEventListener("click", () => { $("confirmDlg").close(); finishUpload(); });
+$("saveCsv").addEventListener("click", () => {
+  saveFile(`channels-${stamp()}.csv`, exportCsv(), "text/csv");
+  setDirty(false);
+  const mixed = chans.filter(c => c.tone === "Mixed").length;
+  setNotice("Saved the CSV to your Downloads folder." + (mixed ? ` ${mixed} channels use mixed tones a CSV can't hold, so those were saved without tones.` : ""), mixed ? "err" : "ok");
+});
+$("fileIn").addEventListener("change", async e => {
+  const file = e.target.files[0];
+  e.target.value = "";
+  if (!file) return;
+  try {
+    if (/\.bin$/i.test(file.name)) {
+      const data = new Uint8Array(await file.arrayBuffer());
+      if (data.length !== TABLE_BYTES) throw new Error(`That backup is ${data.length} bytes, not the ${TABLE_BYTES} a channel backup should be.`);
+      const next = [];
+      for (let n = 0; n < MAX_CHANNELS; n++) if (!isBlank(data, n)) { const c = decode(data, n); c.edited = true; next.push(c); }
+      chans = next; radioTable = null; sourceName = file.name; setDirty(true);
+      render();
+    } else {
+      loadCsvText(await file.text(), file.name);
+    }
+    setNotice(`Opened ${file.name}.`, "ok");
+  } catch (err) {
+    setNotice(err.message + " Your current list is unchanged.", "err");
+  }
+});
+document.querySelector(".filebtn").addEventListener("keydown", e => {
+  if (e.key === "Enter" || e.key === " ") { e.preventDefault(); $("fileIn").click(); }
+});
+window.addEventListener("beforeunload", e => { if (dirty || busy) { e.preventDefault(); e.returnValue = ""; } });
+
+if (!("serial" in navigator)) {
+  $("noSerial").classList.remove("hidden");
+  for (const id of ["readBtn", "uploadBtn"]) $(id).disabled = true;
+}
+loadCsvText(BUILTIN_CSV, "Your channel list");
+</script>
+</body>
+</html>

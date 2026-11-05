@@ -1,0 +1,11 @@
+# Personal: channel dumps, settings and calibration from specific radios.
+UV-5RM Custom Firmware/backup/
+*.img
+radio_channels*.bin
+radio_settings*.bin
+radio_apps.txt
+
+# Build output
+target/
+__pycache__/
+*.pyc

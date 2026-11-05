@@ -1,0 +1,14 @@
+[workspace]
+
+[package]
+name = "sim"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "sim"
+path = "main.rs"
+
+[dependencies]
+bf5rh-abi = { path = "../../firmware-source/abi" }
+embedded-graphics = "0.8"

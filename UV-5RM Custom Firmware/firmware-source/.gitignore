@@ -1,0 +1,12 @@
+/target
+/at32f421-pac/target
+*.bin
+*.BF
+*.app
+*.sat
+/apps/*/target
+/apps/*/*/target
+/sgp4mini/target
+/tools/mkrecord/target
+/tools/__pycache__
+

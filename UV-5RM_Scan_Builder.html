@@ -1,0 +1,505 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UV-5RM Scan Builder</title>
+<style>
+:root {
+  --bg: #f3f5f8; --panel: #ffffff; --ink: #1b2430; --muted: #5d6877; --line: #d5dbe3;
+  --navy: #1f3a5f; --navy-ink: #ffffff; --section: #e3e9f1; --on: #e6f0ff; --warn: #9c2a2a; --ok: #1d6b42;
+  color-scheme: light dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #12171e; --panel: #1b222c; --ink: #e8ecf1; --muted: #9aa6b4; --line: #323c49;
+    --navy: #2f5588; --navy-ink: #ffffff; --section: #263140; --on: #1e3350; --warn: #ef8f8f; --ok: #6fd09c;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.4 "Segoe UI", system-ui, sans-serif; }
+header { background: var(--navy); color: var(--navy-ink); padding: 14px 20px; }
+h1 { font-size: 20px; margin: 0 0 2px; }
+header p { margin: 0; opacity: .9; font-size: 13px; }
+.layout { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 16px; padding: 16px 20px 96px; max-width: 1400px; margin: 0 auto; align-items: start; }
+@media (max-width: 900px) { .layout { grid-template-columns: minmax(0, 1fr); } }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px; margin-bottom: 12px; }
+.panel h2 { font-size: 14px; margin: 0 0 8px; color: var(--ink); }
+.toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+input[type=search], input[type=text] { font: inherit; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--ink); min-width: 0; }
+#search { flex: 1 1 220px; }
+#spec { flex: 1 1 200px; }
+button, .filebtn { font: inherit; padding: 6px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--ink); cursor: pointer; display: inline-block; }
+button:hover:not(:disabled), .filebtn:hover { border-color: var(--navy); }
+button:disabled { opacity: .5; cursor: not-allowed; }
+button.primary { background: var(--navy); color: var(--navy-ink); border-color: var(--navy); font-weight: 600; padding: 9px 16px; }
+label.check { display: inline-flex; gap: 6px; align-items: center; cursor: pointer; }
+:focus-visible { outline: 2px solid var(--navy); outline-offset: 1px; }
+details.sec { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; margin-bottom: 8px; overflow: hidden; }
+details.sec > summary { background: var(--section); padding: 8px 10px; cursor: pointer; display: flex; gap: 8px; align-items: center; font-weight: 600; }
+summary .count { margin-left: auto; font-weight: 400; color: var(--muted); font-size: 12px; white-space: nowrap; }
+.tablewrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { text-align: left; font-size: 12px; color: var(--muted); font-weight: 600; padding: 5px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+td { padding: 4px 8px; border-bottom: 1px solid var(--line); }
+tr:last-child td { border-bottom: 0; }
+tbody tr { cursor: pointer; }
+tr.on td { background: var(--on); }
+td.nm { font-weight: 600; white-space: nowrap; }
+td.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+td.rxo { color: var(--muted); white-space: nowrap; font-size: 12px; }
+.hidden { display: none !important; }
+.savedrow { display: flex; gap: 6px; align-items: center; padding: 5px 0; border-top: 1px solid var(--line); }
+.savedrow .nm { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.savedrow small { color: var(--muted); }
+.saveform { display: flex; gap: 6px; margin-bottom: 8px; }
+.saveform input { flex: 1; }
+ol { margin: 0; padding-left: 20px; }
+ol li { margin-bottom: 6px; }
+.muted { color: var(--muted); font-size: 12px; }
+#status { font-size: 13px; min-height: 1.4em; margin-top: 8px; }
+#status.err { color: var(--warn); font-weight: 600; }
+#status.ok { color: var(--ok); }
+.linklike { border: 0; background: none; color: inherit; text-decoration: underline; padding: 0 0 0 6px; }
+.bar { position: fixed; left: 0; right: 0; bottom: 0; background: var(--panel); border-top: 1px solid var(--line); padding: 10px 20px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; z-index: 5; }
+#tally { font-size: 15px; font-weight: 600; }
+.bar .spacer { flex: 1; }
+.empty { padding: 20px; text-align: center; color: var(--muted); }
+</style>
+</head>
+<body>
+<header>
+  <h1>UV-5RM Scan Builder</h1>
+  <p>Tick the channels you want the radio to scan. Everything else stays programmed, so you can still select it by channel number.</p>
+</header>
+
+<div class="layout">
+  <main>
+    <div class="panel">
+      <div class="toolbar">
+        <input type="search" id="search" placeholder="Search name, frequency, or notes" aria-label="Search channels">
+        <label class="check"><input type="checkbox" id="onlySel"> Ticked only</label>
+        <button id="selShown">Tick all shown</button>
+        <button id="clearShown">Untick all shown</button>
+      </div>
+      <div class="toolbar" style="margin-top:8px">
+        <input type="text" id="spec" placeholder="Channel numbers, e.g. 1-7, 14, 24-29" aria-label="Channel numbers to tick">
+        <button id="specAdd">Tick these</button>
+        <button id="specOnly">Scan only these</button>
+      </div>
+      <div id="status" role="status"></div>
+    </div>
+    <div id="sections"></div>
+    <div id="noMatch" class="panel empty hidden">No channels match that search.</div>
+  </main>
+
+  <aside>
+    <div class="panel">
+      <h2>Saved scan lists</h2>
+      <div class="saveform">
+        <input type="text" id="listName" placeholder="Name, e.g. Fire + Weather" aria-label="Scan list name" maxlength="40">
+        <button id="saveList">Save</button>
+      </div>
+      <div id="lists"></div>
+      <p class="muted" id="listNote" style="margin:8px 0 0">Saved in this browser on this computer. Any CSV exported here can also be loaded back to restore its list.</p>
+    </div>
+    <div class="panel">
+      <h2>Load it onto the radio</h2>
+      <ol>
+        <li>Connect the radio. In CHIRP, choose <b>Radio &gt; Download from radio...</b> (Baofeng, 5RM).</li>
+        <li>Choose <b>File &gt; Import from file...</b> and pick the CSV you downloaded from this page.</li>
+        <li>Choose <b>Radio &gt; Upload to radio...</b></li>
+        <li>Download from the radio once more and confirm the <b>Skip</b> column shows S on channels you unticked.</li>
+        <li>On the radio, start a scan while in channel mode.</li>
+      </ol>
+    </div>
+    <div class="panel">
+      <h2>Channel file</h2>
+      <p class="muted" id="fileName" style="margin:0 0 8px"></p>
+      <label class="filebtn" tabindex="0">Load a different CSV<input type="file" id="fileIn" accept=".csv,text/csv" class="hidden"></label>
+      <button id="reset" style="margin-top:6px">Use built-in channels</button>
+    </div>
+  </aside>
+</div>
+
+<div class="bar">
+  <span id="tally"></span>
+  <span class="spacer"></span>
+  <button id="clearAll">Untick everything</button>
+  <button id="dl" class="primary">Download CHIRP CSV</button>
+</div>
+
+<script>
+const BUILTIN_CSV = "Location,Name,Frequency,Duplex,Offset,Tone,rToneFreq,cToneFreq,DtcsCode,DtcsPolarity,RxDtcsCode,CrossMode,Mode,TStep,Skip,Power,Comment,URCALL,RPT1CALL,RPT2CALL,DVCODE\r\n1,WX LV,162.550000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,NOAA WXL36 Red Mtn (Las Vegas Valley) - PRIMARY,,,,\r\n2,WX POTOSI,162.400000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,NOAA WNG634 Mt Potosi (W Clark / S Nye Co),,,,\r\n3,WX3,162.475000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,NOAA weather channel 3 (travel),,,,\r\n4,WX4,162.425000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,NOAA weather channel 4 (travel),,,,\r\n5,WX5,162.450000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,NOAA weather channel 5 (travel),,,,\r\n6,WX6,162.500000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,NOAA weather channel 6 (travel),,,,\r\n7,WX7,162.525000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,NOAA weather channel 7 (travel),,,,\r\n8,AIR GUARD,121.500000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,AM,5.00,,5.0W,Aircraft emergency / ELT guard frequency,,,,\r\n9,AIR SAR,123.100000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,AM,5.00,,5.0W,Search and rescue air-to-ground,,,,\r\n10,MARINE 16,156.800000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,FM,5.00,,5.0W,Marine distress/calling - Lake Mead NPS monitors,,,,\r\n11,MARINE 09,156.450000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,FM,5.00,,5.0W,Marine boater calling channel,,,,\r\n12,GMRS 20,462.675000,,0.000000,Tone,141.3,141.3,023,NN,023,Tone->Tone,FM,5.00,,5.0W,REACT/travelers emergency channel (GMRS license to TX),,,,\r\n13,HAM CALL,146.520000,,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,FM,5.00,,5.0W,2m national simplex calling (ham license to TX),,,,\r\n14,LVMPD 9,158.790000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,FM,5.00,,5.0W,Ch 9 Administration [logged tone 77.0],,,,\r\n15,LVMPD 9 RU,158.850000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,Rural admin (repeat of Ch 9) [logged tone 173.8],,,,\r\n16,LVMPD 10,159.135000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,FM,5.00,,5.0W,Ch 10 Tactical 1 [logged tone D223N],,,,\r\n17,LVMPD 12,153.965000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,FM,5.00,,5.0W,Ch 12 car-to-car / STR Mt Charleston [logged tone D411N],,,,\r\n18,LVMPD INFO,154.770000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,Metro Info (Arden Peak) [logged tone 77.0],,,,\r\n19,LVMPD INF2,159.150000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,Metro Info (Gass Peak) - also NTAC21 [logged tone 77.0],,,,\r\n20,LVMPD MAC,153.995000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,VHF MAC countywide (Angel/Frenchman/Potosi) [logged tone D311N],,,,\r\n21,LVMPD TAC,155.595000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,FM,5.00,,5.0W,Tactical simplex [logged tone 173.8],,,,\r\n22,LVMPD HELO,156.030000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,Helicopter ops & Search and Rescue,,,,\r\n23,LVMPD STR,152.727500,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,2.50,,5.0W,Specialty Traffic Response main [logged tone 173.8],,,,\r\n24,ICALL CC,155.145000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,Interop I-Call (linked 8CALL90) / NDEM EOC 1 [logged tone 203.5],,,,\r\n25,ITAC1,154.265000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,\"I-TAC1 / VFIRE22 / NDF White 2 (Potosi, Virgin Pk) [logged tone 156.7]\",,,,\r\n26,ITAC2,154.280000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,I-TAC2 / VFIRE21 / NDF White 1 (Arden Peak) [logged tone 156.7],,,,\r\n27,ITAC3,154.295000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,\"I-TAC3 / VFIRE23 / NDF White 3 (Angel, Xmas Tree) [logged tone 156.7]\",,,,\r\n28,ITAC4,156.075000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,I-TAC4 (Frenchman Mountain) [logged tone 156.7],,,,\r\n29,NLEMA,155.655000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,Nevada Law Enforcement Mutual Aid,,,,\r\n30,VLAW31,155.475000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,National law mutual aid (LLEMA),,,,\r\n31,VLAW32,155.482500,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,2.50,,5.0W,National law interop [logged tone 156.7],,,,\r\n32,NDEM EOC2,155.715000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,NV Div of Emergency Management EOC 2,,,,\r\n33,VMED28,155.340000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,\"NEVCORD 1 / EMS-hospital, air-ground primary\",,,,\r\n34,VMED29,155.347500,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,2.50,,5.0W,NEVCORD 2 / EMS-hospital alternate,,,,\r\n35,VCALL10,155.752500,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,2.50,,5.0W,National VHF interop calling [logged tone 156.7],,,,\r\n36,VTAC11,151.137500,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,6.25,,5.0W,National VHF interop tac [logged tone 156.7],,,,\r\n37,VTAC12,154.452500,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,2.50,,5.0W,National VHF interop tac [logged tone 156.7],,,,\r\n38,VTAC13,158.737500,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,6.25,,5.0W,National VHF interop tac [logged tone 156.7],,,,\r\n39,VTAC14,159.472500,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,2.50,,5.0W,National VHF interop tac [logged tone 156.7],,,,\r\n40,VFIRE24,154.272500,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,2.50,,5.0W,National fire interop [logged tone 156.7],,,,\r\n41,VFIRE25,154.287500,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,6.25,,5.0W,National fire interop [logged tone 156.7],,,,\r\n42,VFIRE26,154.302500,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,2.50,,5.0W,National fire interop [logged tone 156.7],,,,\r\n43,UCALL40,453.212500,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,6.25,,5.0W,National UHF interop calling [logged tone 156.7],,,,\r\n44,UTAC41,453.462500,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,6.25,,5.0W,National UHF interop tac [logged tone 156.7],,,,\r\n45,UTAC42,453.712500,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,6.25,,5.0W,National UHF interop tac [logged tone 156.7],,,,\r\n46,UTAC43,453.862500,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,6.25,,5.0W,National UHF interop tac [logged tone 156.7],,,,\r\n47,NCALL1,151.070000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,Statewide calling 1 [logged tone 156.7],,,,\r\n48,NCALL2,151.100000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,Statewide calling 2 [logged tone 156.7],,,,\r\n49,NCALL3,159.420000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,Calling 3 - Beacon Hill & Mesquite sites [logged tone 156.7],,,,\r\n50,NCALL4,151.085000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,Calling 4 - Frenchman Mountain site [logged tone 156.7],,,,\r\n51,NTAC01,151.205000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,Beacon Hill site [logged tone 156.7],,,,\r\n52,NTAC02,151.265000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,Statewide [logged tone 156.7],,,,\r\n53,NTAC03,151.310000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,Statewide [logged tone 156.7],,,,\r\n54,NTAC04,151.272500,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,2.50,,5.0W,Statewide [logged tone 156.7],,,,\r\n55,NTAC05,151.355000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,Statewide [logged tone 156.7],,,,\r\n56,NTAC06/07,151.430000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,Beacon Hill site [logged tone 156.7],,,,\r\n57,NTAC08,153.785000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,Frenchman Mountain site [logged tone 156.7],,,,\r\n58,NTAC09,153.845000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,Statewide [logged tone 156.7],,,,\r\n59,NTAC10,153.875000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,Statewide [logged tone 156.7],,,,\r\n60,NTAC11,153.905000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,Statewide [logged tone 156.7],,,,\r\n61,NTAC12,153.920000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,Statewide [logged tone 156.7],,,,\r\n62,NTAC13/14,158.752500,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,2.50,,5.0W,Statewide [logged tone 156.7],,,,\r\n63,NTAC15,158.760000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,Statewide [logged tone 156.7],,,,\r\n64,NTAC16,159.015000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,Statewide [logged tone 156.7],,,,\r\n65,NTAC17,159.045000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,Frenchman Mountain site [logged tone 156.7],,,,\r\n66,NTAC18,159.052500,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,2.50,,5.0W,Statewide [logged tone 156.7],,,,\r\n67,NTAC19,159.075000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,Statewide [logged tone 156.7],,,,\r\n68,NTAC20,159.082500,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,2.50,,5.0W,Statewide [logged tone 156.7],,,,\r\n69,NTAC22,159.180000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,Mesquite site [logged tone 156.7],,,,\r\n70,NTAC23,159.247500,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,2.50,,5.0W,Statewide [logged tone 156.7],,,,\r\n71,NHP ANGEL,155.190000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,Angel Peak (US-95 NW) & Spirit Mtn (Laughlin) [logged tone 151.4],,,,\r\n72,NHP APEX A,151.010000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,Apex Peak (I-15 NE) [logged tone 151.4],,,,\r\n73,NHP APEX B,154.175000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,Apex Peak (I-15 NE) [logged tone 151.4],,,,\r\n74,NHP ARDN A,154.415000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,Arden Peak (SE LV) - also Mesquite Fire Tac [logged tone 151.4],,,,\r\n75,NHP ARDN B,155.070000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,Arden Peak (SE LV) [logged tone 151.4],,,,\r\n76,NHP BEACON,155.790000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,Beacon Hill (I-15 NE of Glendale) [logged tone 151.4],,,,\r\n77,NHP POTO A,154.942500,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,2.50,,5.0W,Low Potosi (NV-160 SW) [logged tone 151.4],,,,\r\n78,NHP POTO B,155.452500,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,2.50,,5.0W,Low Potosi (NV-160 SW) [logged tone 151.4],,,,\r\n79,NHP WSTG A,151.130000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,Westgate (3000 Paradise Rd) [logged tone 151.4],,,,\r\n80,NHP WSTG B,154.182500,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,2.50,,5.0W,Westgate (3000 Paradise Rd) [logged tone 151.4],,,,\r\n81,NHP WSTG C,154.310000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,Westgate (3000 Paradise Rd) [logged tone 151.4],,,,\r\n82,CCFD ROLL,154.370000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,CCFD all-station roll call [logged tone 146.2],,,,\r\n83,CCFD F7,154.340000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,Rural Fire 7 dispatch (103.5 Potosi / 162.2 Virgin Pk),,,,\r\n84,CCFD F71,159.030000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,Rural Fire 71 dispatch - Bunkerville,,,,\r\n85,CCFD F75,150.995000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,Rural Fire 75 dispatch - Searchlight [logged tone 118.8],,,,\r\n86,CCFD F8 GP,158.970000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,Rural Fire 8 dispatch (Gass Peak) [logged tone 131.8],,,,\r\n87,CCFD F8 IS,154.400000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,Rural Fire 8 dispatch (Indian Springs) [logged tone 131.8],,,,\r\n88,CCFD PAGE,154.430000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,FM,5.00,,5.0W,Rural fire paging (Valley rebroadcast of F7) [logged tone 123.0],,,,\r\n89,CCFD PAGE2,152.007500,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,FM,2.50,,5.0W,Rural fire paging [logged tone 71.9],,,,\r\n90,MESQ FD,155.400000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,FM,5.00,,5.0W,Mesquite Fire dispatch [logged tone 71.9],,,,\r\n91,NDF RPT,158.895000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,NV Div of Forestry repeaters (multiple tones),,,,\r\n92,NDF RED1,159.345000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,NDF Red Net 1 fire tac,,,,\r\n93,NDF RED2,158.865000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,NDF Red Net 2 crew net,,,,\r\n94,NDF RED3,159.375000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,NDF Red Net 3 (State Parks),,,,\r\n95,NELLIS FC1,173.587500,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,FM,6.25,,5.0W,Nellis AFB fire & crash (older entry),,,,\r\n96,NELLIS FC2,173.837500,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,FM,6.25,,5.0W,Nellis AFB fire & crash (older entry),,,,\r\n97,LVICC A2G,166.762500,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,6.25,,5.0W,Las Vegas Interagency air-to-ground 23 primary,,,,\r\n98,LVICC A2G2,166.875000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,Las Vegas air-to-ground 08 secondary,,,,\r\n99,LVICC A2A,123.675000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,AM,5.00,,5.0W,Las Vegas air-to-air 1 primary,,,,\r\n100,LVICC A2A2,120.525000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,AM,5.00,,5.0W,Air-to-air 2 / NTTR firefighting aircraft,,,,\r\n101,NIFC TAC1,168.050000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,National wildland fire tactical 1,,,,\r\n102,NIFC TAC2,168.200000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,National wildland fire tactical 2,,,,\r\n103,NIFC TAC3,168.600000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,National wildland fire tactical 3,,,,\r\n104,NIFC GUARD,168.625000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,National fire Air Guard (emergency),,,,\r\n105,NIFC NFF,168.650000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,National Flight Following,,,,\r\n106,BLM SONV,173.050000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,BLM Southern Nevada district repeaters [logged tone 114.8],,,,\r\n107,BLM SOA,171.675000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,NV BLM scene of action (analog) [logged tone 114.8],,,,\r\n108,BLM TAC2,164.475000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,NV BLM Tac 2 [logged tone 114.8],,,,\r\n109,BLM TAC3,172.750000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,NV BLM Tac 3 [logged tone 114.8],,,,\r\n110,GOV COM1,163.100000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,BLM gov common 1 / wild horse roundup 1,,,,\r\n111,GOV COM2,168.350000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,BLM gov common 2 / wild horse roundup 2,,,,\r\n112,REDROCK T,168.225000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,Red Rock Canyon NCA tactical [logged tone 156.7],,,,\r\n113,REDROCK A,171.700000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,Red Rock Canyon NCA admin [logged tone 114.8],,,,\r\n114,REDROCK 3,172.525000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,Red Rock Canyon NCA [logged tone 114.8],,,,\r\n115,MTCHAR LE,170.387500,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,6.25,,5.0W,BLM Mount Charleston law enforcement [logged tone 141.3],,,,\r\n116,POTOSI EX,166.962500,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,6.25,,5.0W,\"BLM \"\"Potosi Ext\"\" (NPS zone) [logged tone 192.8]\",,,,\r\n117,HTNF SPRNG,172.275000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,Forest Service - Spring Mountains NRA,,,,\r\n118,HTNF SOA,168.775000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,Humboldt-Toiyabe NF scene of action,,,,\r\n119,LM LE PERK,167.125000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,Lake Mead law net - Mount Perkins [logged tone 123.0],,,,\r\n120,LM LE WILS,170.050000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,Lake Mead law net - Mount Wilson [logged tone 107.2],,,,\r\n121,LM LE SCRB,168.250000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,Lake Mead law net - Scrub Peak,,,,\r\n122,LM OPS,171.775000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,Lake Mead ops (Grand Wash/Perkins/Virgin Pk),,,,\r\n123,LM OPS PRK,172.600000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,Lake Mead ops - Mount Perkins,,,,\r\n124,LM OPS WIL,166.300000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,Lake Mead ops - Mount Wilson,,,,\r\n125,NDOW BOAT,151.475000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,NV Dept of Wildlife boating safety [logged tone 79.7],,,,\r\n126,CAP 1,148.125000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,Civil Air Patrol statewide primary [logged tone 146.2],,,,\r\n127,CAP 2,148.150000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,Civil Air Patrol statewide secondary / Nellis flight line [logged tone 118.8],,,,\r\n128,NELLIS 1,148.075000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,FM,5.00,,5.0W,Nellis flight line (older entry),,,,\r\n129,NELLIS 2,148.175000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,FM,5.00,,5.0W,Nellis flight line (older entry),,,,\r\n130,NELLIS 3,148.300000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,FM,5.00,,5.0W,Nellis flight line (older entry),,,,\r\n131,NELLIS 4,148.400000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,FM,5.00,,5.0W,Nellis flight line (older entry),,,,\r\n132,NELLIS 5,148.450000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,FM,5.00,,5.0W,Nellis flight line (older entry),,,,\r\n133,NELLIS OP1,148.525000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,FM,5.00,,5.0W,Nellis base ops (older entry),,,,\r\n134,NELLIS OP2,148.545000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,FM,5.00,,5.0W,Nellis base ops (older entry),,,,\r\n135,NELLIS 6,148.700000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,FM,5.00,,5.0W,Nellis flight line (older entry),,,,\r\n136,NELLIS 7,149.265000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,FM,5.00,,5.0W,Nellis flight line (older entry),,,,\r\n137,NELLIS 8,149.300000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,FM,5.00,,5.0W,Nellis flight line (older entry),,,,\r\n138,CC EMA,158.940000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,Clark County Emergency Management [logged tone 103.5],,,,\r\n139,CC DETENT,158.880000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,Clark County Detention Center [logged tone D411N],,,,\r\n140,CC JUV DET,154.055000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,Clark County Juvenile Detention [logged tone D703N],,,,\r\n141,JUV DET U,453.100000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,Juvenile Detention Center (UHF) [logged tone 167.9],,,,\r\n142,JUSTICE SC,460.075000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,Regional Justice Center security [logged tone 94.8],,,,\r\n143,MESQ PD,154.845000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,FM,5.00,,5.0W,Mesquite Police (OLD entry - may be inactive) [logged tone 131.8],,,,\r\n144,MOHAVE SO,155.640000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,Mohave Co AZ Sheriff (heard near Laughlin) [logged tone 192.8],,,,\r\n145,AZ DPS,460.475000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,AZ DPS District 1 Kingman (near Laughlin) [logged tone 100.0],,,,\r\n146,ADOT ENF,154.905000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,AZ DOT motor carrier enforcement [logged tone 100.0],,,,\r\n147,CC DPW,154.100000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,Clark County Public Works,,,,\r\n148,BC PW,154.040000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,Boulder City Public Works,,,,\r\n149,MESQ PW,153.755000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,Mesquite Public Works [logged tone 123.0],,,,\r\n150,SNWA LV,151.025000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,SNWA reclamation (Las Vegas) [logged tone 203.5],,,,\r\n151,SNWA BC,155.745000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,SNWA reclamation (Boulder City) [logged tone D023N],,,,\r\n152,SWGAS BLK,153.635000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,Southwest Gas - Black Mountain [logged tone 151.4],,,,\r\n153,SWGAS SUN,153.695000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,Southwest Gas - Frenchman Mountain [logged tone 151.4],,,,\r\n154,SWGAS SPR,153.035000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,Southwest Gas - Spring Mountain Rd [logged tone 151.4],,,,\r\n155,SWGAS LAU,153.342500,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,FM,2.50,,5.0W,Southwest Gas - Laughlin,,,,\r\n156,OVERTON PD,452.625000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,Overton Power District #5 (Mesquite),,,,\r\n157,LV WASTEW,451.325000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,City of LV water pollution control [logged tone D263N],,,,\r\n158,UP ROAD,160.515000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,UP AAR 27 road ch - Cima/Caliente/BMI/Mead Lk subs,,,,\r\n159,UP 40,160.710000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,LV terminal local 40,,,,\r\n160,UP 41,160.725000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,LV terminal local 41,,,,\r\n161,UP 42,160.740000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,LV terminal local 42,,,,\r\n162,UP 46,160.800000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,LV terminal local 46,,,,\r\n163,UP 47,160.815000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,LV terminal local 47,,,,\r\n164,UP 48,160.830000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,LV terminal local 48,,,,\r\n165,UP 49,160.845000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,LV terminal local 49,,,,\r\n166,UP 55,160.935000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,LV terminal local 55,,,,\r\n167,UP ARDEN,161.115000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,Arden Yard,,,,\r\n168,LAS ATIS,132.400000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,AM,5.00,,5.0W,ATIS,,,,\r\n169,LAS CLR,118.000000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,AM,5.00,,5.0W,Clearance delivery,,,,\r\n170,LAS GND W,121.900000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,AM,5.00,,5.0W,Ground (west of 01/19),,,,\r\n171,LAS GND E,121.100000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,AM,5.00,,5.0W,Ground (east of 01/19),,,,\r\n172,LAS GMETER,133.725000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,AM,5.00,,5.0W,Ground metering,,,,\r\n173,LAS TWR 25,119.900000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,AM,5.00,,5.0W,Tower rwys 07/25,,,,\r\n174,LAS TWR 19,118.750000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,AM,5.00,,5.0W,Tower rwys 01/19,,,,\r\n175,LAS HELO,123.825000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,AM,5.00,,5.0W,LAS helicopter control,,,,\r\n176,LAS APP SW,125.600000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,AM,5.00,,5.0W,Approach SW,,,,\r\n177,LAS APPDEP,125.050000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,AM,5.00,,5.0W,Approach/Departure,,,,\r\n178,LAS APP NW,125.025000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,AM,5.00,,5.0W,\"Approach/Departure, Class B NW\",,,,\r\n179,LAS APP NE,119.400000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,AM,5.00,,5.0W,\"Approach, Class B NE\",,,,\r\n180,LAS CLB SE,118.400000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,AM,5.00,,5.0W,Class B SE,,,,\r\n181,LAS DEP NE,133.950000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,AM,5.00,,5.0W,\"Departure, Class B NE\",,,,\r\n182,LAS DEP SW,125.900000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,AM,5.00,,5.0W,\"Departure, Class B SW\",,,,\r\n183,LAS FINAL,135.000000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,AM,5.00,,5.0W,Final approach,,,,\r\n184,LAS VFR FN,120.450000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,AM,5.00,,5.0W,VFR final,,,,\r\n185,LAS RAMPAB,124.400000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,AM,5.00,,5.0W,Ramp A/B/C gates,,,,\r\n186,LAS RAMPDE,127.900000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,AM,5.00,,5.0W,Ramp D/E gates & cargo,,,,\r\n187,LAS RAMPMT,126.975000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,AM,5.00,,5.0W,Ramp metering,,,,\r\n188,LV FSS,122.350000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,AM,5.00,,5.0W,Flight Service Station,,,,\r\n189,LA CTR 16,124.625000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,AM,5.00,,5.0W,Los Angeles Center sector 16,,,,\r\n190,LA CTR 34,132.625000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,AM,5.00,,5.0W,Los Angeles Center sector 34,,,,\r\n191,AMC,130.650000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,AM,5.00,,5.0W,Air Mobility Command,,,,\r\n192,SF RADIO,128.900000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,AM,5.00,,5.0W,ARINC San Francisco Radio,,,,\r\n193,JANET,118.700000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,AM,5.00,,5.0W,\"EG&G \"\"Janet\"\" ops / Desert Rock CTAF\",,,,\r\n194,SWA DISP,131.700000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,AM,5.00,,5.0W,Southwest dispatch,,,,\r\n195,SWA OPS,131.875000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,AM,5.00,,5.0W,Southwest ops & maintenance,,,,\r\n196,ALLEGIANT,129.825000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,AM,5.00,,5.0W,Allegiant weight & balance,,,,\r\n197,AA OPS,131.775000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,AM,5.00,,5.0W,American ops,,,,\r\n198,DELTA OPS,131.450000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,AM,5.00,,5.0W,Delta ops,,,,\r\n199,UNITED OPS,129.500000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,AM,5.00,,5.0W,United ops,,,,\r\n200,ALASKA OPS,132.000000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,AM,5.00,,5.0W,Alaska ops,,,,\r\n201,FRONTIER,130.075000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,AM,5.00,,5.0W,Frontier ops,,,,\r\n202,SPIRIT,130.525000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,AM,5.00,,5.0W,Spirit ops,,,,\r\n203,FEDEX,131.925000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,AM,5.00,,5.0W,FedEx ops,,,,\r\n204,VGT ATIS,118.050000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,AM,5.00,,5.0W,North Las Vegas ATIS,,,,\r\n205,VGT CLR,124.000000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,AM,5.00,,5.0W,North Las Vegas clearance,,,,\r\n206,VGT GND,121.700000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,AM,5.00,,5.0W,North Las Vegas ground,,,,\r\n207,VGT TWR 1,125.700000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,AM,5.00,,5.0W,North Las Vegas tower 1,,,,\r\n208,VGT TWR 2,119.150000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,AM,5.00,,5.0W,North Las Vegas tower 2,,,,\r\n209,VGT UNICOM,122.950000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,AM,5.00,,5.0W,North Las Vegas unicom,,,,\r\n210,NEL APP,118.125000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,AM,5.00,,5.0W,Nellis approach / VGT approach,,,,\r\n211,NEL CLR,120.900000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,AM,5.00,,5.0W,Nellis clearance,,,,\r\n212,NEL GND,121.800000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,AM,5.00,,5.0W,Nellis ground,,,,\r\n213,NEL TWR,132.550000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,AM,5.00,,5.0W,Nellis tower,,,,\r\n214,NEL DEP,135.100000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,AM,5.00,,5.0W,Nellis departure,,,,\r\n215,CREECH TWR,118.300000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,AM,5.00,,5.0W,Creech AFB tower/ground,,,,\r\n216,NTTR RNG W,119.350000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,AM,5.00,,5.0W,NTTR range control west,,,,\r\n217,MORMN MESA,126.650000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,AM,5.00,,5.0W,Nellis exercise - Mormon Mesa,,,,\r\n218,HND AWOS,120.775000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,AM,5.00,,5.0W,Henderson Exec weather,,,,\r\n219,HND TWR,125.100000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,AM,5.00,,5.0W,Henderson Exec tower/CTAF,,,,\r\n220,HND GND,127.800000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,AM,5.00,,5.0W,Henderson Exec ground,,,,\r\n221,HND CLR,135.350000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,AM,5.00,,5.0W,Henderson Exec clearance,,,,\r\n222,BVU AWOS,118.475000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,AM,5.00,,5.0W,Boulder City weather,,,,\r\n223,BVU UNICOM,122.700000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,AM,5.00,,5.0W,Boulder City unicom,,,,\r\n224,KDRA ASOS,119.675000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,AM,5.00,,5.0W,Desert Rock (Mercury) weather,,,,\r\n225,KDRA UNIC,122.800000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,AM,5.00,,5.0W,Desert Rock unicom,,,,\r\n226,MERCURY AP,126.300000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,AM,5.00,,5.0W,Mercury approach / coordination,,,,\r\n227,HELO A2A,123.025000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,AM,5.00,,5.0W,National helicopter air-to-air,,,,\r\n228,HELO CC,123.800000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,AM,5.00,,5.0W,Clark County helicopter air control,,,,\r\n229,HELO CC2,126.025000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,AM,5.00,,5.0W,Clark County helicopter air-to-air,,,,\r\n230,MAVERICK,129.725000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,AM,5.00,,5.0W,Maverick helicopter tours (Strip),,,,\r\n231,MAVERICK2,133.050000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,AM,5.00,,5.0W,Maverick helicopters (Henderson),,,,\r\n232,SUNDANCE1,130.750000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,AM,5.00,,5.0W,Sundance helicopter ramp,,,,\r\n233,SUNDANCE2,129.600000,off,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,AM,5.00,,5.0W,Sundance helicopters,,,,\r\n234,SKY/ARES,147.180000,+,0.600000,DTCS,88.5,88.5,244,NN,244,Tone->Tone,FM,5.00,,5.0W,K7CCN Angel Peak - Clark Co ARES/RACES (SKYWARN),,,,\r\n235,ARES LAUGH,147.180000,+,0.600000,Tone,127.3,127.3,023,NN,023,Tone->Tone,FM,5.00,,5.0W,K7CCN Spirit Mtn (Laughlin) ARES,,,,\r\n236,ARES BEACN,145.300000,-,0.600000,DTCS,88.5,88.5,244,NN,244,Tone->Tone,FM,5.00,,5.0W,K7CCN Beacon Hill (Moapa) ARES/RACES,,,,\r\n237,LV EOC,146.910000,-,0.600000,Tone,100.0,100.0,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,K7UGE City of Las Vegas EOC,,,,\r\n238,WESTGATE,146.940000,-,0.600000,Tone,100.0,100.0,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,K7UGE Westgate,,,,\r\n239,NELLIS ARC,147.060000,+,0.600000,Tone,100.0,100.0,023,NN,023,Tone->Tone,FM,5.00,,5.0W,KC7TMC Apex Peak (Nellis ARC),,,,\r\n240,ANGEL PK,147.360000,+,0.600000,Tone,141.3,141.3,023,NN,023,Tone->Tone,FM,5.00,,5.0W,WB6TNP Angel Peak,,,,\r\n241,HI POTOSI,146.880000,-,0.600000,Tone,100.0,100.0,023,NN,023,Tone->Tone,FM,5.00,,5.0W,WA7HXO High Potosi (Intermountain),,,,\r\n242,RED MTN,147.945000,-,0.600000,Tone,100.0,100.0,023,NN,023,Tone->Tone,FM,5.00,,5.0W,WA7HXO Red Mtn (Boulder City),,,,\r\n243,BLUE DIAM,147.000000,+,0.600000,Tone,123.0,123.0,023,NN,023,Tone->Tone,FM,5.00,,5.0W,N7ARR Blue Diamond,,,,\r\n244,WIN SYS,146.970000,-,0.600000,Tone,100.0,100.0,023,NN,023,Tone->Tone,FM,5.00,,5.0W,KB6XN Sahara & Buffalo (WIN),,,,\r\n245,KB6XN 145,145.250000,-,0.600000,Tone,100.0,100.0,023,NN,023,Tone->Tone,FM,5.00,,5.0W,KB6XN Sahara & Buffalo,,,,\r\n246,CENT HILLS,147.210000,+,0.600000,Tone,107.2,107.2,023,NN,023,Tone->Tone,FM,5.00,,5.0W,N4NJJ Centennial Hills,,,,\r\n247,SUNRISE MR,146.670000,-,0.600000,Tone,136.5,136.5,023,NN,023,Tone->Tone,FM,5.00,,5.0W,WA7CYC Sunrise Manor,,,,\r\n248,NLV,145.460000,-,0.600000,Tone,100.0,100.0,023,NN,023,Tone->Tone,FM,5.00,,5.0W,KE7ZHN North Las Vegas,,,,\r\n249,HENDERSON,145.390000,-,0.600000,Tone,114.8,114.8,023,NN,023,Tone->Tone,FM,5.00,,5.0W,W7IVK Downtown Henderson,,,,\r\n250,ANTHEM,145.280000,-,0.600000,Tone,123.0,123.0,023,NN,023,Tone->Tone,FM,5.00,,5.0W,WA7SCA Sun City Anthem,,,,\r\n251,MOAPA,147.390000,+,0.600000,Tone,100.0,100.0,023,NN,023,Tone->Tone,FM,5.00,,5.0W,W7MVR Beacon Hill (Moapa Valley ARC),,,,\r\n252,CC SIMPLX,146.415000,,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,FM,5.00,,5.0W,Clark County simplex,,,,\r\n253,N7MLF 222,223.920000,-,1.600000,,88.5,88.5,023,NN,023,Tone->Tone,FM,5.00,,5.0W,Coyote Springs (input assumed std -1.6),,,,\r\n254,W7EB 222,224.480000,-,1.600000,Tone,110.9,110.9,023,NN,023,Tone->Tone,FM,5.00,,5.0W,Low Potosi (input assumed std -1.6),,,,\r\n255,N8NDI 222,224.500000,-,1.600000,Tone,156.7,156.7,023,NN,023,Tone->Tone,FM,5.00,,5.0W,Las Vegas (input assumed std -1.6),,,,\r\n256,N7RSL 222,224.540000,-,1.600000,Tone,141.3,141.3,023,NN,023,Tone->Tone,FM,5.00,,5.0W,Tropical & Ann Rd,,,,\r\n257,ARES RED M,447.325000,-,3.000000,Tone,100.0,100.0,023,NN,023,Tone->Tone,FM,5.00,,5.0W,K7CCN Red Mtn Boulder City ARES/RACES,,,,\r\n258,HEN H1,447.925000,-,5.000000,Tone,156.7,156.7,023,NN,023,Tone->Tone,FM,5.00,,5.0W,W7HEN Low Potosi (Henderson ARC),,,,\r\n259,HEN H2,449.850000,-,5.000000,Tone,131.8,131.8,023,NN,023,Tone->Tone,FM,5.00,,5.0W,W7HEN Angel Peak (203.5 also listed),,,,\r\n260,HEN H3,447.725000,-,5.000000,Tone,114.8,114.8,023,NN,023,Tone->Tone,FM,5.00,,5.0W,W7HEN Mission Hills,,,,\r\n261,HEN H4,446.475000,-,5.000000,Tone,156.7,156.7,023,NN,023,Tone->Tone,FM,5.00,,5.0W,W7HEN Blue Diamond Hill,,,,\r\n262,HEN H5,449.925000,-,5.000000,Tone,156.7,156.7,023,NN,023,Tone->Tone,FM,5.00,,5.0W,W7HEN Pahrump Valley,,,,\r\n263,HEN H6,445.525000,-,5.000000,Tone,91.5,91.5,023,NN,023,Tone->Tone,FM,5.00,,5.0W,W7HEN Henderson City Hall,,,,\r\n264,HEN B1,446.500000,-,5.000000,Tone,156.7,156.7,023,NN,023,Tone->Tone,FM,5.00,,5.0W,W7HEN Red Mtn Boulder City,,,,\r\n265,NELLIS 449,449.875000,-,5.000000,Tone,127.3,127.3,023,NN,023,Tone->Tone,FM,5.00,,5.0W,KC7TMC Apex Peak,,,,\r\n266,TNP ANGEL,448.575000,-,5.000000,Tone,141.3,141.3,023,NN,023,Tone->Tone,FM,5.00,,5.0W,WB6TNP Angel Peak,,,,\r\n267,TNP SUNCST,448.675000,-,5.000000,Tone,141.3,141.3,023,NN,023,Tone->Tone,FM,5.00,,5.0W,WB6TNP Suncoast,,,,\r\n268,TNP SPIRIT,448.700000,-,5.000000,Tone,141.3,141.3,023,NN,023,Tone->Tone,FM,5.00,,5.0W,WB6TNP Spirit Mtn (Laughlin),,,,\r\n269,TNP SCRUB,448.725000,-,5.000000,Tone,141.3,141.3,023,NN,023,Tone->Tone,FM,5.00,,5.0W,WB6TNP Scrub Peak (Mesquite),,,,\r\n270,TNP OPAL,448.800000,-,5.000000,Tone,141.3,141.3,023,NN,023,Tone->Tone,FM,5.00,,5.0W,WB6TNP Opal Mtn (Boulder City),,,,\r\n271,TNP LOPOT,449.250000,-,5.000000,Tone,141.3,141.3,023,NN,023,Tone->Tone,FM,5.00,,5.0W,WB6TNP Low Potosi,,,,\r\n272,HXO MESQ,448.020000,-,5.000000,Tone,136.5,136.5,023,NN,023,Tone->Tone,FM,5.00,,5.0W,WA7HXO Mesquite Airport,,,,\r\n273,HXO RED M,449.100000,-,5.000000,Tone,136.5,136.5,023,NN,023,Tone->Tone,FM,5.00,,5.0W,WA7HXO Red Mountain,,,,\r\n274,HXO HIPOT,449.175000,-,5.000000,Tone,136.5,136.5,023,NN,023,Tone->Tone,FM,5.00,,5.0W,WA7HXO High Potosi,,,,\r\n275,OQF LOPOT,449.400000,-,5.000000,Tone,136.5,136.5,023,NN,023,Tone->Tone,FM,5.00,,5.0W,W7OQF Low Potosi,,,,\r\n276,N6DD HIPOT,449.000000,-,5.000000,Tone,131.8,131.8,023,NN,023,Tone->Tone,FM,5.00,,5.0W,N6DD High Potosi,,,,\r\n277,YES LOPOT,448.400000,-,5.000000,Tone,141.3,141.3,023,NN,023,Tone->Tone,FM,5.00,,5.0W,WB7YES Low Potosi (127.3 also listed),,,,\r\n278,TND ANGEL,449.500000,-,5.000000,Tone,146.2,146.2,023,NN,023,Tone->Tone,FM,5.00,,5.0W,N7TND Angel Peak,,,,\r\n279,SIN ANGEL,448.325000,-,5.000000,Tone,107.2,107.2,023,NN,023,Tone->Tone,FM,5.00,,5.0W,N4NJJ Angel Peak (mixed FM/P25),,,,\r\n280,SIN LOPOT,449.700000,-,5.000000,Tone,107.2,107.2,023,NN,023,Tone->Tone,FM,5.00,,5.0W,N4NJJ Low Potosi (mixed FM/P25),,,,\r\n281,SIN LONE,445.400000,-,5.000000,Tone,107.2,107.2,023,NN,023,Tone->Tone,FM,5.00,,5.0W,N4NJJ Lone Mountain,,,,\r\n282,SIN CH 1,420.850000,+,5.000000,Tone,107.2,107.2,023,NN,023,Tone->Tone,FM,5.00,,5.0W,N4NJJ Centennial Hills 1 (mixed FM/P25),,,,\r\n283,SIN CH 2,445.975000,-,5.000000,Tone,107.2,107.2,023,NN,023,Tone->Tone,FM,5.00,,5.0W,N4NJJ Centennial Hills 2 (mixed FM/P25),,,,\r\n284,LVMS,445.375000,-,5.000000,Tone,107.2,107.2,023,NN,023,Tone->Tone,FM,5.00,,5.0W,LV Motor Speedway (mixed FM/P25),,,,\r\n285,WESTGT 2,447.200000,-,5.000000,Tone,100.0,100.0,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,K7UGE Westgate 2,,,,\r\n286,WESTGT 3,448.500000,-,5.000000,Tone,100.0,100.0,023,NN,023,Tone->Tone,NFM,5.00,,5.0W,K7UGE Westgate 3,,,,\r\n287,WIN BD,447.950000,-,5.000000,Tone,100.0,100.0,023,NN,023,Tone->Tone,FM,5.00,,5.0W,K6JSI Blue Diamond WIN (input listed 442.925),,,,\r\n288,N7ARR BD,447.000000,-,5.000000,Tone,123.0,123.0,023,NN,023,Tone->Tone,FM,5.00,,5.0W,N7ARR Blue Diamond,,,,\r\n289,MTN VIEW,447.300000,-,3.000000,Tone,100.0,100.0,023,NN,023,Tone->Tone,FM,5.00,,5.0W,KG7SS Mountain View Hospital,,,,\r\n290,SUN CTY SM,447.475000,-,5.000000,Tone,110.9,110.9,023,NN,023,Tone->Tone,FM,5.00,,5.0W,W7SCS Sun City Summerlin,,,,\r\n291,FREMONT,448.075000,-,5.000000,Tone,127.3,127.3,023,NN,023,Tone->Tone,FM,5.00,,5.0W,\"WN9ANF The D, Fremont St\",,,,\r\n292,K7RSW HEN,448.875000,-,5.000000,Tone,114.8,114.8,023,NN,023,Tone->Tone,FM,5.00,,5.0W,K7RSW Henderson (mixed FM/P25),,,,\r\n293,K7GIO HEN,445.800000,-,5.000000,Tone,107.2,107.2,023,NN,023,Tone->Tone,FM,5.00,,5.0W,K7GIO Henderson (mixed FM/P25),,,,\r\n294,ANTHEM 445,445.680000,-,5.000000,Tone,123.0,123.0,023,NN,023,Tone->Tone,FM,5.00,,5.0W,WA7SCA Henderson Anthem,,,,\r\n295,N6YKE ANTH,446.125000,-,5.000000,Tone,146.2,146.2,023,NN,023,Tone->Tone,FM,5.00,,5.0W,N6YKE Henderson Anthem,,,,\r\n296,AA7SC ANTH,446.350000,-,5.000000,Tone,127.3,127.3,023,NN,023,Tone->Tone,FM,5.00,,5.0W,AA7SC Henderson Anthem,,,,\r\n297,WATER ST,446.625000,-,5.000000,DTCS,88.5,88.5,754,NN,754,Tone->Tone,FM,5.00,,5.0W,N7YOR Henderson Water St,,,,\r\n298,K7ILO LV,446.275000,-,5.000000,Tone,100.0,100.0,023,NN,023,Tone->Tone,FM,5.00,,5.0W,K7ILO Alexander & Buffalo,,,,\r\n299,SUNRISE 44,446.875000,-,5.000000,Tone,114.8,114.8,023,NN,023,Tone->Tone,FM,5.00,,5.0W,N7RMK Sunrise Manor,,,,\r\n300,AZ CHARLIE,445.875000,-,5.000000,Tone,100.0,100.0,023,NN,023,Tone->Tone,FM,5.00,,5.0W,W7JCA Arizona Charlie's,,,,\r\n301,N7HWM LV,445.200000,-,5.000000,Tone,127.3,127.3,023,NN,023,Tone->Tone,FM,5.00,,5.0W,N7HWM Las Vegas,,,,\r\n302,NX7R ITIN,420.625000,+,5.000000,DTCS,88.5,88.5,754,NN,754,Tone->Tone,FM,5.00,,5.0W,NX7R itinerant (mixed FM/DMR),,,,\r\n303,NX7R NLV,445.625000,+,5.000000,DTCS,88.5,88.5,754,NN,754,Tone->Tone,FM,5.00,,5.0W,NX7R Cannery (TX 450.625 may be blocked),,,,\r\n304,HAM UHF SX,446.000000,,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,FM,5.00,,5.0W,70cm national simplex calling,,,,\r\n305,FRS 1,462.562500,,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,FM,6.25,,5.0W,FRS/GMRS 1,,,,\r\n306,FRS 2,462.587500,,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,FM,6.25,,5.0W,FRS/GMRS 2,,,,\r\n307,FRS 3,462.612500,,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,FM,6.25,,5.0W,FRS/GMRS 3,,,,\r\n308,FRS 4,462.637500,,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,FM,6.25,,5.0W,FRS/GMRS 4,,,,\r\n309,FRS 5,462.662500,,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,FM,6.25,,5.0W,FRS/GMRS 5,,,,\r\n310,FRS 6,462.687500,,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,FM,6.25,,5.0W,FRS/GMRS 6,,,,\r\n311,FRS 7,462.712500,,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,FM,6.25,,5.0W,FRS/GMRS 7,,,,\r\n312,FRS 8,467.562500,,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,6.25,,0.5W,FRS 8 (0.5 W max),,,,\r\n313,FRS 9,467.587500,,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,6.25,,0.5W,FRS 9 (0.5 W max),,,,\r\n314,FRS 10,467.612500,,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,6.25,,0.5W,FRS 10 (0.5 W max),,,,\r\n315,FRS 11,467.637500,,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,6.25,,0.5W,FRS 11 (0.5 W max),,,,\r\n316,FRS 12,467.662500,,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,6.25,,0.5W,FRS 12 (0.5 W max),,,,\r\n317,FRS 13,467.687500,,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,6.25,,0.5W,FRS 13 (0.5 W max),,,,\r\n318,FRS 14,467.712500,,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,6.25,,0.5W,FRS 14 (0.5 W max),,,,\r\n319,FRS 15,462.550000,,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,FM,5.00,,5.0W,FRS/GMRS 15,,,,\r\n320,FRS 16,462.575000,,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,FM,5.00,,5.0W,FRS/GMRS 16,,,,\r\n321,FRS 17,462.600000,,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,FM,5.00,,5.0W,FRS/GMRS 17,,,,\r\n322,FRS 18,462.625000,,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,FM,5.00,,5.0W,FRS/GMRS 18,,,,\r\n323,FRS 19,462.650000,,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,FM,5.00,,5.0W,FRS/GMRS 19,,,,\r\n324,FRS 20,462.675000,,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,FM,5.00,,5.0W,FRS/GMRS 20 (emergency/travel),,,,\r\n325,FRS 21,462.700000,,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,FM,5.00,,5.0W,FRS/GMRS 21,,,,\r\n326,FRS 22,462.725000,,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,FM,5.00,,5.0W,FRS/GMRS 22,,,,\r\n327,KYLE CYN,462.550000,+,5.000000,Tone,100.0,100.0,023,NN,023,Tone->Tone,FM,5.00,,5.0W,Kyle Canyon Rd,,,,\r\n328,ANGEL 550,462.550000,+,5.000000,Tone,107.2,107.2,023,NN,023,Tone->Tone,FM,5.00,,5.0W,Angel Peak,,,,\r\n329,HEND 550,462.550000,+,5.000000,Tone,123.0,123.0,023,NN,023,Tone->Tone,FM,5.00,,5.0W,\"Henderson \"\"Area 27\"\"\",,,,\r\n330,MTCHAR 550,462.550000,+,5.000000,Tone,141.3,141.3,023,NN,023,Tone->Tone,FM,5.00,,5.0W,Mt Charleston (Kyle Canyon),,,,\r\n331,SUNCTY 550,462.550000,+,5.000000,DTCS,88.5,88.5,205,NN,205,Tone->Tone,FM,5.00,,5.0W,Sun City Summerlin,,,,\r\n332,LAKES 575,462.575000,+,5.000000,Tone,123.0,123.0,023,NN,023,Tone->Tone,FM,5.00,,5.0W,The Lakes,,,,\r\n333,ANGEL 575,462.575000,+,5.000000,Tone,141.3,141.3,023,NN,023,Tone->Tone,FM,5.00,,5.0W,Angel Peak (county comms bldg),,,,\r\n334,NLV 600,462.600000,+,5.000000,Tone,141.3,141.3,023,NN,023,Tone->Tone,FM,5.00,,5.0W,LDS Deseret Industries NLV,,,,\r\n335,BLUDIA 600,462.600000,+,5.000000,Tone,162.2,162.2,023,NN,023,Tone->Tone,FM,5.00,,5.0W,Blue Diamond,,,,\r\n336,HIPOT 625,462.625000,+,5.000000,Tone,141.3,141.3,023,NN,023,Tone->Tone,FM,5.00,,5.0W,High Potosi 1,,,,\r\n337,SUMTPC 650,462.650000,+,5.000000,Tone,206.5,206.5,023,NN,023,Tone->Tone,FM,5.00,,5.0W,Summerlin TPC,,,,\r\n338,SUMMR 650,462.650000,+,5.000000,Tone,250.3,250.3,023,NN,023,Tone->Tone,FM,5.00,,5.0W,Summerlin,,,,\r\n339,BEARCM 650,462.650000,+,5.000000,Tone,82.5,82.5,023,NN,023,Tone->Tone,FM,5.00,,5.0W,BearCom (Russell & Arville),,,,\r\n340,HIPOT 675,462.675000,+,5.000000,Tone,162.2,162.2,023,NN,023,Tone->Tone,FM,5.00,,5.0W,High Potosi 2,,,,\r\n341,LOPOT 700,462.700000,+,5.000000,Tone,100.0,100.0,023,NN,023,Tone->Tone,FM,5.00,,5.0W,Low Potosi (Tri-State bldg),,,,\r\n342,LONE 700,462.700000,+,5.000000,Tone,162.2,162.2,023,NN,023,Tone->Tone,FM,5.00,,5.0W,Lone Mountain,,,,\r\n343,LONE 725,462.725000,+,5.000000,Tone,131.8,131.8,023,NN,023,Tone->Tone,FM,5.00,,5.0W,Lone Mountain,,,,\r\n344,TEMPLE 725,462.725000,+,5.000000,Tone,141.3,141.3,023,NN,023,Tone->Tone,FM,5.00,,5.0W,LDS Las Vegas Temple (D411N also),,,,\r\n345,MURS 1,151.820000,,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,2.0W,MURS 1,,,,\r\n346,MURS 2,151.880000,,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,2.0W,MURS 2,,,,\r\n347,MURS 3,151.940000,,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,NFM,5.00,,2.0W,MURS 3,,,,\r\n348,MURS 4,154.570000,,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,FM,5.00,,2.0W,MURS 4 (Blue Dot),,,,\r\n349,MURS 5,154.600000,,0.000000,,88.5,88.5,023,NN,023,Tone->Tone,FM,5.00,,2.0W,MURS 5 (Green Dot),,,,\r\n";
+const SECTIONS = [{"title": "1. WEATHER, EMERGENCY & CALLING CHANNELS", "channels": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]}, {"title": "2. LAS VEGAS METRO POLICE (LVMPD) - ANALOG CHANNELS STILL LISTED", "channels": [14, 15, 16, 17, 18, 19, 20, 21, 22, 23]}, {"title": "3. CLARK COUNTY INTEROP (I-CALL / I-TAC) & NEVADA MUTUAL AID", "channels": [24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46]}, {"title": "4. NEVADA TACTICAL CROSSBAND REPEATERS (NCALL / NTAC - all 156.7 PL)", "channels": [47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70]}, {"title": "5. NEVADA HIGHWAY PATROL - VHF BACKUP REPEATERS (all 151.4 PL)", "channels": [71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81]}, {"title": "6. FIRE - CLARK CO RURAL, MESQUITE, NV FORESTRY, NELLIS", "channels": [82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96]}, {"title": "7. FEDERAL WILDLAND FIRE / AIR ATTACK", "channels": [97, 98, 99, 100, 101, 102, 103, 104, 105]}, {"title": "8. FEDERAL - BLM, NPS LAKE MEAD, FOREST SERVICE, NDOW, MILITARY", "channels": [106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126, 127, 128, 129, 130, 131, 132, 133, 134, 135, 136, 137]}, {"title": "9. COUNTY GOVERNMENT, CORRECTIONS, NEIGHBORING AGENCIES", "channels": [138, 139, 140, 141, 142, 143, 144, 145, 146]}, {"title": "10. PUBLIC WORKS & UTILITIES (USEFUL DURING OUTAGES/DISASTERS)", "channels": [147, 148, 149, 150, 151, 152, 153, 154, 155, 156, 157]}, {"title": "11. RAILROAD - UNION PACIFIC (carrier squelch)", "channels": [158, 159, 160, 161, 162, 163, 164, 165, 166, 167]}, {"title": "12. AIRCRAFT - HARRY REID INTL (LAS)   [AM airband, receive only]", "channels": [168, 169, 170, 171, 172, 173, 174, 175, 176, 177, 178, 179, 180, 181, 182, 183, 184, 185, 186, 187, 188, 189, 190, 191, 192, 193, 194, 195, 196, 197, 198, 199, 200, 201, 202, 203]}, {"title": "13. AIRCRAFT - OTHER AIRPORTS, NELLIS, HELICOPTERS   [AM, receive only]", "channels": [204, 205, 206, 207, 208, 209, 210, 211, 212, 213, 214, 215, 216, 217, 218, 219, 220, 221, 222, 223, 224, 225, 226, 227, 228, 229, 230, 231, 232, 233]}, {"title": "14. AMATEUR (HAM) REPEATERS - 2 METER   [license required to TX]", "channels": [234, 235, 236, 237, 238, 239, 240, 241, 242, 243, 244, 245, 246, 247, 248, 249, 250, 251, 252]}, {"title": "15. AMATEUR (HAM) REPEATERS - 1.25 METER (222 MHz)", "channels": [253, 254, 255, 256]}, {"title": "16. AMATEUR (HAM) REPEATERS - 70 CM   [analog FM only]", "channels": [257, 258, 259, 260, 261, 262, 263, 264, 265, 266, 267, 268, 269, 270, 271, 272, 273, 274, 275, 276, 277, 278, 279, 280, 281, 282, 283, 284, 285, 286, 287, 288, 289, 290, 291, 292, 293, 294, 295, 296, 297, 298, 299, 300, 301, 302, 303, 304]}, {"title": "17. FRS / GMRS (22 channels) - FRS 8-14 narrow, low power", "channels": [305, 306, 307, 308, 309, 310, 311, 312, 313, 314, 315, 316, 317, 318, 319, 320, 321, 322, 323, 324, 325, 326]}, {"title": "18. GMRS REPEATERS - CLARK COUNTY   [GMRS license required to TX]", "channels": [327, 328, 329, 330, 331, 332, 333, 334, 335, 336, 337, 338, 339, 340, 341, 342, 343, 344]}, {"title": "19. MURS (license-free business band, 2 W max)", "channels": [345, 346, 347, 348, 349]}];
+const REQUIRED = ["Location", "Name", "Frequency", "Duplex", "Mode", "Skip", "Comment"];
+const LISTS_KEY = "uv5rm-scan-lists";
+const CURRENT_KEY = "uv5rm-scan-current";
+
+// Keeps each field's raw text so an export only ever changes the Skip column
+function parseCsv(text) {
+  const bom = text.charCodeAt(0) === 0xFEFF ? "﻿" : "";
+  const s = bom ? text.slice(1) : text;
+  const rows = [];
+  let fields = [], start = 0, quoted = false;
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    if (ch === '"') quoted = !quoted;
+    else if (!quoted && ch === ",") { fields.push(s.slice(start, i)); start = i + 1; }
+    else if (!quoted && ch === "\n") {
+      const end = s[i - 1] === "\r" && i - 1 >= start ? i - 1 : i;
+      fields.push(s.slice(start, end));
+      rows.push({ fields, eol: s.slice(end, i + 1) });
+      fields = []; start = i + 1;
+    }
+  }
+  if (start < s.length || fields.length) {
+    fields.push(s.slice(start));
+    rows.push({ fields, eol: "" });
+  }
+  return { bom, rows };
+}
+
+function unquote(raw) {
+  return raw.length > 1 && raw[0] === '"' && raw[raw.length - 1] === '"' ? raw.slice(1, -1).replace(/""/g, '"') : raw;
+}
+
+function readChannels(parsed) {
+  if (!parsed.rows.length) throw new Error("That file is empty.");
+  const header = parsed.rows[0].fields.map(unquote);
+  const col = {};
+  header.forEach((h, i) => { col[h] = i; });
+  const missing = REQUIRED.filter(h => !(h in col));
+  if (missing.length) throw new Error("That doesn't look like a CHIRP CSV. Missing: " + missing.join(", ") + ".");
+  const channels = [], seen = new Set();
+  parsed.rows.slice(1).forEach((row, i) => {
+    if (row.fields.length === 1 && row.fields[0].trim() === "") return;
+    const get = h => unquote(row.fields[col[h]] ?? "");
+    const num = Number(get("Location"));
+    if (!Number.isInteger(num) || row.fields.length <= col.Skip) throw new Error("Line " + (i + 2) + " of that file can't be read.");
+    if (seen.has(num)) throw new Error("Channel " + num + " appears twice in that file.");
+    seen.add(num);
+    channels.push({ num, rowIndex: i + 1, name: get("Name"), freq: get("Frequency"), duplex: get("Duplex"),
+                    mode: get("Mode"), skip: get("Skip"), note: get("Comment") });
+  });
+  if (!channels.length) throw new Error("That file has no channels.");
+  return { col, channels };
+}
+
+function buildCsv(parsed, info, selected) {
+  const rows = parsed.rows.map(r => ({ fields: r.fields.slice(), eol: r.eol }));
+  for (const ch of info.channels) {
+    const f = rows[ch.rowIndex].fields;
+    const cur = unquote(f[info.col.Skip]);
+    if (!selected.has(ch.num)) f[info.col.Skip] = "S";
+    else if (cur === "S") f[info.col.Skip] = "";
+  }
+  return parsed.bom + rows.map(r => r.fields.join(",") + r.eol).join("");
+}
+
+function parseSpec(text, known) {
+  const nums = new Set(), bad = [];
+  for (const part of text.split(/[\s,;]+/).filter(Boolean)) {
+    const m = part.match(/^(\d+)(?:-(\d+))?$/);
+    if (!m) { bad.push(part); continue; }
+    const a = Number(m[1]), b = m[2] === undefined ? a : Number(m[2]);
+    if (b < a) { bad.push(part); continue; }
+    let any = false;
+    for (let n = a; n <= b && n <= 9999; n++) if (known.has(n)) { nums.add(n); any = true; }
+    if (!any) bad.push(part);
+  }
+  return { nums, bad };
+}
+
+function formatFreq(raw) {
+  const f = Number(raw);
+  if (!Number.isFinite(f)) return raw;
+  const s = f.toFixed(4);
+  return s.endsWith("0") ? s.slice(0, -1) : s;
+}
+
+function safeFileName(name) {
+  const clean = name.trim().replace(/[^A-Za-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+  return "UV-5RM_Scan_" + (clean || "Custom") + ".csv";
+}
+
+function storeGet(key, fallback) {
+  try { const v = localStorage.getItem(key); return v === null ? fallback : JSON.parse(v); }
+  catch (e) { return fallback; }
+}
+function storeSet(key, value) {
+  try { localStorage.setItem(key, JSON.stringify(value)); return true; }
+  catch (e) { return false; }
+}
+
+const $ = id => document.getElementById(id);
+let parsed, info, known, selected = new Set(), fileLabel = "";
+let lists = storeGet(LISTS_KEY, {});
+if (!lists || typeof lists !== "object" || Array.isArray(lists)) lists = {};
+const rowEls = new Map();
+let secEls = [];
+
+function setStatus(message, kind, undo) {
+  const el = $("status");
+  el.textContent = message;
+  el.className = kind || "";
+  if (undo) {
+    const b = document.createElement("button");
+    b.className = "linklike"; b.textContent = "Undo";
+    b.addEventListener("click", () => { undo(); setStatus(""); });
+    el.appendChild(b);
+  }
+}
+
+function loadCsv(text, label, selection) {
+  const p = parseCsv(text);
+  const i = readChannels(p);
+  parsed = p; info = i; fileLabel = label;
+  known = new Set(i.channels.map(c => c.num));
+  selected = new Set(selection ? selection.filter(n => known.has(n)) : i.channels.filter(c => c.skip !== "S").map(c => c.num));
+  render();
+}
+
+function render() {
+  const host = $("sections");
+  host.textContent = "";
+  rowEls.clear();
+  const byNum = new Map(info.channels.map(c => [c.num, c]));
+  const used = new Set();
+  const groups = [];
+  for (const s of SECTIONS) {
+    const chans = s.channels.filter(n => byNum.has(n)).map(n => { used.add(n); return byNum.get(n); });
+    if (chans.length) groups.push({ title: s.title, chans });
+  }
+  const rest = info.channels.filter(c => !used.has(c.num));
+  if (rest.length) groups.push({ title: "Other channels", chans: rest });
+
+  secEls = groups.map(g => {
+    const d = document.createElement("details");
+    d.className = "sec";
+    const sum = document.createElement("summary");
+    const box = document.createElement("input");
+    box.type = "checkbox";
+    box.setAttribute("aria-label", "Tick all in " + g.title);
+    const title = document.createElement("span");
+    title.textContent = g.title;
+    const count = document.createElement("span");
+    count.className = "count";
+    sum.append(box, title, count);
+    d.append(sum);
+
+    const wrap = document.createElement("div");
+    wrap.className = "tablewrap";
+    const table = document.createElement("table");
+    table.innerHTML = "<thead><tr><th></th><th>CH</th><th>Name</th><th>RX MHz</th><th>Mode</th><th></th><th>Notes</th></tr></thead>";
+    const tb = document.createElement("tbody");
+    for (const c of g.chans) {
+      const tr = document.createElement("tr");
+      const cells = [
+        ["", ""],
+        ["num", String(c.num).padStart(3, "0")],
+        ["nm", c.name],
+        ["num", formatFreq(c.freq)],
+        ["", c.mode],
+        ["rxo", c.duplex === "off" ? "RX only" : ""],
+        ["", c.note],
+      ];
+      cells.forEach(([cls, text]) => {
+        const td = document.createElement("td");
+        if (cls) td.className = cls;
+        td.textContent = text;
+        tr.append(td);
+      });
+      const cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.setAttribute("aria-label", "Scan channel " + c.num + " " + c.name);
+      tr.firstChild.append(cb);
+      cb.addEventListener("change", () => setSel([c.num], cb.checked));
+      tr.addEventListener("click", e => {
+        if (e.target !== cb) { setSel([c.num], !selected.has(c.num)); }
+      });
+      tb.append(tr);
+      rowEls.set(c.num, { tr, cb, c });
+    }
+    table.append(tb);
+    wrap.append(table);
+    d.append(wrap);
+    host.append(d);
+
+    const el = { d, box, count, chans: g.chans };
+    box.addEventListener("change", () => {
+      setSel(shownIn(el).map(c => c.num), box.checked);
+    });
+    return el;
+  });
+  $("fileName").textContent = fileLabel + " (" + info.channels.length + " channels)";
+  applyFilter();
+}
+
+function matches(c, q) {
+  if (!q) return true;
+  return (String(c.num) + " " + c.name + " " + formatFreq(c.freq) + " " + c.mode + " " + c.note).toLowerCase().includes(q);
+}
+
+function isShown(c) {
+  const q = $("search").value.trim().toLowerCase();
+  return matches(c, q) && (!$("onlySel").checked || selected.has(c.num));
+}
+
+function shownIn(sec) { return sec.chans.filter(isShown); }
+
+function setSel(nums, on) {
+  for (const n of nums) { if (on) selected.add(n); else selected.delete(n); }
+  storeSet(CURRENT_KEY, [...selected]);
+  applyFilter();
+}
+
+function applyFilter() {
+  const q = $("search").value.trim();
+  let anyShown = false;
+  for (const { tr, cb, c } of rowEls.values()) {
+    const on = selected.has(c.num);
+    cb.checked = on;
+    tr.classList.toggle("on", on);
+    tr.classList.toggle("hidden", !isShown(c));
+  }
+  for (const sec of secEls) {
+    const shown = shownIn(sec);
+    const onCount = sec.chans.filter(c => selected.has(c.num)).length;
+    const shownOn = shown.filter(c => selected.has(c.num)).length;
+    sec.d.classList.toggle("hidden", shown.length === 0);
+    if (shown.length) anyShown = true;
+    sec.box.checked = shown.length > 0 && shownOn === shown.length;
+    sec.box.indeterminate = shownOn > 0 && shownOn < shown.length;
+    sec.count.textContent = onCount + " of " + sec.chans.length + " ticked";
+    if ((q || $("onlySel").checked) && shown.length) sec.d.open = true;
+  }
+  $("noMatch").classList.toggle("hidden", anyShown);
+  $("noMatch").textContent = q ? "No channels match that search." : "No channels are ticked yet.";
+  const n = selected.size;
+  $("tally").textContent = n + " of " + info.channels.length + " channels will scan";
+  $("dl").disabled = n === 0;
+  $("dl").title = n === 0 ? "Tick at least one channel first" : "";
+}
+
+function renderLists() {
+  const host = $("lists");
+  host.textContent = "";
+  const names = Object.keys(lists).sort((a, b) => a.localeCompare(b));
+  if (!names.length) {
+    const p = document.createElement("p");
+    p.className = "muted"; p.style.margin = "0";
+    p.textContent = "No saved lists yet. Tick some channels, name the list, and save it.";
+    host.append(p);
+    return;
+  }
+  for (const name of names) {
+    const row = document.createElement("div");
+    row.className = "savedrow";
+    const label = document.createElement("span");
+    label.className = "nm";
+    label.textContent = name + " ";
+    const small = document.createElement("small");
+    small.textContent = "(" + lists[name].length + ")";
+    label.append(small);
+    const load = document.createElement("button");
+    load.textContent = "Load";
+    load.setAttribute("aria-label", "Load " + name);
+    load.addEventListener("click", () => {
+      const before = [...selected];
+      const usable = lists[name].filter(n => known.has(n));
+      selected = new Set(usable);
+      storeSet(CURRENT_KEY, usable);
+      $("listName").value = name;
+      applyFilter();
+      setStatus("Loaded \"" + name + "\".", "ok", () => { selected = new Set(before); storeSet(CURRENT_KEY, before); applyFilter(); });
+    });
+    const del = document.createElement("button");
+    del.textContent = "Delete";
+    del.setAttribute("aria-label", "Delete " + name);
+    del.addEventListener("click", () => {
+      const saved = lists[name];
+      delete lists[name];
+      storeSet(LISTS_KEY, lists);
+      renderLists();
+      setStatus("Deleted \"" + name + "\".", "", () => { lists[name] = saved; storeSet(LISTS_KEY, lists); renderLists(); });
+    });
+    row.append(label, load, del);
+    host.append(row);
+  }
+}
+
+function download() {
+  const out = buildCsv(parsed, info, selected);
+  const name = safeFileName($("listName").value);
+  const url = URL.createObjectURL(new Blob([out], { type: "text/csv" }));
+  const a = document.createElement("a");
+  a.href = url; a.download = name;
+  document.body.append(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+  setStatus("Downloaded " + name + " with " + selected.size + " channels set to scan. Follow the steps on the right to load it.", "ok");
+}
+
+$("search").addEventListener("input", applyFilter);
+$("onlySel").addEventListener("change", applyFilter);
+$("selShown").addEventListener("click", () => setSel(info.channels.filter(isShown).map(c => c.num), true));
+$("clearShown").addEventListener("click", () => setSel(info.channels.filter(isShown).map(c => c.num), false));
+$("clearAll").addEventListener("click", () => {
+  const before = [...selected];
+  selected = new Set();
+  storeSet(CURRENT_KEY, []);
+  applyFilter();
+  setStatus("Unticked everything.", "", () => { selected = new Set(before); storeSet(CURRENT_KEY, before); applyFilter(); });
+});
+function useSpec(only) {
+  const { nums, bad } = parseSpec($("spec").value, known);
+  if (bad.length) { setStatus("Couldn't use: " + bad.join(", ") + ". Channels run from " + Math.min(...known) + " to " + Math.max(...known) + ".", "err"); return; }
+  if (!nums.size) { setStatus("Enter channel numbers first, like 1-7, 14.", "err"); return; }
+  if (only) selected = new Set();
+  setSel([...nums], true);
+  setStatus((only ? "Now scanning only " : "Ticked ") + nums.size + " channel" + (nums.size === 1 ? "" : "s") + ".", "ok");
+}
+$("specAdd").addEventListener("click", () => useSpec(false));
+$("specOnly").addEventListener("click", () => useSpec(true));
+$("spec").addEventListener("keydown", e => { if (e.key === "Enter") useSpec(false); });
+$("saveList").addEventListener("click", saveList);
+$("listName").addEventListener("keydown", e => { if (e.key === "Enter") saveList(); });
+function saveList() {
+  const name = $("listName").value.trim();
+  if (!name) { setStatus("Give the list a name first.", "err"); $("listName").focus(); return; }
+  if (!selected.size) { setStatus("Tick at least one channel before saving.", "err"); return; }
+  const existed = name in lists;
+  lists[name] = [...selected].sort((a, b) => a - b);
+  const saved = storeSet(LISTS_KEY, lists);
+  renderLists();
+  if (saved) setStatus((existed ? "Updated \"" : "Saved \"") + name + "\".", "ok");
+  else setStatus("This browser blocked saving, so the list will be lost when you close the page. Your downloaded CSV still keeps it.", "err");
+}
+$("dl").addEventListener("click", download);
+$("fileIn").addEventListener("change", async e => {
+  const file = e.target.files[0];
+  e.target.value = "";
+  if (!file) return;
+  try {
+    loadCsv(await file.text(), file.name);
+    storeSet(CURRENT_KEY, [...selected]);
+    setStatus("Loaded " + file.name + ". Its ticks come from the file's Skip column.", "ok");
+  } catch (err) {
+    setStatus(err.message + " Your current channels are unchanged.", "err");
+  }
+});
+document.querySelector(".filebtn").addEventListener("keydown", e => {
+  if (e.key === "Enter" || e.key === " ") { e.preventDefault(); $("fileIn").click(); }
+});
+$("reset").addEventListener("click", () => {
+  loadCsv(BUILTIN_CSV, "Built-in Clark County list", [...selected]);
+  setStatus("Using the built-in channels.", "ok");
+});
+
+loadCsv(BUILTIN_CSV, "Built-in Clark County list", storeGet(CURRENT_KEY, []));
+renderLists();
+</script>
+</body>
+</html>
