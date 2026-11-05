@@ -1,4 +1,5 @@
-# UV-5RM custom firmware and radio-to-radio texting
+# UV5-RM-MOD
+This repo contains new firmware for Baofeng UV5-RM radios adding new apps including texting. CAUTION: CHIRP will no longer work so use the included apps to program channels and categories
 
 Custom firmware and add-on apps for the Baofeng UV-5RM, built on the open-source
 [bf-5rh-firmware-open](https://github.com/sophiel-meow/bf-5rh-firmware-open). The main addition
