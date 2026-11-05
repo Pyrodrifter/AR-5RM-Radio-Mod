@@ -81,6 +81,9 @@ py source-changes\setup_radio.py COM3 skull_logo.rgb565 64 apps
 list in this repo is for Clark County, Nevada, so check that it suits your area. Your radio should
 keep whatever channels it already had.
 
+To choose which channels get scanned, open `UV-5RM_Scan_Builder.html`, tick the ones you want, and
+load the CSV it saves into the uploader.
+
 Optional extras: `set_boot_tune.py` sets a Doom-style start-up riff, and `set_radio2_mario_tune.py`
 sets a Super Mario one but only runs on one specific radio, so copy and edit it for yours.
 
