@@ -1,3 +1,4 @@
+use crate::ui::rounded_font::FONT_9X18;
 use core::mem::MaybeUninit;
 
 use bf5rh_abi::{
@@ -5,7 +6,7 @@ use bf5rh_abi::{
     ARENA_SIZE, BUILD_HASH, HANDOFF_SIZE, MAGIC,
 };
 use cortex_m::peripheral::{SCB, SYST};
-use embedded_graphics::mono_font::ascii::{FONT_5X8, FONT_6X10, FONT_9X18};
+use embedded_graphics::mono_font::ascii::{FONT_5X8, FONT_6X10};
 use embedded_graphics::mono_font::{MonoFont, MonoTextStyleBuilder};
 use embedded_graphics::pixelcolor::{raw::RawU16, Rgb565};
 use embedded_graphics::prelude::*;
@@ -187,11 +188,11 @@ pub(crate) fn slot_valid(app: &mut App, slot: u8) -> bool {
 
 pub(crate) fn slot_name(app: &mut App, slot: u8, w: &mut dyn core::fmt::Write) {
     if !slot_valid(app, slot) {
-        let _ = write!(w, "EMPTY");
+        let _ = w.write_str("EMPTY");
         return;
     }
     let hdr = peek_header(app, slot);
-    let _ = write!(w, "{}", hdr.name_str());
+    let _ = w.write_str(hdr.name_str());
 }
 
 /// Load segment `seg` of the package in `slot` into the arena. Every segment
@@ -329,6 +330,33 @@ fn enter_call(app: &mut App, syst: &mut SYST) -> AppResult {
 /// spin forever.
 const MAX_CHAIN_HOPS: u8 = 4;
 
+/// Set while an app opened from a side key is running, so leaving it returns
+/// to the main screen instead of the MENU list. AR-5RM build only for now:
+/// the UV-5RM image has under 100 bytes of flash to spare.
+#[cfg(feature = "ar5rm-nrf")]
+static mut FROM_STANDBY: bool = false;
+
+/// Opens the first app whose package name is `name`, as a side key does.
+#[cfg(feature = "ar5rm-nrf")]
+pub(crate) fn enter_named(app: &mut App, syst: &mut SYST, name: &str) {
+    let want = name.as_bytes();
+    for slot in 0..SLOT_COUNT {
+        // `enter` checks the rest of the header; this only has to find it.
+        let hdr = peek_header(app, slot);
+        if hdr.magic == MAGIC
+            && hdr.name.starts_with(want)
+            && hdr.name.get(want.len()).is_none_or(|&b| b == 0)
+        {
+            unsafe { FROM_STANDBY = true };
+            enter(app, syst, slot);
+            if !matches!(app.mode, Mode::External(_)) {
+                unsafe { FROM_STANDBY = false }; // failed to load, or left already
+            }
+            return;
+        }
+    }
+}
+
 /// An app that owned the radio (a satellite tracker parks it on a Doppler-
 /// corrected satellite frequency) must not leave it there, and must not leave
 /// it keyed, so put the master VFO back on air unconditionally.
@@ -339,6 +367,11 @@ fn leave_app(app: &mut App, syst: &mut SYST) {
         ARENA_EXT = 0;
     }
     app.mode = Mode::AppMenu;
+    #[cfg(feature = "ar5rm-nrf")]
+    if unsafe { FROM_STANDBY } {
+        unsafe { FROM_STANDBY = false };
+        app.mode = Mode::Standby;
+    }
     unsafe {
         APP_TX_ENABLED = false;
         APP_HOLDS_RX = false;
@@ -767,6 +800,12 @@ extern "C" fn api_nor_write(addr: u32, buf: *const u8, len: u32) -> bool {
     if buf.is_null() || addr < self::addr::OVERLAY_APP_ADDR {
         return false;
     }
+    #[cfg(feature = "ar5rm-nrf")]
+    if addr < crate::drivers::norflash::PROTECTED_END
+        && addr.saturating_add(len) > crate::drivers::norflash::USER_BASE
+    {
+        return false;
+    }
     let slice = unsafe { core::slice::from_raw_parts(buf, len as usize) };
     app_ref().storage_mut().norflash.write_bytes(addr, slice);
     true
@@ -777,18 +816,21 @@ extern "C" fn api_nor_erase_sector(addr: u32) -> bool {
     if addr < self::addr::OVERLAY_APP_ADDR {
         return false;
     }
+    #[cfg(feature = "ar5rm-nrf")]
+    if (crate::drivers::norflash::USER_BASE..crate::drivers::norflash::PROTECTED_END).contains(&addr) {
+        return false;
+    }
     app_ref().storage_mut().norflash.erase_sector(addr);
     true
 }
 
 #[inline(never)]
 extern "C" fn api_fmt_u32(v: u32, out: *mut u8) -> u16 {
-    use core::fmt::Write;
     if out.is_null() {
         return 0;
     }
     let mut buf: crate::ui::TextBuf<10> = crate::ui::TextBuf::new();
-    let _ = write!(buf, "{v}");
+    crate::ui::num(&mut buf, v, 1);
     let s = buf.as_str().as_bytes();
     unsafe { core::ptr::copy_nonoverlapping(s.as_ptr(), out, s.len()) };
     s.len() as u16
@@ -796,14 +838,11 @@ extern "C" fn api_fmt_u32(v: u32, out: *mut u8) -> u16 {
 
 #[inline(never)]
 extern "C" fn api_fmt_freq(hz: u32, out: *mut u8) -> u16 {
-    use core::fmt::Write;
     if out.is_null() {
         return 0;
     }
-    let mhz = hz / 1_000_000;
-    let frac = (hz % 1_000_000) / 10;
     let mut buf: crate::ui::TextBuf<16> = crate::ui::TextBuf::new();
-    let _ = write!(buf, "{mhz}.{frac:05}");
+    crate::ui::freq_text(&mut buf, hz, 5);
     let s = buf.as_str().as_bytes();
     unsafe { core::ptr::copy_nonoverlapping(s.as_ptr(), out, s.len()) };
     s.len() as u16
@@ -1009,18 +1048,20 @@ extern "C" fn api_subaudio_format(v: i32, out: *mut u8, cap: u16) -> u16 {
     let mut buf: crate::ui::TextBuf<16> = crate::ui::TextBuf::new();
     match sub {
         crate::device::radio::SubAudio::None => {
-            let _ = write!(buf, "OFF");
+            let _ = buf.write_str("OFF");
         }
         crate::device::radio::SubAudio::Ctcss(hz) => {
-            let _ = write!(buf, "{}.{}Hz", hz / 10, hz % 10);
+            crate::ui::num(&mut buf, hz as u32 / 10, 1);
+            let _ = buf.write_str(".");
+            crate::ui::num(&mut buf, hz as u32 % 10, 1);
+            let _ = buf.write_str("Hz");
         }
         crate::device::radio::SubAudio::Dcs { code, inverted } => {
-            let _ = write!(
-                buf,
-                "D{:03o}{}",
-                code,
-                if inverted { "I" } else { "N" }
-            );
+            let _ = buf.write_str("D");
+            for shift in [6, 3, 0] {
+                let _ = buf.write_char((b'0' + (code >> shift & 7) as u8) as char);
+            }
+            let _ = buf.write_str(if inverted { "I" } else { "N" });
         }
     }
     let s = buf.as_str().as_bytes();

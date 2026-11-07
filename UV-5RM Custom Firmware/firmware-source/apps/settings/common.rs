@@ -214,6 +214,9 @@ pub struct Settings {
     band_long: u8,
     band_lock: u8,
     boot_display_mode: u8,
+    /// Firmware `ui::theme` index, kept in the high bits of byte 30.
+    theme: u8,
+    dark_theme: u8,
     boot_sound_enabled: bool,
     obs_lat: i32,
     obs_lon: i32,
@@ -254,7 +257,9 @@ impl Settings {
             band_short: buf[27],
             band_long: buf[28],
             band_lock: buf[29],
-            boot_display_mode: buf[30],
+            boot_display_mode: buf[30] & 3,
+            theme: (buf[30] >> 2) & 3,
+            dark_theme: ((buf[30] >> 4) & 3).min(2),
             boot_sound_enabled: buf[31] != 0,
             obs_lat: i32::from_le_bytes([buf[32], buf[33], buf[34], buf[35]]),
             obs_lon: i32::from_le_bytes([buf[36], buf[37], buf[38], buf[39]]),
@@ -293,7 +298,7 @@ impl Settings {
         buf[27] = self.band_short;
         buf[28] = self.band_long;
         buf[29] = self.band_lock;
-        buf[30] = self.boot_display_mode;
+        buf[30] = self.boot_display_mode | self.theme << 2 | self.dark_theme << 4;
         buf[31] = self.boot_sound_enabled as u8;
         buf[32..36].copy_from_slice(&self.obs_lat.to_le_bytes());
         buf[36..40].copy_from_slice(&self.obs_lon.to_le_bytes());
@@ -389,6 +394,7 @@ pub enum SettingItem {
     Offse,
     Beep,
     AutoLk,
+    Theme,
     Vox,
     VoxLv,
     VoxDly,
@@ -463,7 +469,7 @@ impl SettingsGroup {
                 &[Beep, Vox, VoxLv, VoxDly, Rtone, Tail, Rptrl, Roge]
             }
             #[cfg(feature = "g_disp")]
-            SettingsGroup::Display => &[Abr, AutoLk],
+            SettingsGroup::Display => &[Theme, Abr, AutoLk],
             #[cfg(feature = "g_keys")]
             SettingsGroup::Keys => &[
                 Side1Short, Side1Long, Side2Short, Side2Long, BandShort,
@@ -542,6 +548,8 @@ impl SettingItem {
             Abr => "ABR",
             #[cfg(feature = "g_disp")]
             AutoLk => "AUTOLK",
+            #[cfg(feature = "g_disp")]
+            Theme => "THEME",
 
             #[cfg(feature = "g_keys")]
             Side1Short => "S1-SH",
@@ -630,10 +638,12 @@ fn key_function_label(v: u8) -> &'static str {
         2 => "MONITOR",
         3 => "MODE",
         4 => "TX TONE",
+        5 => "FM RADIO",
         6 => "SCAN",
         7 => "POWER",
         8 => "LIGHT",
         10 => "REVERSE",
+        11 => "DAY/NIGHT",
         _ => "NONE",
     }
 }
@@ -1138,6 +1148,8 @@ fn current_value(api: &Api, st: &ItemsState, item: SettingItem) -> i32 {
         AutoLk => st.settings.key_auto_lock as i32,
         #[cfg(feature = "g_disp")]
         Abr => st.settings.backlight_time as i32,
+        #[cfg(feature = "g_disp")]
+        Theme => st.settings.theme as i32,
 
         #[cfg(feature = "g_keys")]
         Side1Short => st.settings.side1_short as i32,
@@ -1224,10 +1236,12 @@ fn adjust(api: &Api, st: &mut ItemsState, item: SettingItem, up: bool) {
         AutoLk => clamp_step(cur, up, 0, 3),
         #[cfg(feature = "g_disp")]
         Abr => clamp_step(cur, up, 0, 4),
+        #[cfg(feature = "g_disp")]
+        Theme => clamp_step(cur, up, 0, 3),
 
         #[cfg(feature = "g_keys")]
         Side1Short | Side1Long | Side2Short | Side2Long | BandShort
-        | BandLong => clamp_step(cur, up, 0, 10),
+        | BandLong => clamp_step(cur, up, 0, 11),
 
         #[cfg(feature = "g_ani")]
         AniTx => 1 - cur,
@@ -1321,6 +1335,13 @@ fn apply(api: &Api, st: &mut ItemsState, item: SettingItem, v: i32) {
         AutoLk => st.settings.key_auto_lock = v as u8,
         #[cfg(feature = "g_disp")]
         Abr => st.settings.backlight_time = v as u8,
+        #[cfg(feature = "g_disp")]
+        Theme => {
+            st.settings.theme = v as u8;
+            if v < 3 {
+                st.settings.dark_theme = v as u8;
+            }
+        },
 
         #[cfg(feature = "g_keys")]
         Side1Short => st.settings.side1_short = v as u8,
@@ -1688,6 +1709,16 @@ fn value_text_for(
                 2 => "10S",
                 3 => "15S",
                 _ => "OFF",
+            },
+        ),
+        #[cfg(feature = "g_disp")]
+        Theme => write_str(
+            out,
+            match current_value(api, st, item) {
+                1 => "BLUE",
+                2 => "PURPLE",
+                3 => "SUN",
+                _ => "CLASSIC",
             },
         ),
         #[cfg(feature = "g_disp")]

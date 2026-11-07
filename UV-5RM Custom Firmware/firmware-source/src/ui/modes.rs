@@ -1,9 +1,10 @@
+use crate::ui::rounded_font::FONT_9X18;
 use super::backdrop::draw_backdrop;
 use super::list::{draw_list, Cache, ListSource};
 use super::{TextBuf, SCREEN_H};
 use crate::app::{self, modes_table};
 use core::fmt::Write as _;
-use embedded_graphics::mono_font::ascii::{FONT_6X10, FONT_9X18};
+use embedded_graphics::mono_font::ascii::{FONT_6X10};
 use embedded_graphics::mono_font::MonoTextStyle;
 use embedded_graphics::pixelcolor::Rgb565;
 use embedded_graphics::prelude::*;
@@ -129,15 +130,19 @@ where
     for (stage, label, hz, y) in [(0u8, "START", lo, 40), (1u8, "STOP", hi, 66)] {
         let mut value: TextBuf<8> = TextBuf::new();
         if snap.stage == stage && snap.typed_len > 0 {
-            write!(value, "{}", typed.as_str()).ok();
+            value.write_str(typed.as_str()).ok();
         } else {
-            write!(value, "{}.{:03}", hz / 1_000_000, hz / 1000 % 1000).ok();
+            super::freq_text(&mut value, hz, 3);
         }
         field(lcd, label, value.as_str(), y, snap.stage == stage);
     }
 
     let mut step: TextBuf<20> = TextBuf::new();
-    write!(step, "STEP {}.{:02} KHZ UP/DN", snap.step / 100, snap.step % 100).ok();
+    step.write_str("STEP ").ok();
+    super::num(&mut step, snap.step as u32 / 100, 1);
+    step.write_str(".").ok();
+    super::num(&mut step, snap.step as u32 % 100, 2);
+    step.write_str(" KHZ UP/DN").ok();
     small(lcd, step.as_str(), 90, FG);
 
     if snap.err {

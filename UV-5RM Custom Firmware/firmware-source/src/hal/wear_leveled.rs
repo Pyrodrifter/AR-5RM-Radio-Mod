@@ -1,7 +1,10 @@
 use crate::drivers::norflash::{NorFlash, SECTOR_SIZE};
 
 pub(crate) fn crc16_xmodem(data: &[u8]) -> u16 {
-    let mut crc: u16 = 0;
+    crc16_update(0, data)
+}
+
+pub(crate) fn crc16_update(mut crc: u16, data: &[u8]) -> u16 {
     for &byte in data {
         crc ^= (byte as u16) << 8;
         for _ in 0..8 {
@@ -20,22 +23,44 @@ const CLEAR_MASK: [u8; 8] = [0xFE, 0xFC, 0xF8, 0xF0, 0xE0, 0xC0, 0x80, 0x00];
 const MAX_SCAN_BYTES: usize = 32;
 
 pub struct WearLeveledRegion<const PAYLOAD_LEN: usize> {
+    region: Region,
+}
+
+struct Region {
     base_addr: u32,
     header_size: u32,
+    payload_len: u32,
 }
 
 impl<const PAYLOAD_LEN: usize> WearLeveledRegion<PAYLOAD_LEN> {
-    const SLOT_SIZE: u32 = PAYLOAD_LEN as u32 + 2;
-
     pub const fn new(base_addr: u32, header_size: u32) -> Self {
         WearLeveledRegion {
-            base_addr,
-            header_size,
+            region: Region {
+                base_addr,
+                header_size,
+                payload_len: PAYLOAD_LEN as u32,
+            },
         }
     }
 
+    pub fn load(&self, flash: &mut NorFlash) -> Option<[u8; PAYLOAD_LEN]> {
+        let mut payload = [0u8; PAYLOAD_LEN];
+        self.region.load(flash, &mut payload).then_some(payload)
+    }
+
+    pub fn save(&self, flash: &mut NorFlash, payload: &[u8; PAYLOAD_LEN]) {
+        let mut previous = [0u8; PAYLOAD_LEN];
+        self.region.save(flash, payload, &mut previous);
+    }
+}
+
+impl Region {
+    fn slot_size(&self) -> u32 {
+        self.payload_len + 2
+    }
+
     fn max_slots(&self) -> u32 {
-        let by_space = (SECTOR_SIZE - self.header_size) / Self::SLOT_SIZE;
+        let by_space = (SECTOR_SIZE - self.header_size) / self.slot_size();
         let by_header_bits = self.header_size * 8;
         by_space.min(by_header_bits)
     }
@@ -45,7 +70,7 @@ impl<const PAYLOAD_LEN: usize> WearLeveledRegion<PAYLOAD_LEN> {
     }
 
     fn slot_addr(&self, index: u32) -> u32 {
-        self.base_addr + self.header_size + index * Self::SLOT_SIZE
+        self.base_addr + self.header_size + index * self.slot_size()
     }
 
     fn find_free_slot(&self, flash: &mut NorFlash) -> u32 {
@@ -67,48 +92,43 @@ impl<const PAYLOAD_LEN: usize> WearLeveledRegion<PAYLOAD_LEN> {
         &self,
         flash: &mut NorFlash,
         index: u32,
-    ) -> Option<[u8; PAYLOAD_LEN]> {
-        let mut buf = [0u8; PAYLOAD_LEN];
+        payload: &mut [u8],
+    ) -> bool {
         let mut crc_buf = [0u8; 2];
         let addr = self.slot_addr(index);
-        flash.read_bytes(addr, &mut buf);
-        flash.read_bytes(addr + PAYLOAD_LEN as u32, &mut crc_buf);
-
-        if u16::from_le_bytes(crc_buf) == crc16_xmodem(&buf) {
-            Some(buf)
-        } else {
-            None
-        }
+        flash.read_bytes(addr, payload);
+        flash.read_bytes(addr + self.payload_len, &mut crc_buf);
+        u16::from_le_bytes(crc_buf) == crc16_xmodem(payload)
     }
 
     fn write_slot(
         &self,
         flash: &mut NorFlash,
         index: u32,
-        payload: &[u8; PAYLOAD_LEN],
+        payload: &[u8],
     ) {
         let addr = self.slot_addr(index);
         flash.write_bytes(addr, payload);
         flash.write_bytes(
-            addr + PAYLOAD_LEN as u32,
+            addr + self.payload_len,
             &crc16_xmodem(payload).to_le_bytes(),
         );
     }
 
-    pub fn load(&self, flash: &mut NorFlash) -> Option<[u8; PAYLOAD_LEN]> {
+    #[inline(never)]
+    fn load(&self, flash: &mut NorFlash, payload: &mut [u8]) -> bool {
         let index = self.find_free_slot(flash);
-        if index >= self.max_slots() {
-            return None;
-        }
-        self.read_slot(flash, index)
+        index < self.max_slots() && self.read_slot(flash, index, payload)
     }
 
-    pub fn save(&self, flash: &mut NorFlash, payload: &[u8; PAYLOAD_LEN]) {
+    #[inline(never)]
+    fn save(&self, flash: &mut NorFlash, payload: &[u8], previous: &mut [u8]) {
         let index = self.find_free_slot(flash);
         let max_slots = self.max_slots();
 
         if index < max_slots
-            && self.read_slot(flash, index).as_ref() == Some(payload)
+            && self.read_slot(flash, index, previous)
+            && previous == payload
         {
             return;
         }

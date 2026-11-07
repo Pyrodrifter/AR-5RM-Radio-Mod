@@ -1,63 +1,87 @@
-"""Check that the bootloader answers. Sends only the HANDSHAKE frame; there is no write path here.
+"""Probe a KDH bootloader using only its handshake command."""
 
-Frame layout and CRC match tools/flash.py from bf-5rh-firmware-open.
-"""
-import sys, time
+import argparse
+from binascii import crc_hqx
+import struct
+import sys
+import time
+
 import serial
 
-PORT = sys.argv[1]
+START, END = 0xAA, 0xEF
 CMD_HANDSHAKE, ACK = 0x01, 0x06
+REPLY_COMMANDS = {CMD_HANDSHAKE, 0xE1, 0xE2, 0xE3, 0xE5}
+HANDSHAKE_BODY = b"\x01\x00\x00\x0aBOOTLOADER"
+HANDSHAKE = bytes([START]) + HANDSHAKE_BODY + struct.pack(
+    ">HB", crc_hqx(HANDSHAKE_BODY, 0), END
+)
 
 
-def crc16_xmodem(data):
-    crc = 0
-    for byte in data:
-        crc ^= byte << 8
-        for _ in range(8):
-            crc = ((crc << 1) ^ 0x1021) if crc & 0x8000 else crc << 1
-        crc &= 0xFFFF
-    return crc
+def find_reply(received):
+    for start in range(len(received) - 7):
+        if received[start] != START:
+            continue
+        cmd, status, size = struct.unpack_from(">BBH", received, start + 1)
+        if cmd not in REPLY_COMMANDS:
+            continue
+        crc_at = start + 5 + size
+        end = crc_at + 3
+        if end > len(received) or received[end - 1] != END:
+            continue
+        if received[start:end] == HANDSHAKE:
+            continue  # Some cables echo the probe back.
+        crc = struct.unpack_from(">H", received, crc_at)[0]
+        if crc == crc_hqx(received[start + 1:crc_at], 0):
+            return cmd, status, size
+    return None
 
 
-def frame(cmd, args, data):
-    body = bytes([cmd, args, len(data) >> 8, len(data) & 0xFF]) + data
-    crc = crc16_xmodem(body)
-    return b"\xAA" + body + bytes([crc >> 8, crc & 0xFF, 0xEF])
-
-
-s = serial.Serial(PORT, 115200, timeout=0.05)
-s.dtr = True
-s.rts = True
-try:
-    idle = bytearray()
-    end = time.monotonic() + 1.0
-    while time.monotonic() < end:
-        idle += s.read(64)
-    print("bytes heard before sending anything:", idle[:32].hex() or "(none)")
-
-    reply = b""
+def probe(port):
+    idle = port.read(32)
+    print("bytes heard before sending anything:", idle.hex() or "(none)")
+    saw_bytes = False
     for attempt in range(1, 6):
-        s.reset_input_buffer()
-        s.write(frame(CMD_HANDSHAKE, 0, b"BOOTLOADER"))
-        buf = bytearray()
-        end = time.monotonic() + 2.0
-        while time.monotonic() < end and len(buf) < 32:
-            buf += s.read(32)
-            if buf and buf[0] == 0xAA and len(buf) >= 8:
-                break
-        print(f"attempt {attempt}: reply {bytes(buf).hex() or '(none)'}")
-        if buf:
-            reply = bytes(buf)
-            break
-    if reply[:1] == b"\xAA" and len(reply) >= 8:
-        cmd, args, hi, lo = reply[1:5]
-        n = hi << 8 | lo
-        body = reply[1:5 + n]
-        got = reply[5 + n] << 8 | reply[6 + n]
-        ok = got == crc16_xmodem(body)
-        print(f"frame cmd=0x{cmd:02X} args=0x{args:02X} len={n} crc_ok={ok}")
-        print("BOOTLOADER ANSWERED" if ok and args == ACK else "BOOTLOADER REFUSED THE HANDSHAKE")
-    else:
-        print("NO BOOTLOADER RESPONSE")
-finally:
-    s.close()
+        port.reset_input_buffer()
+        port.write(HANDSHAKE)
+        received = bytearray()
+        reply = None
+        deadline = time.monotonic() + 2.0
+        while time.monotonic() < deadline and len(received) < 4096:
+            chunk = port.read(32)
+            if chunk:
+                received.extend(chunk)
+                reply = find_reply(received)
+                if reply is not None:
+                    break
+        saw_bytes |= bool(received)
+        print(f"attempt {attempt}: reply {received[:64].hex() or '(none)'}")
+        if reply is not None:
+            cmd, status, size = reply
+            print(f"frame cmd=0x{cmd:02X} args=0x{status:02X} len={size} crc_ok=True")
+            if cmd == CMD_HANDSHAKE and status == ACK:
+                print("BOOTLOADER ANSWERED")
+                return True
+            print("BOOTLOADER REFUSED THE HANDSHAKE")
+            return False
+
+    print("NO VALID BOOTLOADER REPLY" if saw_bytes else "NO BOOTLOADER RESPONSE")
+    return False
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("port", help="serial port of the programming cable, such as COM7")
+    args = parser.parse_args()
+
+    try:
+        with serial.Serial(args.port, 115200, timeout=0.05, write_timeout=1) as port:
+            port.dtr = True
+            port.rts = True
+            return 0 if probe(port) else 1
+    except serial.SerialException as exc:
+        print(f"Serial error: {exc}", file=sys.stderr)
+        return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -5,8 +5,10 @@ mod icons;
 mod launcher;
 mod list;
 mod modes;
+pub(crate) mod rounded_font;
 mod scan;
 mod standby;
+pub(crate) mod theme;
 
 pub(crate) use list::{draw_list, Cache, ListSource};
 
@@ -20,12 +22,25 @@ use embedded_graphics::primitives::{PrimitiveStyle, Rectangle};
 pub(crate) const SCREEN_W: i32 = crate::drivers::st7735::WIDTH as i32;
 pub(crate) const SCREEN_H: i32 = crate::drivers::st7735::HEIGHT as i32;
 
+pub(crate) fn draw_boot_logo(
+    display: &mut Display<'_>,
+    app: &mut app::App<'_>,
+) {
+    backdrop::draw_image(
+        display.as_draw_target(),
+        &mut |addr, buf| app.storage_mut().read_raw(addr, buf),
+        0,
+        SCREEN_H,
+        false,
+    );
+}
+
 pub(crate) fn clear_strip<D>(lcd: &mut D, y: i32, h: i32)
 where
     D: DrawTarget<Color = Rgb565>,
 {
     Rectangle::new(Point::new(0, y), Size::new(SCREEN_W as u32, h as u32))
-        .into_styled(PrimitiveStyle::with_fill(Rgb565::BLACK))
+        .into_styled(PrimitiveStyle::with_fill(theme::t().bg))
         .draw(lcd)
         .ok();
 }
@@ -60,6 +75,26 @@ impl<const N: usize> core::fmt::Write for TextBuf<N> {
     }
 }
 
+/// `v` in decimal, zero-padded to `width`. Much smaller than `write!`.
+#[inline(never)]
+pub(crate) fn num(w: &mut dyn core::fmt::Write, mut v: u32, width: usize) {
+    let mut d = [b'0'; 10];
+    let mut n = 0;
+    while v > 0 || n < width.max(1) {
+        d[9 - n] = b'0' + (v % 10) as u8;
+        v /= 10;
+        n += 1;
+    }
+    w.write_str(unsafe { core::str::from_utf8_unchecked(&d[10 - n..]) }).ok();
+}
+
+/// `MHz.` then `digits` (1..=5) of the fraction, e.g. 146.52000.
+pub(crate) fn freq_text(w: &mut dyn core::fmt::Write, hz: u32, digits: usize) {
+    num(w, hz / 1_000_000, 1);
+    w.write_str(".").ok();
+    num(w, hz % 1_000_000 / [100_000, 10_000, 1000, 100, 10][digits - 1], digits);
+}
+
 pub struct UiState {
     last_mode: Option<app::Mode>,
     standby: standby::Cache,
@@ -91,7 +126,10 @@ where
 
     let (used, free) = crate::hal::stackprobe::high_water();
     let mut t: TextBuf<16> = TextBuf::new();
-    let _ = write!(t, "U{used} F{free}");
+    let _ = t.write_str("U");
+    num(&mut t, used as u32, 1);
+    let _ = t.write_str(" F");
+    num(&mut t, free as u32, 1);
 
     let y = SCREEN_H - 10;
     clear_strip(lcd, y, 10);
@@ -113,7 +151,8 @@ pub fn draw(
 ) {
     let lcd = display.as_draw_target();
     let mode = app.mode();
-    if state.last_mode != Some(mode) {
+    // A new theme repaints everything, like a mode change does.
+    if theme::set(app.settings().theme) || state.last_mode != Some(mode) {
         state.standby = standby::Cache::new();
         state.list = list::Cache::new();
         state.scan = scan::Cache::new();

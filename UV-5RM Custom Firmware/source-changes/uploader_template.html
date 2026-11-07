@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>UV-5RM Channels</title>
+<title>AR-5RM Custom CPS</title>
 <style>
 :root {
   color-scheme: dark;
@@ -67,15 +67,25 @@ dialog h2 { margin: 0 0 10px; font-size: 17px; }
 #formErr { color: var(--warn); font-weight: 600; margin: 8px 0 0; min-height: 1.2em; }
 #diffList { max-height: 240px; overflow: auto; margin: 8px 0; padding: 0; list-style: none; font-size: 13px; }
 #diffList li { padding: 2px 0; border-bottom: 1px solid rgba(74, 22, 22, .55); }
+#appearanceDlg { width: min(680px, 94vw); max-width: none; }
+.artwork { border: 1px solid var(--line); border-radius: 8px; padding: 10px; min-width: 0; }
+.artwork h3 { margin: 0 0 8px; font-size: 14px; }
+.artwork canvas { display: block; width: 100%; max-width: 240px; height: auto; margin: 0 auto 10px; background: #000; image-rendering: pixelated; border: 1px solid var(--line); }
+.artwork input { width: 100%; }
+.artwork .muted { min-height: 1.4em; margin: 6px 0 0; overflow-wrap: anywhere; }
+#appearanceStatus { min-height: 1.4em; }
+#appearanceStatus.err { color: var(--warn); }
+#appearanceStatus.ok { color: var(--ok); }
 </style>
 </head>
 <body>
 <header>
-  <h1>UV-5RM Channels</h1>
+  <h1>AR-5RM Custom CPS</h1>
   <span id="source" class="muted"></span>
   <span class="spacer"></span>
   <label class="filebtn" tabindex="0">Open CSV or backup<input type="file" id="fileIn" accept=".csv,.bin,text/csv" class="hidden"></label>
   <button id="saveCsv">Save CSV</button>
+  <button id="appearanceBtn">Radio appearance</button>
 </header>
 
 <main>
@@ -94,10 +104,56 @@ dialog h2 { margin: 0 0 10px; font-size: 17px; }
   <span id="tally"></span>
   <progress id="prog" class="hidden" max="100" value="0"></progress>
   <span class="spacer"></span>
-  <button id="readBtn">Compare with radio</button>
+  <button id="readBtn">Read radio</button>
   <button id="useRadio" class="hidden">Use radio's channels</button>
   <button id="uploadBtn" class="primary">Upload to radio</button>
 </div>
+
+<dialog id="appearanceDlg" aria-labelledby="appearanceTitle">
+  <h2 id="appearanceTitle">Radio appearance</h2>
+  <p id="appearanceSupport" class="muted">Read appearance to check what the installed firmware supports.</p>
+  <div class="grid">
+    <section class="artwork" aria-labelledby="startupTitle">
+      <h3 id="startupTitle">Startup screen</h3>
+      <canvas id="startupPreview" width="160" height="128" aria-label="Startup artwork preview"></canvas>
+      <label>Choose startup artwork <input id="startupFile" type="file" accept="image/*,.rgb565"></label>
+      <p id="startupLabel" class="muted">No image selected</p>
+    </section>
+    <section class="artwork" aria-labelledby="backgroundTitle">
+      <h3 id="backgroundTitle">Radio background</h3>
+      <canvas id="backgroundPreview" width="160" height="128" aria-label="Background artwork preview"></canvas>
+      <label>Choose background artwork <input id="backgroundFile" type="file" accept="image/*,.rgb565" disabled></label>
+      <button id="backgroundClear" type="button" disabled>Clear background</button>
+      <p id="backgroundLabel" class="muted">Read appearance to enable</p>
+    </section>
+    <label>Sizing for new photos
+      <select id="imageFit"><option value="fit">Fit with black borders</option><option value="fill">Fill and crop to center</option></select>
+    </label>
+    <label>Radio theme
+      <select id="radioTheme" disabled><option value="">Keep current</option><option value="0">Default</option><option value="1">Blue</option><option value="2">Purple</option><option value="3">Sun</option></select>
+    </label>
+  </div>
+  <section class="artwork" style="margin-top:10px" aria-labelledby="tuneTitle">
+    <h3 id="tuneTitle">Startup tune</h3>
+    <p class="muted">One note per line as note number, duration. Notes 1–45 run from A2 to F6. Use 0 for a rest. Duration units are 30 ms.</p>
+    <textarea id="bootTune" rows="5" aria-label="Startup tune notes" placeholder="Read appearance to load the current tune" style="width:100%" disabled></textarea>
+    <div class="toolbar">
+      <label>Boot sound <select id="bootSound" disabled><option value="">Keep current</option><option value="1">On</option><option value="0">Off</option></select></label>
+      <button id="tuneDefault" type="button" disabled>Default tune</button>
+      <button id="tuneDoom" type="button" disabled>Doom riff</button>
+      <button id="tunePreview" type="button" disabled>Play preview</button>
+    </div>
+  </section>
+  <p id="appearanceStatus" role="status"></p>
+  <div class="actions">
+    <label>Open appearance backup <input id="appearanceBackup" type="file" accept=".json,application/json"></label>
+  </div>
+  <div class="actions">
+    <button id="appearanceClose">Close</button>
+    <button id="appearanceRead">Read appearance</button>
+    <button id="appearanceWrite" class="primary">Write and verify</button>
+  </div>
+</dialog>
 
 <dialog id="editDlg" aria-labelledby="editTitle">
   <h2 id="editTitle">Edit channel</h2>
@@ -421,7 +477,11 @@ class Link {
       await this.writer.write(frame);
       const r = await this.recvFrame(performance.now() + timeoutMs);
       if (!r) continue;
-      if (r.cmd === CMD_ERROR) throw new Error(`The radio refused a command (error ${r.data[0]}).`);
+      if (r.cmd === CMD_ERROR && r.addr === addr) {
+        const error = new Error(`The radio refused a command (error ${r.data[0]}).`);
+        error.radioCode = r.data[0];
+        throw error;
+      }
       if (r.cmd !== cmd || r.addr !== addr) continue;
       return r;
     }
@@ -440,9 +500,11 @@ class Link {
   }
 
   async readSector(s) {
-    const t = new Uint8Array(SECTOR_CH * REC);
-    for (let i = 0; i < SECTOR_CH; i++) {
-      const r = await this.send(CMD_READ, (s * SECTOR_CH + i) * REC);
+    const first = s * SECTOR_CH;
+    const t = new Uint8Array(Math.min(SECTOR_CH, MAX_CHANNELS - first) * REC);
+    for (let i = 0; i < t.length / REC; i++) {
+      const r = await this.send(CMD_READ, (first + i) * REC);
+      if (r.data.length !== REC) throw new Error("The radio sent an unexpected reply.");
       t.set(r.data, i * REC);
     }
     return t;
@@ -468,7 +530,7 @@ function sameBytes(a, b) { if (a.length !== b.length) return false; for (let i =
 
 async function writeSectors(link, target, sectors, onProgress) {
   let done = 0;
-  const total = sectors.length * SECTOR_CH * 2;
+  const total = sectors.reduce((count, s) => count + Math.min(SECTOR_CH, MAX_CHANNELS - s * SECTOR_CH), 0) * 2;
   for (const s of sectors) {
     for (let i = 0; i < SECTOR_CH; i++) {
       const n = s * SECTOR_CH + i;
@@ -483,7 +545,7 @@ async function writeSectors(link, target, sectors, onProgress) {
     const back = await link.readSector(s);
     const want = target.subarray(s * SECTOR_CH * REC, (s + 1) * SECTOR_CH * REC);
     if (!sameBytes(back, want)) bad.push(s);
-    done += SECTOR_CH;
+    done += want.length / REC;
     if (onProgress) onProgress(done / total);
   }
   return bad;
@@ -495,7 +557,14 @@ let chans = [], csvBase = null, sourceName = "", dirty = false, radioTable = nul
 
 function setNotice(msg, kind) { const n = $("notice"); n.textContent = msg; n.className = kind || ""; }
 function setDirty(v) { dirty = v; $("source").textContent = sourceName + (dirty ? " (unsaved changes)" : ""); }
-function setBusy(v) { busy = v; for (const id of ["readBtn", "uploadBtn", "useRadio", "saveCsv", "addCh"]) $(id).disabled = v; $("prog").classList.toggle("hidden", !v); if (!v) $("prog").value = 0; }
+function setBusy(v) {
+  busy = v;
+  for (const id of ["readBtn", "uploadBtn", "useRadio", "saveCsv", "addCh", "appearanceBtn"]) {
+    $(id).disabled = v || (!("serial" in navigator) && ["readBtn", "uploadBtn"].includes(id));
+  }
+  $("prog").classList.toggle("hidden", !v);
+  if (!v) $("prog").value = 0;
+}
 const progress = f => { $("prog").value = Math.round(f * 100); };
 
 function channelDiff(c) {
@@ -724,6 +793,10 @@ async function compareWithRadio() {
       return t;
     });
     radioTable = table;
+    if (!BUILTIN_CSV && !chans.length && !dirty) {
+      useRadioChannels();
+      return table;
+    }
     const target = checkAll();
     const d = diffSummary(table, target);
     const total = d.changed + d.added + d.removed;
@@ -757,6 +830,10 @@ function useRadioChannels() {
 
 let pendingTarget = null, pendingCurrent = null;
 async function startUpload() {
+  if (!chans.length && !radioTable && !sourceName) {
+    setNotice("Read the radio or open your channel list before uploading.", "err");
+    return;
+  }
   let target;
   try { target = checkAll(); } catch (e) { setNotice(e.message, "err"); return; }
   setBusy(true);
@@ -817,6 +894,371 @@ async function finishUpload() {
   } finally { setBusy(false); }
 }
 
+/* ---------- radio appearance ---------- */
+const ART_WIDTH = 160, ART_HEIGHT = 128, ART_CHUNK = 512;
+const ART_BYTES = ART_WIDTH * ART_HEIGHT * 2;
+const ART_COMMANDS = { startup: [0x4C, 0x6C], background: [0x42, 0x62] };
+const SETTINGS_ADDR = 0x9000, SETTINGS_BYTES = 168, BOOT_THEME_BYTE = 30;
+const BOOT_SOUND_BYTE = 31, TUNE_OFFSET = 72, TUNE_BYTES = 96;
+const TUNE_FREQ = [110,120,120,130,140,150,160,160,170,190,200,210,220,230,250,260,280,290,310,330,350,370,390,420,440,470,490,520,550,590,620,660,700,740,780,830,880,930,990,1050,1110,1170,1240,1320,1400];
+const THEME_NAMES = ["Default", "Blue", "Purple", "Sun"];
+let appearance = null, appearanceBusy = false;
+let pendingArt = {};
+let pendingBackgroundClear = false;
+let pendingDarkTheme = null;
+let tuneDirty = false;
+
+function appearanceStatus(message, kind = "") {
+  $("appearanceStatus").textContent = message;
+  $("appearanceStatus").className = kind;
+}
+
+function renderAppearance() {
+  const supported = appearance?.independent === true;
+  const serial = "serial" in navigator;
+  const theme = $("radioTheme");
+  const hasChanges = Object.keys(pendingArt).length > 0 || pendingBackgroundClear || theme.value !== "" || tuneDirty || $("bootSound").value !== "";
+  $("appearanceSupport").textContent = appearance === null
+    ? "Read appearance to check what the installed firmware supports."
+    : supported
+      ? `Radio theme: ${THEME_NAMES[appearance.theme] ?? `ID ${appearance.theme}`}. Startup and background are stored separately.`
+      : "This firmware uses one image for startup and menus. Changing startup artwork also changes the menu background.";
+  $("appearanceRead").disabled = appearanceBusy || !serial;
+  $("appearanceWrite").disabled = appearanceBusy || !serial || !appearance || !hasChanges;
+  $("appearanceClose").disabled = appearanceBusy;
+  $("backgroundFile").disabled = appearanceBusy || !supported;
+  $("backgroundClear").disabled = appearanceBusy || appearance?.backgroundPresent == null;
+  theme.disabled = appearanceBusy || !supported;
+  for (const id of ["bootTune", "bootSound", "tuneDefault", "tuneDoom", "tunePreview"]) {
+    $(id).disabled = appearanceBusy || !appearance;
+  }
+  for (const id of ["startupFile", "imageFit", "appearanceBackup"]) $(id).disabled = appearanceBusy;
+
+  for (const kind of ["startup", "background"]) {
+    const staged = pendingArt[kind];
+    const onRadio = appearance?.[kind];
+    const canvas = $(kind + "Preview");
+    const ctx = canvas.getContext("2d");
+    const bytes = kind === "background" && (pendingBackgroundClear || (!staged && appearance?.backgroundPresent === false))
+      ? null : staged?.bytes ?? onRadio;
+    ctx.clearRect(0, 0, ART_WIDTH, ART_HEIGHT);
+    if (bytes) {
+      const img = ctx.createImageData(ART_WIDTH, ART_HEIGHT);
+      for (let pixel = 0; pixel < ART_WIDTH * ART_HEIGHT; pixel++) {
+        const word = bytes[pixel * 2] | bytes[pixel * 2 + 1] << 8;
+        const offset = pixel * 4;
+        img.data[offset] = Math.round((word >> 11) * 255 / 31);
+        img.data[offset + 1] = Math.round((word >> 5 & 63) * 255 / 63);
+        img.data[offset + 2] = Math.round((word & 31) * 255 / 31);
+        img.data[offset + 3] = 255;
+      }
+      ctx.putImageData(img, 0, 0);
+    }
+    $(kind + "Label").textContent = kind === "background" && pendingBackgroundClear ? "Ready to clear" :
+      kind === "background" && appearance?.backgroundPresent === false && !staged ? "No background on radio" :
+      staged ? `Ready to write · ${staged.name}` : onRadio
+      ? (kind === "background" && !supported ? "Shared image on radio" : "Current image on radio")
+      : "No image selected";
+  }
+}
+
+async function loadArtwork(file, fit) {
+  if (/\.rgb565$/i.test(file.name)) {
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    if (bytes.length !== ART_BYTES) throw new Error(`RGB565 artwork must be exactly ${ART_BYTES} bytes.`);
+    return bytes;
+  }
+  const bitmap = await createImageBitmap(file);
+  try {
+    const canvas = document.createElement("canvas");
+    canvas.width = ART_WIDTH; canvas.height = ART_HEIGHT;
+    const ctx = canvas.getContext("2d");
+    const fitScale = fit === "fill" ? Math.max : Math.min;
+    const scale = fitScale(ART_WIDTH / bitmap.width, ART_HEIGHT / bitmap.height);
+    const w = bitmap.width * scale, h = bitmap.height * scale;
+    ctx.fillStyle = "#000";
+    ctx.fillRect(0, 0, ART_WIDTH, ART_HEIGHT);
+    ctx.drawImage(bitmap, (ART_WIDTH - w) / 2, (ART_HEIGHT - h) / 2, w, h);
+    const rgba = ctx.getImageData(0, 0, ART_WIDTH, ART_HEIGHT).data;
+    const bytes = new Uint8Array(ART_BYTES);
+    for (let pixel = 0; pixel < ART_WIDTH * ART_HEIGHT; pixel++) {
+      const i = pixel * 4;
+      const word = (rgba[i] >> 3) << 11 | (rgba[i + 1] >> 2) << 5 | rgba[i + 2] >> 3;
+      bytes[pixel * 2] = word & 255;
+      bytes[pixel * 2 + 1] = word >> 8;
+    }
+    return bytes;
+  } finally {
+    bitmap.close();
+  }
+}
+
+async function readArtBlock(link, cmd, offset) {
+  const { data } = await link.send(cmd, offset);
+  if (data.length !== ART_CHUNK) throw new Error("The radio returned an invalid artwork block.");
+  return data;
+}
+
+async function readArt(link, kind, firstBlock) {
+  const [read] = ART_COMMANDS[kind];
+  const bytes = new Uint8Array(ART_BYTES);
+  let offset = 0;
+  if (firstBlock) {
+    bytes.set(firstBlock);
+    offset = ART_CHUNK;
+  }
+  for (; offset < ART_BYTES; offset += ART_CHUNK) {
+    bytes.set(await readArtBlock(link, read, offset), offset);
+  }
+  return bytes;
+}
+
+async function backgroundProbe(link) {
+  try {
+    return await readArtBlock(link, ART_COMMANDS.background[0], 0);
+  } catch (e) {
+    if (e.radioCode === 3) return null;
+    throw e;
+  }
+}
+
+async function backgroundPresence(link) {
+  try {
+    const { data } = await link.send(ART_COMMANDS.background[0], 0xFFFF);
+    if (data.length !== 1 || data[0] > 1) throw new Error("The radio returned invalid background status.");
+    return data[0] === 1;
+  } catch (e) {
+    if (e.radioCode === 2 || e.radioCode === 3) return null;
+    throw e;
+  }
+}
+
+async function readThemeSettings(link) {
+  const { data } = await link.send(CMD_READ, SETTINGS_ADDR);
+  if (data.length !== SETTINGS_BYTES) throw new Error("The radio returned an invalid settings record.");
+  return data;
+}
+
+function parseBootTune(text) {
+  const lines = text.split(/\r?\n/).filter(line => line.trim());
+  if (lines.length > 48) throw new Error("A tune can contain at most 48 notes.");
+  const bytes = new Uint8Array(TUNE_BYTES);
+  lines.forEach((line, index) => {
+    const match = line.trim().match(/^(\d+)\s*[,\s]\s*(\d+)$/);
+    if (!match) throw new Error(`Tune line ${index + 1} needs a note number and duration.`);
+    const note = Number(match[1]), duration = Number(match[2]);
+    if (note > 45 || duration < 1 || duration > 255) {
+      throw new Error(`Tune line ${index + 1} needs a note 0–45 and duration 1–255.`);
+    }
+    bytes[index * 2] = note;
+    bytes[index * 2 + 1] = duration;
+  });
+  return bytes;
+}
+
+function formatBootTune(bytes) {
+  const lines = [];
+  for (let i = 0; i < TUNE_BYTES; i += 2) {
+    if ((bytes[i] === 0 && bytes[i + 1] === 0) || bytes[i] > 45) break;
+    lines.push(`${bytes[i]}, ${bytes[i + 1]}`);
+  }
+  return lines.join("\n");
+}
+
+async function previewBootTune() {
+  try {
+    const bytes = parseBootTune($("bootTune").value);
+    const context = new AudioContext();
+    let at = context.currentTime + 0.05;
+    for (let i = 0; i < TUNE_BYTES && (bytes[i] || bytes[i + 1]); i += 2) {
+      const duration = bytes[i + 1] * 0.03;
+      if (bytes[i]) {
+        const oscillator = context.createOscillator();
+        const gain = context.createGain();
+        oscillator.frequency.value = TUNE_FREQ[bytes[i] - 1];
+        gain.gain.value = 0.12;
+        oscillator.connect(gain).connect(context.destination);
+        oscillator.start(at);
+        oscillator.stop(at + duration);
+      }
+      at += duration;
+    }
+    await new Promise(resolve => setTimeout(resolve, Math.max(0, (at - context.currentTime) * 1000)));
+    await context.close();
+  } catch (e) { appearanceStatus(describeError(e), "err"); }
+}
+
+async function writeArt(link, kind, bytes) {
+  const [, write] = ART_COMMANDS[kind];
+  for (let offset = 0; offset < ART_BYTES; offset += ART_CHUNK) {
+    const { data } = await link.send(write, offset, bytes.subarray(offset, offset + ART_CHUNK), offset === 0 ? 20000 : 2000);
+    if (data.length) throw new Error("The radio returned an invalid write acknowledgment.");
+  }
+  if (!sameBytes(await readArt(link, kind), bytes)) throw new Error(`Read-back failed for ${kind} artwork.`);
+}
+
+async function appearanceAction(message, run) {
+  if (appearanceBusy || busy) return;
+  appearanceBusy = true;
+  setBusy(true);
+  appearanceStatus(message);
+  renderAppearance();
+  try {
+    await withLink(async link => {
+      try { await run(link); } finally { await link.end(); }
+    });
+  } catch (e) {
+    appearanceStatus(describeError(e), "err");
+  } finally {
+    appearanceBusy = false;
+    setBusy(false);
+    renderAppearance();
+  }
+}
+
+function readAppearance() {
+  return appearanceAction("Reading the radio's appearance…", async link => {
+    const firstBlock = await backgroundProbe(link);
+    const startup = await readArt(link, "startup");
+    const background = firstBlock ? await readArt(link, "background", firstBlock) : startup;
+    const backgroundPresent = firstBlock ? await backgroundPresence(link) : null;
+    const settings = await readThemeSettings(link);
+    appearance = { startup, background, backgroundPresent, independent: Boolean(firstBlock), theme: (settings[BOOT_THEME_BYTE] >> 2) & 3 };
+    if (!tuneDirty) $("bootTune").value = formatBootTune(settings.subarray(TUNE_OFFSET));
+    appearanceStatus("Read complete. The radio is restarting.", "ok");
+  });
+}
+
+function packAppearanceBackup(images, theme, tune, sound, backgroundPresent, darkTheme) {
+  const doc = { format: "baofeng-custom-cps-appearance-v1" };
+  for (const kind of Object.keys(images)) {
+    doc[kind] = btoa(String.fromCharCode(...images[kind]));
+  }
+  if (theme !== undefined) doc.theme = theme;
+  if (tune !== undefined) doc.tune = btoa(String.fromCharCode(...tune));
+  if (sound !== undefined) doc.sound = sound;
+  if (backgroundPresent !== undefined) doc.backgroundPresent = backgroundPresent;
+  if (darkTheme !== undefined) doc.darkTheme = darkTheme;
+  return JSON.stringify(doc);
+}
+
+function loadAppearanceBackup(doc) {
+  if (doc?.format !== "baofeng-custom-cps-appearance-v1") throw new Error("Choose an appearance backup from this CPS.");
+  const images = {};
+  for (const kind of ["startup", "background"]) {
+    if (doc[kind] === undefined) continue;
+    const bytes = Uint8Array.from(atob(doc[kind]), c => c.charCodeAt(0));
+    if (bytes.length !== ART_BYTES) throw new Error(`The backup's ${kind} artwork has the wrong size.`);
+    images[kind] = { bytes, name: "Appearance backup" };
+  }
+  if (doc.theme !== undefined && (!Number.isInteger(doc.theme) || doc.theme < 0 || doc.theme > 63)) {
+    throw new Error("The backup has an invalid theme ID.");
+  }
+  let tune;
+  if (doc.tune !== undefined) {
+    tune = Uint8Array.from(atob(doc.tune), c => c.charCodeAt(0));
+    if (tune.length !== TUNE_BYTES) throw new Error("The backup has an invalid tune.");
+  }
+  if (doc.sound !== undefined && ![0, 1].includes(doc.sound)) throw new Error("The backup has an invalid sound setting.");
+  if (doc.backgroundPresent !== undefined && typeof doc.backgroundPresent !== "boolean") {
+    throw new Error("The backup has an invalid background status.");
+  }
+  if (doc.darkTheme !== undefined && (!Number.isInteger(doc.darkTheme) || doc.darkTheme < 0 || doc.darkTheme > 2 || doc.theme === undefined)) {
+    throw new Error("The backup has an invalid night theme.");
+  }
+  if (doc.backgroundPresent === true && !images.background) throw new Error("The backup is missing its background image.");
+  if (!Object.keys(images).length && doc.theme === undefined && tune === undefined && doc.sound === undefined && doc.backgroundPresent === undefined) {
+    throw new Error("The backup contains no appearance changes.");
+  }
+  return { images, theme: doc.theme, tune, sound: doc.sound, backgroundPresent: doc.backgroundPresent, darkTheme: doc.darkTheme };
+}
+
+function writeAppearance() {
+  const images = pendingArt;
+  const theme = $("radioTheme").value;
+  const sound = $("bootSound").value;
+  const clearBackground = pendingBackgroundClear;
+  const restoreDarkTheme = pendingDarkTheme;
+  return appearanceAction("Backing up and verifying the radio's appearance…", async link => {
+    const firstBlock = await backgroundProbe(link);
+    if (Boolean(firstBlock) !== appearance.independent) throw new Error("Radio capabilities changed. Read appearance again.");
+    if (!firstBlock && (images.background || clearBackground || theme !== "")) {
+      throw new Error("This firmware uses shared artwork and has no selectable theme.");
+    }
+    const currentPresence = firstBlock && (images.background || clearBackground)
+      ? await backgroundPresence(link) : null;
+    if (clearBackground && currentPresence === null) throw new Error("This firmware cannot clear a separate background.");
+    const before = {};
+    for (const kind of Object.keys(images)) {
+      const current = await readArt(link, kind, kind === "background" ? firstBlock : null);
+      if (!sameBytes(current, images[kind].bytes) || (kind === "background" && currentPresence === false)) {
+        before[kind] = current;
+      }
+    }
+    const backgroundChanged = Boolean(before.background) || (clearBackground && currentPresence);
+    if (clearBackground && currentPresence) before.background = await readArt(link, "background", firstBlock);
+    const settings = theme === "" && sound === "" && !tuneDirty ? null : await readThemeSettings(link);
+    const oldTheme = (settings?.[BOOT_THEME_BYTE] >> 2) & 3;
+    const oldDarkTheme = (settings?.[BOOT_THEME_BYTE] >> 4) & 3;
+    const nextDarkTheme = restoreDarkTheme ?? (Number(theme) < 3 ? Number(theme) : oldDarkTheme);
+    const changeTheme = theme !== "" && (oldTheme !== Number(theme) || oldDarkTheme !== nextDarkTheme);
+    const tune = tuneDirty ? parseBootTune($("bootTune").value) : null;
+    const oldTune = settings?.slice(TUNE_OFFSET);
+    const tuneChanged = tune !== null && !sameBytes(tune, oldTune);
+    const oldSound = settings?.[BOOT_SOUND_BYTE] ? 1 : 0;
+    const soundChanged = sound !== "" && oldSound !== Number(sound);
+    if (sound === "1" && (settings[BOOT_THEME_BYTE] & 3) === 0) {
+      throw new Error("Enable the startup screen in radio settings before turning on boot sound.");
+    }
+    if (Object.keys(before).length || backgroundChanged || changeTheme || tuneChanged || soundChanged) {
+      saveFile(`radio-appearance-${stamp()}.json`,
+        packAppearanceBackup(before, changeTheme ? oldTheme : undefined,
+          tuneChanged ? oldTune : undefined, soundChanged ? oldSound : undefined,
+          backgroundChanged && currentPresence !== null ? currentPresence : undefined,
+          changeTheme ? oldDarkTheme : undefined), "application/json");
+    }
+    try {
+      for (const kind of Object.keys(images)) {
+        if (before[kind]) await writeArt(link, kind, images[kind].bytes);
+      }
+      if (before.background && images.background && currentPresence !== null) {
+        await link.send(ART_COMMANDS.background[1], 0xFFFE);
+      }
+      if (images.background && currentPresence !== null && await backgroundPresence(link) !== true) {
+        throw new Error("Background activation failed read-back.");
+      }
+      if (clearBackground && currentPresence) {
+        await link.send(ART_COMMANDS.background[1], 0xFFFF);
+        if (await backgroundPresence(link) !== false) throw new Error("Background clear failed read-back.");
+      }
+      if (changeTheme || tuneChanged || soundChanged) {
+        if (changeTheme) {
+          settings[BOOT_THEME_BYTE] = (settings[BOOT_THEME_BYTE] & 0xF3) | (Number(theme) << 2);
+          settings[BOOT_THEME_BYTE] = (settings[BOOT_THEME_BYTE] & 0xCF) | (nextDarkTheme << 4);
+        }
+        if (tuneChanged) settings.set(tune, TUNE_OFFSET);
+        if (soundChanged) settings[BOOT_SOUND_BYTE] = Number(sound);
+        await link.send(CMD_WRITE, SETTINGS_ADDR, settings);
+        if (!sameBytes(await readThemeSettings(link), settings)) throw new Error("Startup settings failed read-back.");
+      }
+    } catch (e) {
+      throw new Error(`${describeError(e)} A write may have been interrupted. The appearance backup was downloaded first.`);
+    }
+    for (const kind of Object.keys(images)) appearance[kind] = images[kind].bytes;
+    if (images.background && currentPresence !== null) appearance.backgroundPresent = true;
+    if (clearBackground) appearance.backgroundPresent = false;
+    if (!firstBlock) appearance.background = appearance.startup;
+    if (theme !== "") appearance.theme = Number(theme);
+    pendingArt = {};
+    pendingBackgroundClear = false;
+    pendingDarkTheme = null;
+    $("radioTheme").value = "";
+    $("bootSound").value = "";
+    tuneDirty = false;
+    appearanceStatus("Appearance verified. The radio is restarting.", "ok");
+  });
+}
+
 /* ---------- wiring ---------- */
 $("search").addEventListener("input", render);
 $("onlyChanged").addEventListener("change", render);
@@ -830,6 +1272,86 @@ $("delBtn").addEventListener("click", () => {
 $("readBtn").addEventListener("click", compareWithRadio);
 $("useRadio").addEventListener("click", useRadioChannels);
 $("uploadBtn").addEventListener("click", startUpload);
+$("appearanceBtn").addEventListener("click", () => {
+  renderAppearance();
+  $("appearanceDlg").showModal();
+});
+$("appearanceClose").addEventListener("click", () => $("appearanceDlg").close());
+$("appearanceDlg").addEventListener("cancel", e => { if (appearanceBusy) e.preventDefault(); });
+$("appearanceRead").addEventListener("click", readAppearance);
+$("appearanceWrite").addEventListener("click", writeAppearance);
+$("radioTheme").addEventListener("change", () => { pendingDarkTheme = null; renderAppearance(); });
+$("backgroundClear").addEventListener("click", () => {
+  delete pendingArt.background;
+  pendingBackgroundClear = true;
+  appearanceStatus("Background will be cleared when you write.");
+  renderAppearance();
+});
+$("bootSound").addEventListener("change", renderAppearance);
+$("bootTune").addEventListener("input", () => { tuneDirty = true; renderAppearance(); });
+$("tunePreview").addEventListener("click", previewBootTune);
+$("tuneDefault").addEventListener("click", () => {
+  $("bootTune").value = "1, 4\n13, 4\n20, 4\n25, 4\n32, 4\n37, 10";
+  tuneDirty = true;
+  renderAppearance();
+});
+$("tuneDoom").addEventListener("click", () => {
+  const notes = [20,20,32,20,20,30,20,20,28,20,20,26,20,20,27,28];
+  $("bootTune").value = notes.flatMap((note, i) => i === notes.length - 1 ? [`${note}, 6`] : [`${note}, 4`, "0, 1"]).join("\n");
+  tuneDirty = true;
+  renderAppearance();
+});
+for (const kind of ["startup", "background"]) {
+  $(kind + "File").addEventListener("change", async e => {
+    const file = e.target.files[0];
+    e.target.value = "";
+    if (!file) return;
+    try {
+      appearanceBusy = true;
+      renderAppearance();
+      pendingArt[kind] = { name: file.name, bytes: await loadArtwork(file, $("imageFit").value) };
+      if (kind === "background") pendingBackgroundClear = false;
+      appearanceStatus("Artwork is staged. Write and verify to apply it.");
+    } catch (err) {
+      appearanceStatus(err.message, "err");
+    } finally {
+      appearanceBusy = false;
+      renderAppearance();
+    }
+  });
+}
+$("appearanceBackup").addEventListener("change", async e => {
+  const file = e.target.files[0];
+  e.target.value = "";
+  if (!file) return;
+  try {
+    appearanceBusy = true;
+    renderAppearance();
+    const backup = loadAppearanceBackup(JSON.parse(await file.text()));
+    if ((backup.images.background || backup.backgroundPresent !== undefined || backup.theme !== undefined) && appearance?.independent !== true) {
+      throw new Error("Read appearance from a radio with independent backgrounds before restoring this backup.");
+    }
+    pendingArt = backup.images;
+    pendingBackgroundClear = backup.backgroundPresent === false;
+    if (pendingBackgroundClear) delete pendingArt.background;
+    if (backup.theme !== undefined && ![...$("radioTheme").options].some(option => Number(option.value) === backup.theme && option.value !== "")) {
+      $("radioTheme").add(new Option(`Theme ID ${backup.theme}`, backup.theme));
+    }
+    $("radioTheme").value = backup.theme ?? "";
+    pendingDarkTheme = backup.darkTheme ?? null;
+    if (backup.tune) {
+      $("bootTune").value = formatBootTune(backup.tune);
+      tuneDirty = true;
+    }
+    $("bootSound").value = backup.sound ?? "";
+    appearanceStatus("Backup staged. Write and verify to restore it.");
+  } catch (err) {
+    appearanceStatus(err.message, "err");
+  } finally {
+    appearanceBusy = false;
+    renderAppearance();
+  }
+});
 $("confirmNo").addEventListener("click", () => { $("confirmDlg").close(); pendingTarget = pendingCurrent = null; setNotice("Upload canceled. Nothing was written."); });
 $("confirmYes").addEventListener("click", () => { $("confirmDlg").close(); finishUpload(); });
 $("saveCsv").addEventListener("click", () => {
@@ -861,13 +1383,22 @@ $("fileIn").addEventListener("change", async e => {
 document.querySelector(".filebtn").addEventListener("keydown", e => {
   if (e.key === "Enter" || e.key === " ") { e.preventDefault(); $("fileIn").click(); }
 });
-window.addEventListener("beforeunload", e => { if (dirty || busy) { e.preventDefault(); e.returnValue = ""; } });
+window.addEventListener("beforeunload", e => {
+  if (dirty || busy || appearanceBusy || Object.keys(pendingArt).length || pendingBackgroundClear || $("radioTheme").value !== "" || tuneDirty || $("bootSound").value !== "") {
+    e.preventDefault();
+    e.returnValue = "";
+  }
+});
 
 if (!("serial" in navigator)) {
   $("noSerial").classList.remove("hidden");
   for (const id of ["readBtn", "uploadBtn"]) $(id).disabled = true;
 }
-loadCsvText(BUILTIN_CSV, "Your channel list");
+if (BUILTIN_CSV) loadCsvText(BUILTIN_CSV, "Your channel list");
+else {
+  setDirty(false);
+  render();
+}
 </script>
 </body>
 </html>

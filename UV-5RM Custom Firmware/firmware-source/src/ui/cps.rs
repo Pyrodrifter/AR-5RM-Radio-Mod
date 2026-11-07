@@ -1,4 +1,5 @@
-use embedded_graphics::mono_font::{ascii::FONT_9X18, MonoTextStyle};
+use crate::ui::rounded_font::FONT_9X18;
+use embedded_graphics::mono_font::MonoTextStyle;
 use embedded_graphics::pixelcolor::Rgb565;
 use embedded_graphics::prelude::*;
 use embedded_graphics::primitives::{PrimitiveStyle, Rectangle};

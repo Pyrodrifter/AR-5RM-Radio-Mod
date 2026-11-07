@@ -16,11 +16,6 @@ fn resolve_ani_target(app: &mut App) -> Option<[u8; 3]> {
     (!contact.is_empty()).then(|| contact.id())
 }
 
-fn reload_pa_calibration(app: &mut App, tx_freq_hz: u32, power: Power) {
-    app.radio
-        .apply_pa_calibration(&mut app.storage, tx_freq_hz, power);
-}
-
 pub(super) fn set_ptt(app: &mut App, syst: &mut SYST, pressed: bool) {
     app.note_power_save_activity(syst);
     app.note_backlight_activity();
@@ -61,7 +56,16 @@ pub(super) fn set_ptt(app: &mut App, syst: &mut SYST, pressed: bool) {
             app.radio.set_modulation(s.cfg.modulation);
             (tx_freq_hz, power)
         };
-        reload_pa_calibration(app, tx_freq_hz, power);
+        let calibrated = app
+            .radio
+            .apply_pa_calibration(&mut app.storage, tx_freq_hz, power);
+        #[cfg(feature = "ar5rm-nrf")]
+        if power != Power::Low || !calibrated {
+            app.tx_prohibited = true;
+            return;
+        }
+        #[cfg(not(feature = "ar5rm-nrf"))]
+        let _ = calibrated;
         if app.radio.enter_tx(syst) {
             app.transmitting = true;
             app.tot_ticks = 0;

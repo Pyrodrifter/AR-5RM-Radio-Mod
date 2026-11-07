@@ -210,6 +210,11 @@ impl<'a> App<'a> {
         let settings = storage
             .load_settings()
             .unwrap_or(flash_map::Settings::DEFAULT);
+        #[cfg(feature = "ar5rm-nrf")]
+        let settings = flash_map::Settings {
+            tx_forbid: true,
+            ..settings
+        };
         let battery_cal = storage.read_battery_calibration();
 
         let mut sides = [

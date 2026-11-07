@@ -1,0 +1,22 @@
+[workspace]
+
+[package]
+name = "emu"
+version = "0.1.0"
+edition = "2021"
+description = "PC emulator for the UV-5RM custom firmware screen and apps"
+
+[[bin]]
+name = "emu"
+path = "src/main.rs"
+
+[features]
+# Mirrors the firmware feature: on, so the home screen can show a background.
+default = ["ar5rm-nrf"]
+ar5rm-nrf = []
+
+[dependencies]
+bf5rh-abi = { path = "../../firmware-source/abi" }
+embedded-graphics = "0.8"
+minifb = "0.27"
+libloading = "0.8"

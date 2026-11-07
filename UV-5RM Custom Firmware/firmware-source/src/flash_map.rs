@@ -53,6 +53,11 @@ pub mod addr {
 
     pub const BOOT_LOGO_ADDR: u32 = 0x000C_0000;
 
+    /// Home-screen background, same size and format as the boot logo. A
+    /// logical address only: the AR-5RM maps it to private NOR after the logo.
+    pub const BACKGROUND_ADDR: u32 = 0x000D_0000;
+    pub const BACKGROUND_MARKER_ADDR: u32 = BACKGROUND_ADDR + 0xA000;
+
     /// external app overlay: 720KB total
     /// after voice prompt
     pub const OVERLAY_APP_ADDR: u32 = 0x14C000;
@@ -473,8 +478,12 @@ pub struct Settings {
     pub band_long: u8,
     /// `device::radio::BandLock` index.
     pub band_lock: u8,
-    /// 0=None, 1=Msg, 2=Logo
+    /// 0=None, 1=Msg, 2=Logo. Bits 0..1 of byte 30.
     pub boot_display_mode: u8,
+    /// Current palette in bits 2..3 of byte 30.
+    pub theme: u8,
+    /// Most recently selected dark palette, in bits 4..5.
+    pub dark_theme: u8,
     /// Forced off whenever `boot_display_mode` is 0.
     pub boot_sound_enabled: bool,
 
@@ -538,6 +547,8 @@ impl Settings {
         band_long: 0,   // None
         band_lock: 1,
         boot_display_mode: 2,
+        theme: 0,
+        dark_theme: 0,
         boot_sound_enabled: true,
         boot_text_line1: [0; 16],
         boot_text_line2: [0; 16],
@@ -546,6 +557,7 @@ impl Settings {
         obs_lon: COORD_NOT_SET,
     };
 
+    #[cfg_attr(feature = "ar5rm-nrf", inline(never))]
     pub fn from_bytes(buf: &[u8; SETTINGS_BYTES]) -> Settings {
         Settings {
             sql_level: buf[0],
@@ -570,14 +582,16 @@ impl Settings {
             rptrl: buf[19].min(10),
             vox_delay: buf[20].min(15),
             battery_cal_raw: u16::from_le_bytes([buf[21], buf[22]]),
-            side1_short: buf[23].min(10),
-            side1_long: buf[24].min(10),
-            side2_short: buf[25].min(10),
-            side2_long: buf[26].min(10),
-            band_short: buf[27].min(10),
-            band_long: buf[28].min(10),
+            side1_short: buf[23].min(if cfg!(feature = "ar5rm-nrf") { 11 } else { 10 }),
+            side1_long: buf[24].min(if cfg!(feature = "ar5rm-nrf") { 11 } else { 10 }),
+            side2_short: buf[25].min(if cfg!(feature = "ar5rm-nrf") { 11 } else { 10 }),
+            side2_long: buf[26].min(if cfg!(feature = "ar5rm-nrf") { 11 } else { 10 }),
+            band_short: buf[27].min(if cfg!(feature = "ar5rm-nrf") { 11 } else { 10 }),
+            band_long: buf[28].min(if cfg!(feature = "ar5rm-nrf") { 11 } else { 10 }),
             band_lock: buf[29].min(9),
-            boot_display_mode: buf[30].min(2),
+            boot_display_mode: (buf[30] & 3).min(2),
+            theme: (buf[30] >> 2) & 3,
+            dark_theme: ((buf[30] >> 4) & 3).min(2),
             boot_sound_enabled: buf[31] != 0,
             obs_lat: coord_or_unset(
                 i32::from_le_bytes([buf[32], buf[33], buf[34], buf[35]]),
@@ -607,6 +621,7 @@ impl Settings {
         }
     }
 
+    #[cfg_attr(feature = "ar5rm-nrf", inline(never))]
     pub fn to_bytes(self) -> [u8; SETTINGS_BYTES] {
         let mut buf = [0u8; SETTINGS_BYTES];
         buf[0] = self.sql_level;
@@ -638,7 +653,7 @@ impl Settings {
         buf[27] = self.band_short;
         buf[28] = self.band_long;
         buf[29] = self.band_lock;
-        buf[30] = self.boot_display_mode;
+        buf[30] = self.boot_display_mode | self.theme << 2 | self.dark_theme << 4;
         buf[31] = self.boot_sound_enabled as u8;
         buf[32..36].copy_from_slice(&self.obs_lat.to_le_bytes());
         buf[36..40].copy_from_slice(&self.obs_lon.to_le_bytes());

@@ -1,101 +1,138 @@
-"""Send a one-region .BF to the KDH bootloader. Same frame sequence as tools/flash.py in bf-5rh-firmware-open."""
-import hashlib, struct, sys, time
-import serial
+"""Send an application-only .BF to the Baofeng KDH bootloader."""
 
-BF, PORT, EXPECT_SHA = sys.argv[1:4]
+import argparse
+from binascii import crc_hqx
+import hashlib
+from pathlib import Path
+import re
+import struct
+import sys
+import time
+
 HEADER, FOOTER = 0xAA, 0xEF
 CMD_HANDSHAKE, CMD_UPDATE, CMD_PACKAGES, CMD_END = 0x01, 0x03, 0x04, 0x45
-ACK, CHUNK, RETRIES, TIMEOUT = 0x06, 1024, 5, 2.0
-ERRORS = {0xE1: "handshake/command", 0xE2: "sequence or length", 0xE3: "flash write failed", 0xE5: "unknown command"}
-
-
-def crc16(data):
-    crc = 0
-    for byte in data:
-        crc ^= byte << 8
-        for _ in range(8):
-            crc = ((crc << 1) ^ 0x1021) if crc & 0x8000 else crc << 1
-        crc &= 0xFFFF
-    return crc
+ACK, CHUNK, TIMEOUT = 0x06, 1024, 2.0
+APP_START, FLASH_END = 0x08001000, 0x08010000
+ERRORS = {
+    0xE1: "handshake, command or frame error",
+    0xE2: "sequence or length mismatch",
+    0xE3: "flash write failed",
+    0xE5: "unknown command",
+}
 
 
 def pack(cmd, args, data):
-    body = bytes([cmd, args, len(data) >> 8, len(data) & 0xFF]) + data
-    c = crc16(body)
-    return bytes([HEADER]) + body + bytes([c >> 8, c & 0xFF, FOOTER])
+    body = struct.pack(">BBH", cmd, args, len(data)) + data
+    return bytes([HEADER]) + body + struct.pack(">HB", crc_hqx(body, 0), FOOTER)
 
 
-raw = open(BF, "rb").read()
-sha = hashlib.sha256(raw).hexdigest()
-assert sha.startswith(EXPECT_SHA), f"file hash {sha[:16]} != {EXPECT_SHA}"
-count, len_fw, len_data = struct.unpack_from(">BLL", raw, 0)
-assert count == 1 and len_data == 0 and len(raw) == 16 + len_fw and 0 < len_fw <= 0xF000, (count, len_fw, len_data)
-region = raw[16:]
-assert region[3] == 0x20 and region[7] == 0x08, "vector table doesn't look like an application"
-pkgs = -(-len_fw // CHUNK)
-print(f"file ok: sha {sha[:16]}, {len_fw} bytes, {pkgs} packages")
+def application_image(path, expected_sha):
+    if re.fullmatch(r"[0-9a-fA-F]{16,64}", expected_sha) is None:
+        raise ValueError("supply at least the first 16 hex characters of the expected SHA-256")
+    raw = path.read_bytes()
+    sha = hashlib.sha256(raw).hexdigest()
+    if not sha.startswith(expected_sha.lower()):
+        raise ValueError(f"file SHA-256 is {sha}, expected {expected_sha}")
+    if len(raw) < 24:
+        raise ValueError("file is too short for a .BF header and application vectors")
+    count, length, auxiliary = struct.unpack_from(">BII", raw)
+    if count != 1 or auxiliary != 0 or len(raw) != 16 + length or length > FLASH_END - APP_START:
+        raise ValueError("expected one bounded application region and no auxiliary region")
+    stack, reset = struct.unpack_from("<II", raw, 16)
+    if not (0x20000000 < stack <= 0x20004000 and stack % 4 == 0):
+        raise ValueError(f"initial stack pointer outside application RAM: {stack:#010x}")
+    if not (reset & 1 and APP_START <= (reset & ~1) < APP_START + length):
+        raise ValueError(f"reset vector outside the supplied Thumb application: {reset:#010x}")
+    print(f"file ok: sha {sha}, {length} bytes, {(length + CHUNK - 1) // CHUNK} packages")
+    return raw[16:]
 
-port = serial.Serial(PORT, 115200, timeout=0.03)
-port.dtr = True
-port.rts = True
 
-
-def read_frame(deadline):
+def read_reply(port, cmd, request):
+    deadline = time.monotonic() + TIMEOUT
     buf = bytearray()
     while time.monotonic() < deadline:
-        buf += port.read(64)
-        while buf and buf[0] != HEADER:
-            buf.pop(0)
-        if len(buf) >= 5:
-            n = buf[3] << 8 | buf[4]
-            if len(buf) >= 8 + n:
-                body = bytes(buf[1:5 + n])
-                got = buf[5 + n] << 8 | buf[6 + n]
-                return ("frame", body[0], body[1]) if got == crc16(body) else ("bad-crc",)
-    return ("timeout", bool(buf))
+        buf.extend(port.read(64))
+        while len(buf) >= 8:
+            start = buf.find(bytes([HEADER]))
+            if start < 0:
+                buf.clear()
+                break
+            del buf[:start]
+            if len(buf) < 8:
+                break
+            length = int.from_bytes(buf[3:5], "big")
+            if length > CHUNK:
+                del buf[0]
+                continue
+            end = 8 + length
+            if len(buf) < end:
+                break
+            packet = bytes(buf[:end])
+            del buf[:end]
+            if length or packet == request or packet[-1] != FOOTER:
+                continue  # Bootloader replies have no data, unlike echoed update frames.
+            if int.from_bytes(packet[5:7], "big") != crc_hqx(packet[1:5], 0):
+                continue
+            reply_cmd, status = packet[1:3]
+            if reply_cmd == cmd:
+                if status == ACK:
+                    return True
+                raise RuntimeError(ERRORS.get(status, f"unexpected status {status:#04x}"))
+            if reply_cmd in ERRORS:
+                raise RuntimeError(ERRORS[reply_cmd])
+    return False
 
 
-def send(cmd, args, data, retries=RETRIES, tolerate_silence=False):
-    last, heard = "no attempts", False
+def send(port, cmd, args=0, data=b"", retries=1):
     frame = pack(cmd, args, data)
     for _ in range(retries):
         port.reset_input_buffer()
         port.write(frame)
-        r = read_frame(time.monotonic() + TIMEOUT)
-        if r[0] == "frame":
-            heard = True
-            if r[2] == ACK:
-                return True
-            name = ERRORS.get(r[1], f"code {r[1]:#x}")
-            if r[1] != 0xE2:
-                raise RuntimeError(f"radio refused cmd {cmd:#x}: {name}")
-            last = name
-        elif r[0] == "timeout":
-            heard = heard or r[1]
-            last = "timeout"
-        else:
-            heard, last = True, "bad crc"
-    if tolerate_silence and not heard:
-        return False
-    raise RuntimeError(f"cmd {cmd:#x} failed after {retries} tries: {last}")
+        if read_reply(port, cmd, frame):
+            return
+    raise RuntimeError(f"no matching acknowledgment for command {cmd:#04x}, argument {args}")
 
 
-try:
-    send(CMD_HANDSHAKE, 0, b"BOOTLOADER")
-    print("handshake ok; writing starts now")
-    send(CMD_PACKAGES, 0, bytes([pkgs]))
+def flash(port, region):
+    send(port, CMD_HANDSHAKE, data=b"BOOTLOADER", retries=5)
+    packages = (len(region) + CHUNK - 1) // CHUNK
+    send(port, CMD_PACKAGES, data=bytes([packages]))
+    print("Application programming started.", flush=True)
     start = time.monotonic()
-    for seq in range(pkgs):
+    for seq in range(packages):
         chunk = region[seq * CHUNK:(seq + 1) * CHUNK].ljust(CHUNK, b"\x00")
-        send(CMD_UPDATE, seq & 0xFF, chunk)
-        if (seq + 1) % 10 == 0 or seq + 1 == pkgs:
-            print(f"  {seq + 1}/{pkgs}")
-    print(f"sent all packages in {time.monotonic() - start:.1f}s")
-    acked = send(CMD_END, 0, b"", retries=2, tolerate_silence=True)
-    print("end acknowledged" if acked else "end sent; radio likely rebooted before replying")
-    print("FLASH COMPLETE")
-except Exception as e:
-    print(f"FLASH FAILED: {e}")
-    sys.exit(1)
-finally:
-    port.close()
+        # If a reply is lost, this page may already have been written. Stop
+        # and allow a fresh bootloader session from page zero.
+        send(port, CMD_UPDATE, seq, chunk)
+        if (seq + 1) % 10 == 0 or seq + 1 == packages:
+            print(f"  {seq + 1}/{packages}", flush=True)
+    print(f"Application packets acknowledged in {time.monotonic() - start:.1f}s")
+    send(port, CMD_END)
+    print("Restart acknowledged. Verify boot and receive on the radio.")
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("image", type=Path)
+    parser.add_argument("port")
+    parser.add_argument("sha256", help="expected SHA-256 or its first 16 or more hex characters")
+    parser.add_argument("--check-only", action="store_true", help="validate the image without opening the port")
+    args = parser.parse_args()
+
+    try:
+        region = application_image(args.image, args.sha256)
+        if args.check_only:
+            return 0
+        import serial
+        with serial.Serial(args.port, 115200, timeout=0.03, write_timeout=2) as port:
+            port.dtr = True
+            port.rts = True
+            flash(port, region)
+    except (OSError, ValueError, RuntimeError) as exc:
+        print(f"Update stopped: {exc}", file=sys.stderr)
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

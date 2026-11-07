@@ -74,6 +74,21 @@ pub mod ui {
     pub mod backdrop;
     #[path = "../../../firmware-source/src/ui/list.rs"]
     pub mod list;
+    #[path = "../../../firmware-source/src/ui/theme.rs"]
+    #[allow(dead_code)]
+    pub(crate) mod theme;
+
+    /// Same as firmware-source/src/ui/mod.rs (list.rs uses it).
+    pub(crate) fn num(w: &mut dyn core::fmt::Write, mut v: u32, width: usize) {
+        let mut d = [b'0'; 10];
+        let mut n = 0;
+        while v > 0 || n < width.max(1) {
+            d[9 - n] = b'0' + (v % 10) as u8;
+            v /= 10;
+            n += 1;
+        }
+        w.write_str(unsafe { core::str::from_utf8_unchecked(&d[10 - n..]) }).ok();
+    }
 }
 
 const W: usize = 160;
@@ -1171,7 +1186,9 @@ fn test_menus() {
         ui::list::draw_list(sim(), title, &mut menu, selected, false, &mut cache);
         shot(name);
         let red = sim().fb.iter().filter(|&&p| (p >> 11) > 2 && (p >> 5) & 0x3F < 4).count();
-        check(red > 2000, &format!("{name}: skull visible behind the list"));
+        // The 2026-11 redesign dropped the skull behind lists for legibility:
+        // rows are plain theme background now, so almost no dim red remains.
+        check(red < 200, &format!("{name}: no skull behind the list"));
         // Moving the cursor must repaint only two rows, and match a full draw.
         if selected > 0 {
             ui::list::draw_list(sim(), title, &mut menu, selected - 1, false, &mut cache);

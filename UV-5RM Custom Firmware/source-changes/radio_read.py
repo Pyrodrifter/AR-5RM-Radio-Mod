@@ -1,18 +1,29 @@
-"""Read-only dump of a Baofeng 5RM, following CHIRP's BF5RM download sequence.
+"""Read a stock Baofeng 5RM using the CHIRP BF5RM programming handshake.
 
 Only the handshake below and 'R' read frames can leave this script: send() refuses
 anything else, so there is no path that writes to the radio.
+
+With --calibration, read unencrypted blocks at F000, F040, F080, F0C0,
+F100, F200 and F240 in that order. Verified on 5RHNRF v0.21.
 """
-import os, struct, sys, time
+import argparse
+from pathlib import Path
+import struct
+import time
 import serial
 
-PORT, OUT = sys.argv[1], sys.argv[2]
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument("port")
+parser.add_argument("output", type=Path)
+parser.add_argument("--calibration", action="store_true", help="read factory calibration from stock 5RHNRF v0.21")
+args = parser.parse_args()
 IDENT = b"PROGRAMBFNORMALU"
 MAGICS = [(b"\x46", 16), (b"\x4d", 15),
           (b"\x53\x45\x4E\x44\x21\x05\x0D\x01\x01\x01\x04\x11\x08\x05"
            b"\x0D\x0D\x01\x11\x0F\x09\x12\x09\x10\x04\x00", 1)]
 STARTS, SIZES = [0x0000, 0x9000, 0xA000, 0xD000], [0x8040, 0x0040, 0x02C0, 0x0040]
 BLOCK = 0x40
+CALIBRATION_STARTS = (0xF000, 0xF040, 0xF080, 0xF0C0, 0xF100, 0xF200, 0xF240)
 KEY = b"CO 7"  # _encrsym = 1
 HANDSHAKE = {IDENT} | {m for m, _ in MAGICS}
 
@@ -28,7 +39,7 @@ def crypt(buf):
     return bytes(out)
 
 
-s = serial.Serial(PORT, 115200, timeout=0.25, rtscts=False, xonxoff=False)
+s = serial.Serial(args.port, 115200, timeout=0.25, rtscts=False, xonxoff=False)
 
 
 def send(frame):
@@ -50,18 +61,25 @@ try:
         send(magic)
         r = s.read(n)
         print(f"magic {magic[:1].hex()} -> {r.hex()}  ascii={''.join(chr(c) if 32 <= c < 127 else '.' for c in r)!r}")
+        if args.calibration and (len(r) != n or (magic == b"M" and not r.startswith(b"5RH "))):
+            raise SystemExit("Calibration read requires the stock 5RH programming response")
 
     data = bytearray()
-    for start, size in zip(STARTS, SIZES):
+    ranges = [(addr, BLOCK) for addr in CALIBRATION_STARTS] if args.calibration else zip(STARTS, SIZES)
+    for start, size in ranges:
         for addr in range(start, start + size, BLOCK):
-            send(struct.pack(">BHB", 0x52, addr, BLOCK))
+            frame = struct.pack(">BHB", 0x52, addr, BLOCK)
+            send(frame)
             d = s.read(BLOCK + 4)
             if len(d) != BLOCK + 4:
                 raise SystemExit(f"Short read at {addr:#06x}: got {len(d)} bytes after {len(data)} bytes total")
-            data += crypt(d[4:])
-    os.makedirs(os.path.dirname(OUT), exist_ok=True)
-    with open(OUT, "wb") as f:
-        f.write(data)
-    print("read", len(data), "bytes ->", OUT)
+            if args.calibration and d[:4] != frame:
+                raise SystemExit(f"Unexpected read header at {addr:#06x}: {d[:4].hex()}")
+            data += d[4:] if args.calibration else crypt(d[4:])
+    if args.calibration and all(value in (0, 0xFF) for value in data):
+        raise SystemExit("The calibration response contains only blank values")
+    args.output.parent.mkdir(parents=True, exist_ok=True)
+    args.output.write_bytes(data)
+    print("read", len(data), "bytes ->", args.output)
 finally:
     s.close()

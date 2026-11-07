@@ -22,7 +22,6 @@ use drivers::fd6818b::Fd6818;
 use drivers::norflash::NorFlash;
 use hal::clock::{self, SCLK_HZ};
 
-#[cfg_attr(not(debug_assertions), allow(dead_code))]
 const BAUD: u32 = 115_200;
 const CYCLES_PER_MS: u32 = SCLK_HZ / 1_000;
 
@@ -82,6 +81,7 @@ impl Serial {
     }
 }
 
+#[inline(never)]
 fn check_power_off(
     gpiob: &pac::Gpiob,
     gpiof: &pac::Gpiof,
@@ -104,24 +104,6 @@ fn check_power_off(
     board::set_power_latch(gpiof, false);
     loop {
         cortex_m::asm::wfi();
-    }
-}
-
-#[inline(never)]
-fn draw_boot_logo(
-    display: &mut device::display::Display<'_>,
-    app: &mut app::App<'_>,
-) {
-    let width = flash_map::BOOT_LOGO_WIDTH as u32;
-    let rows = flash_map::BOOT_LOGO_HEIGHT / ui::boot::LOGO_CHUNK_ROWS;
-    for band in 0..rows {
-        let y0 = band * ui::boot::LOGO_CHUNK_ROWS;
-        let mut chunk = [0u8; ui::boot::LOGO_CHUNK_BYTES];
-        app.storage_mut().read_raw(
-            flash_map::addr::BOOT_LOGO_ADDR + y0 as u32 * width * 2,
-            &mut chunk,
-        );
-        ui::boot::draw_logo_chunk(display.as_draw_target(), y0, &chunk);
     }
 }
 
@@ -246,7 +228,7 @@ fn main() -> ! {
     board::init_side_key2_pin(&dp.gpioa);
 
     // uart
-    let div: u16 = 1042;
+    let div = ((SCLK_HZ + BAUD / 2) / BAUD) as u16;
     dp.usart1.baudr().write(|w| unsafe { w.div().bits(div) });
     dp.usart1.ctrl1().write(|w| {
         w.uen()
@@ -265,7 +247,7 @@ fn main() -> ! {
     let mut serial = Serial { usart1: dp.usart1 };
     dbg_println!(
         serial,
-        "sclk={SCLK_HZ}Hz (HEXT+PLL, 16MHz crystal) baud={BAUD} div={div}"
+        "sclk={SCLK_HZ}Hz baud={BAUD} div={div}"
     );
 
     let mut display = device::display::Display::new(&dp.gpiob, &dp.spi2);
@@ -276,6 +258,13 @@ fn main() -> ! {
 
     let mut rfic = Fd6818::new(&dp.gpioa, &dp.gpioc);
     let chip_id = rfic.chip_id(&mut cp.SYST);
+    #[cfg(feature = "ar5rm-nrf")]
+    if chip_id != 0x4819 {
+        hal::uart::write_bytes(b"RFIC ID\r\n");
+        loop {
+            cortex_m::asm::wfi();
+        }
+    }
     dbg_println!(serial, "fd6818 chip id = {chip_id:#06x} (expect 0x4829)");
 
     rfic.init(&mut cp.SYST);
@@ -283,6 +272,8 @@ fn main() -> ! {
 
     let norflash = NorFlash::new(&dp.gpioa, &dp.spi1);
     let mut storage = device::storage::Storage::new(norflash);
+    // Preserve the existing SPI flash while bringing up the NRF board.
+    #[cfg(not(feature = "ar5rm-nrf"))]
     if !storage.is_first_boot_done() {
         storage.first_boot_format();
         storage.mark_first_boot_done();
@@ -344,35 +335,46 @@ fn main() -> ! {
     );
     app.init_battery_samples();
 
-    let boot_mode = app.settings().boot_display_mode;
-    match boot_mode {
-        1 | 2 => draw_boot_logo(&mut display, &mut app),
-        // 0 = None: screen is already cleared black from just after
-        // `display.init()`, nothing more to draw.
-        _ => {}
-    }
-
-    backlight.on();
-
-    if boot_mode != 0 {
-        if app.settings().boot_sound_enabled {
-            let tune = app.settings().boot_tune;
-            app.radio_mut().play_boot_tune(&mut cp.SYST, &tune, |_| {
-                board::read_power_key(&dp.gpiob)
-            });
+    {
+        let boot_mode = app.settings().boot_display_mode;
+        #[cfg(feature = "ar5rm-nrf")]
+        let boot_mode = if app.storage_mut().norflash.user_data_ready() {
+            boot_mode
+        } else {
+            0
+        };
+        match boot_mode {
+            1 | 2 => ui::draw_boot_logo(&mut display, &mut app),
+            _ => {}
         }
+        backlight.on();
+        if boot_mode != 0 {
+            if app.settings().boot_sound_enabled {
+                let tune = app.settings().boot_tune;
+                app.radio_mut().play_boot_tune(&mut cp.SYST, &tune, |_| {
+                    board::read_power_key(&dp.gpiob)
+                });
+            }
 
-        let mut remaining_ms: u32 = 1000;
-        while remaining_ms > 0 {
-            check_power_off(
-                &dp.gpiob,
-                &dp.gpiof,
-                &mut serial,
-                &mut app,
-                &mut cp.SYST,
-            );
-            delay_ms(30);
-            remaining_ms = remaining_ms.saturating_sub(30);
+            #[cfg(feature = "ar5rm-nrf")]
+            if !app.settings().boot_sound_enabled {
+                delay_ms(650);
+            }
+            #[cfg(not(feature = "ar5rm-nrf"))]
+            {
+                let mut remaining_ms: u32 = 1000;
+                while remaining_ms > 0 {
+                    check_power_off(
+                        &dp.gpiob,
+                        &dp.gpiof,
+                        &mut serial,
+                        &mut app,
+                        &mut cp.SYST,
+                    );
+                    delay_ms(30);
+                    remaining_ms = remaining_ms.saturating_sub(30);
+                }
+            }
         }
     }
 

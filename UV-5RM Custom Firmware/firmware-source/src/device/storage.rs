@@ -42,9 +42,14 @@ impl<'a> Storage<'a> {
     }
 
     // settings
+    pub fn load_settings_raw(
+        &mut self,
+    ) -> Option<[u8; flash_map::SETTINGS_BYTES]> {
+        SETTINGS_REGION.load(&mut self.norflash)
+    }
+
     pub fn load_settings(&mut self) -> Option<flash_map::Settings> {
-        SETTINGS_REGION
-            .load(&mut self.norflash)
+        self.load_settings_raw()
             .map(|b| flash_map::Settings::from_bytes(&b))
     }
 
@@ -145,10 +150,14 @@ impl<'a> Storage<'a> {
     }
 
     // FM broadcast channel list
+    pub fn load_fm_raw(&mut self) -> Option<[u8; FM_PAYLOAD_LEN]> {
+        FM_REGION.load(&mut self.norflash)
+    }
+
     pub fn load_fm_channels(
         &mut self,
     ) -> Option<[u16; flash_map::FM_CHANNEL_COUNT]> {
-        let buf = FM_REGION.load(&mut self.norflash)?;
+        let buf = self.load_fm_raw()?;
         let mut channels =
             [flash_map::FM_CHANNEL_EMPTY; flash_map::FM_CHANNEL_COUNT];
         for (slot, pair) in channels.iter_mut().zip(buf.chunks_exact(2)) {
@@ -193,7 +202,7 @@ impl<'a> Storage<'a> {
         self.channel_erased_mask = 0;
     }
 
-    pub fn write_channel(&mut self, num: u16, channel: &flash_map::Channel) {
+    pub fn write_channel_bytes(&mut self, num: u16, channel: &[u8]) {
         let addr = addr::CHAN_ADDR + num as u32 * addr::CHAN_SIZE;
         let sector = addr / SECTOR_SIZE;
         let bit = 1u8 << sector;
@@ -203,28 +212,27 @@ impl<'a> Storage<'a> {
             self.channel_erased_mask |= bit;
         }
 
-        self.norflash.write_bytes(addr, &channel.to_bytes());
+        self.norflash.write_bytes(addr, channel);
     }
 
     fn rmw_sector_record(&mut self, record_addr: u32, new_record: &[u8]) {
         let sector_addr = (record_addr / SECTOR_SIZE) * SECTOR_SIZE;
         let record_off = (record_addr - sector_addr) as usize;
-        let record_end = record_off + new_record.len();
+        let record_page = record_off / PAGE_SIZE * PAGE_SIZE;
+        let offset_in_page = record_off % PAGE_SIZE;
 
         // Stage 1: sector -> scratch, patching in the new record on the fly.
+        // Channel and contact records are page-aligned to their own size,
+        // which divides PAGE_SIZE, so one record never straddles pages.
         self.norflash.erase_sector(addr::RMW_SCRATCH_ADDR);
         let mut page = [0u8; PAGE_SIZE];
         let mut off = 0usize;
         while off < SECTOR_SIZE as usize {
             self.norflash
                 .read_bytes(sector_addr + off as u32, &mut page);
-            let page_end = off + PAGE_SIZE;
-            if record_off < page_end && record_end > off {
-                let lo = record_off.max(off);
-                let hi = record_end.min(page_end);
-                page[lo - off..hi - off].copy_from_slice(
-                    &new_record[lo - record_off..hi - record_off],
-                );
+            if off == record_page {
+                page[offset_in_page..offset_in_page + new_record.len()]
+                    .copy_from_slice(new_record);
             }
             self.norflash
                 .write_bytes(addr::RMW_SCRATCH_ADDR + off as u32, &page);

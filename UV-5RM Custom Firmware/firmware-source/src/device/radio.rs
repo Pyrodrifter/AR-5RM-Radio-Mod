@@ -387,7 +387,19 @@ impl<'a> Radio<'a> {
         freq_hz: u32,
         power: Power,
     ) -> bool {
+        // Match the bands reported by the stock AR-5RM CPS handshake.
+        #[cfg(feature = "ar5rm-nrf")]
+        if !matches!(
+            freq_hz,
+            136_000_000..=174_000_000 | 220_000_000..=260_000_000 | 400_000_000..=520_000_000
+        ) {
+            return false;
+        }
         if let Some(target) = storage.read_pa_calibration(freq_hz, power) {
+            #[cfg(feature = "ar5rm-nrf")]
+            if target == 0 || target == 0xFF {
+                return false;
+            }
             self.fd6818.set_pa_calibration(target);
             true
         } else {
@@ -582,6 +594,7 @@ impl<'a> Radio<'a> {
     /// keys the transmitter) -- called once at boot, before the radio has
     /// entered RX. See `bfk6-fw/src/device/radio.rs`'s copy of this function
     /// for the full rationale (unchanged here).
+    #[inline(never)]
     pub fn play_boot_tune(
         &mut self,
         syst: &mut SYST,
@@ -609,11 +622,8 @@ impl<'a> Radio<'a> {
                 speaker_connected = true;
             }
 
-            let mut remaining_ms = duration as u32 * BOOT_TUNE_PERIOD_MS;
-            while remaining_ms > 0 {
-                let slice = remaining_ms.min(BOOT_TUNE_PERIOD_MS);
-                delay::ms(syst, slice);
-                remaining_ms -= slice;
+            for _ in 0..duration {
+                delay::ms(syst, BOOT_TUNE_PERIOD_MS);
                 if should_abort(syst) {
                     self.set_speaker(false);
                     self.fd6818.tx_single_tone_off(syst, false);
@@ -733,7 +743,13 @@ impl<'a> Radio<'a> {
         syst: &mut SYST,
         debounce_ticks: u8,
     ) -> bool {
-        if self.audio_open && self.fd6818.tail_detected(syst) && !self.monitor {
+        let am = cfg!(feature = "ar5rm-nrf")
+            && self.cfg.modulation == Modulation::Am;
+        if !am
+            && self.audio_open
+            && self.fd6818.tail_detected(syst)
+            && !self.monitor
+        {
             self.audio_open = false;
             self.sq_debounce = 0;
             self.fd6818.set_af_out(
@@ -746,6 +762,13 @@ impl<'a> Radio<'a> {
             return false;
         }
 
+        #[cfg(feature = "ar5rm-nrf")]
+        let rssi_open = if am {
+            self.fd6818.am_squelch_open(syst, self.sql_level, self.rssi_open)
+        } else {
+            self.fd6818.squelch_open(syst)
+        };
+        #[cfg(not(feature = "ar5rm-nrf"))]
         let rssi_open = self.fd6818.squelch_open(syst);
 
         if rssi_open != self.rssi_open {
@@ -765,7 +788,8 @@ impl<'a> Radio<'a> {
                 self.fd6818.subaudio_matched(syst)
             }
         };
-        let open = self.monitor || (rssi_open && tone_ok);
+        let open = self.monitor
+            || ((rssi_open || (am && self.sql_level == 0)) && tone_ok);
         if open != self.audio_open {
             self.sq_debounce += 1;
             if self.sq_debounce >= debounce_ticks {
@@ -917,7 +941,10 @@ impl<'a> Radio<'a> {
         self.fd6818.set_scramble(syst, self.scramble_level);
         self.fd6818.apply_tx_mic_gain(syst);
         self.fd6818.tx_on(syst);
+        #[cfg(not(feature = "ar5rm-nrf"))]
         self.fd6818.pa_enable(syst, self.cfg.power);
+        #[cfg(feature = "ar5rm-nrf")]
+        self.fd6818.pa_enable(syst, self.cfg.tx_freq_hz);
 
         self.fd6818
             .set_band_quiet(Self::band_of(self.cfg.tx_freq_hz) == Band::Uhf);

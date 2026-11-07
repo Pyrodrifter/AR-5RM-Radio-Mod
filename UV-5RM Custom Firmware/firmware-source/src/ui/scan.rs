@@ -1,18 +1,28 @@
-use super::standby::draw_frequency;
-use super::{clear_strip, TextBuf, SCREEN_H};
+use super::standby::draw_big_freq;
+use super::{theme, TextBuf, SCREEN_H, SCREEN_W};
 use crate::app;
 use core::fmt::Write as _;
 use embedded_graphics::mono_font::{ascii::FONT_6X10, MonoTextStyle};
 use embedded_graphics::pixelcolor::Rgb565;
 use embedded_graphics::prelude::*;
+use embedded_graphics::primitives::Rectangle;
 use embedded_graphics::text::Text;
-
-const FG: Rgb565 = Rgb565::WHITE;
 
 const HEADER_Y: i32 = 4;
 const HEADER_H: i32 = 26;
 const FREQ_Y: i32 = 40;
-const FREQ_H: i32 = 22;
+const FREQ_H: i32 = 32;
+
+fn clear_scan<D>(lcd: &mut D, y: i32, height: i32)
+where
+    D: DrawTarget<Color = Rgb565>,
+{
+    lcd.fill_solid(
+        &Rectangle::new(Point::new(0, y), Size::new(SCREEN_W as u32, height as u32)),
+        theme::t().bg,
+    )
+    .ok();
+}
 
 #[derive(Clone, Copy, PartialEq)]
 struct Snapshot {
@@ -52,8 +62,8 @@ where
                 draw_header(lcd, app);
             }
             if prev.freq_hz != snap.freq_hz {
-                clear_strip(lcd, FREQ_Y, FREQ_H);
-                draw_frequency(lcd, snap.freq_hz, 60, FG);
+                clear_scan(lcd, FREQ_Y, FREQ_H);
+                draw_big_freq(lcd, snap.freq_hz, FREQ_Y);
             }
         }
     }
@@ -65,15 +75,15 @@ fn full_redraw<D>(lcd: &mut D, app: &app::App)
 where
     D: DrawTarget<Color = Rgb565>,
 {
-    clear_strip(lcd, 0, SCREEN_H);
+    clear_scan(lcd, 0, SCREEN_H);
 
     draw_header(lcd, app);
-    draw_frequency(lcd, app.watching_freq_hz(), 60, FG);
+    draw_big_freq(lcd, app.watching_freq_hz(), FREQ_Y);
 
     Text::new(
         "UP/DN STEP  #/EXIT STOP",
         Point::new(4, 120),
-        MonoTextStyle::new(&FONT_6X10, FG),
+        MonoTextStyle::new(&FONT_6X10, theme::t().text),
     )
     .draw(lcd)
     .ok();
@@ -83,43 +93,33 @@ fn draw_header<D>(lcd: &mut D, app: &app::App)
 where
     D: DrawTarget<Color = Rgb565>,
 {
-    clear_strip(lcd, HEADER_Y, HEADER_H);
+    clear_scan(lcd, HEADER_Y, HEADER_H);
     let dir = if app.scan_direction_up() { "UP" } else { "DN" };
     let mut header: TextBuf<27> = TextBuf::new();
+    header.write_str(app.chan_mode_name()).ok();
+    header.write_str(" ").ok();
+    header.write_str(dir).ok();
     if app.watching_is_channel_mode() {
-        write!(
-            header,
-            "{} {} M{:03}",
-            app.chan_mode_name(),
-            dir,
-            app.watching_channel_num() + 1
-        )
-        .ok();
-    } else {
-        write!(header, "{} {}", app.chan_mode_name(), dir).ok();
+        header.write_str(" M").ok();
+        super::num(&mut header, app.watching_channel_num() as u32 + 1, 3);
     }
     Text::new(
         header.as_str(),
         Point::new(4, 14),
-        MonoTextStyle::new(&FONT_6X10, FG),
+        MonoTextStyle::new(&FONT_6X10, theme::t().text),
     )
     .draw(lcd)
     .ok();
     if app.watching_is_channel_mode() {
         let hz = app.watching_freq_hz();
         let mut line: TextBuf<26> = TextBuf::new();
-        write!(
-            line,
-            "{}  {}.{:04}",
-            app.side_name_str(app.watching_index()),
-            hz / 1_000_000,
-            hz / 100 % 10_000
-        )
-        .ok();
+        line.write_str(app.side_name_str(app.watching_index())).ok();
+        line.write_str("  ").ok();
+        super::freq_text(&mut line, hz, 4);
         Text::new(
             line.as_str(),
             Point::new(4, 27),
-            MonoTextStyle::new(&FONT_6X10, FG),
+            MonoTextStyle::new(&FONT_6X10, theme::t().text),
         )
         .draw(lcd)
         .ok();

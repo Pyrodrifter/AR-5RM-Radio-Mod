@@ -25,7 +25,7 @@ impl<'a, 'b> ListSource for LauncherSource<'a, 'b> {
         if self.0.launcher_available_at(index) {
             false
         } else {
-            let _ = write!(w, "----");
+            let _ = w.write_str("----");
             true
         }
     }
@@ -47,7 +47,8 @@ where
             .text_color(Rgb565::RED)
             .build();
         let mut buf: crate::ui::TextBuf<16> = crate::ui::TextBuf::new();
-        let _ = write!(buf, "LDERR {}", err);
+        let _ = buf.write_str("LDERR ");
+        super::num(&mut buf, err as u32, 1);
         Text::new(
             buf.as_str(),
             Point::new(2, crate::drivers::st7735::HEIGHT as i32 - 9),

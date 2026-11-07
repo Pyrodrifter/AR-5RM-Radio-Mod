@@ -89,13 +89,26 @@ pub fn run_session(
 
         match frame.cmd {
             frame::CMD_READ => handle_read(app, frame.addr),
-            frame::CMD_WRITE => {
-                handle_write(app, frame.addr, &frame.data[..frame.len])
+            #[cfg(feature = "ar5rm-nrf")]
+            frame::CMD_READ_BG => handle_read_logo(app, frame.addr, frame.cmd),
+            frame::CMD_WRITE | frame::CMD_WRITE_LOGO | frame::CMD_WRITE_BG => {
+                #[cfg(not(feature = "ar5rm-nrf"))]
+                if frame.cmd == frame::CMD_WRITE_BG {
+                    send_error(frame.addr, frame::ERR_BAD_LEN);
+                    continue;
+                }
+                #[cfg(feature = "ar5rm-nrf")]
+                if !app.storage_mut().norflash.user_data_ready() {
+                    send_error(frame.addr, frame::ERR_BAD_ADDR);
+                    continue;
+                }
+                if frame.cmd == frame::CMD_WRITE {
+                    handle_write(app, frame.addr, frame.data)
+                } else {
+                    handle_write_logo(app, frame.addr, frame.data, frame.cmd)
+                }
             }
-            frame::CMD_READ_LOGO => handle_read_logo(app, frame.addr),
-            frame::CMD_WRITE_LOGO => {
-                handle_write_logo(app, frame.addr, &frame.data[..frame.len])
-            }
+            frame::CMD_READ_LOGO => handle_read_logo(app, frame.addr, frame.cmd),
             frame::CMD_APP_ERASE => {
                 app_slot = handle_app_erase(app, frame.addr);
             }
@@ -103,10 +116,11 @@ pub fn run_session(
                 app,
                 app_slot,
                 frame.addr,
-                &frame.data[..frame.len],
+                frame.data,
             ),
+            #[cfg(not(feature = "ar5rm-nrf"))]
             frame::CMD_SAT_WRITE => {
-                handle_sat_write(app, frame.addr, &frame.data[..frame.len])
+                handle_sat_write(app, frame.addr, frame.data)
             }
             frame::CMD_READ_FLASH_RAW => handle_read_flash_raw(app, frame.addr),
             frame::CMD_END => {
@@ -130,25 +144,30 @@ fn handle_read(app: &mut App<'_>, wire_addr: u16) {
         buf[..64].copy_from_slice(&raw);
         Some(64)
     } else if logical == addr::RADIO_IMFOS_ADDR {
+        #[cfg(feature = "ar5rm-nrf")]
+        let settings = app
+            .storage_mut()
+            .load_settings_raw()
+            .unwrap_or_else(|| flash_map::Settings::DEFAULT.to_bytes());
+        #[cfg(not(feature = "ar5rm-nrf"))]
         let settings = app
             .storage_mut()
             .load_settings()
-            .unwrap_or(flash_map::Settings::DEFAULT);
-        buf[..flash_map::SETTINGS_BYTES].copy_from_slice(&settings.to_bytes());
+            .unwrap_or(flash_map::Settings::DEFAULT)
+            .to_bytes();
+        buf[..flash_map::SETTINGS_BYTES].copy_from_slice(&settings);
         Some(flash_map::SETTINGS_BYTES)
     } else if is_contact_addr(logical) {
-        let idx = contact_index(logical);
-        let contact = app.storage_mut().read_contact(idx);
-        buf[..addr::CONTACT_SIZE as usize].copy_from_slice(&contact.to_bytes());
-        Some(addr::CONTACT_SIZE as usize)
+        let n = addr::CONTACT_SIZE as usize;
+        app.storage_mut().read_raw(logical, &mut buf[..n]);
+        Some(n)
     } else if logical == addr::FM_ADDR {
-        let channels = app.storage_mut().load_fm_channels().unwrap_or(
-            [flash_map::FM_CHANNEL_EMPTY; flash_map::FM_CHANNEL_COUNT],
-        );
-        let n = flash_map::FM_CHANNEL_COUNT * 2;
-        for (chunk, v) in buf[..n].chunks_exact_mut(2).zip(channels.iter()) {
-            chunk.copy_from_slice(&v.to_le_bytes());
-        }
+        let raw = app
+            .storage_mut()
+            .load_fm_raw()
+            .unwrap_or([0xFF; flash_map::FM_CHANNEL_COUNT * 2]);
+        let n = raw.len();
+        buf[..n].copy_from_slice(&raw);
         Some(n)
     } else {
         None
@@ -173,10 +192,11 @@ fn read_channel(
         return None;
     }
     let len = addr::CHAN_SIZE as usize;
-    buf[..len].copy_from_slice(&app.storage_mut().read_channel(num).to_bytes());
+    app.storage_mut().read_raw(logical, &mut buf[..len]);
     Some(len)
 }
 
+#[cfg(not(feature = "ar5rm-nrf"))]
 fn handle_write(app: &mut App<'_>, wire_addr: u16, data: &[u8]) {
     let logical = wire_addr as u32;
 
@@ -222,6 +242,22 @@ fn handle_write(app: &mut App<'_>, wire_addr: u16, data: &[u8]) {
     }
 }
 
+#[cfg(feature = "ar5rm-nrf")]
+fn handle_write(app: &mut App<'_>, wire_addr: u16, data: &[u8]) {
+    let logical = u32::from(wire_addr);
+    if logical < addr::VFO_INFO_ADDR && write_channel(app, logical, data) {
+        send_response(frame::CMD_WRITE, wire_addr, &[]);
+    } else if logical == addr::RADIO_IMFOS_ADDR
+        && data.len() == flash_map::SETTINGS_BYTES
+    {
+        let raw: &[u8; flash_map::SETTINGS_BYTES] = data.try_into().unwrap();
+        app.storage_mut().save_settings(&flash_map::Settings::from_bytes(raw));
+        send_response(frame::CMD_WRITE, wire_addr, &[]);
+    } else {
+        send_error(wire_addr, frame::ERR_BAD_ADDR);
+    }
+}
+
 fn write_channel(app: &mut App<'_>, logical: u32, data: &[u8]) -> bool {
     if !logical.is_multiple_of(addr::CHAN_SIZE)
         || data.len() != addr::CHAN_SIZE as usize
@@ -232,9 +268,7 @@ fn write_channel(app: &mut App<'_>, logical: u32, data: &[u8]) -> bool {
     if num > MAX_CHANNEL_NUM {
         return false;
     }
-    let raw: [u8; addr::CHAN_SIZE as usize] = data.try_into().unwrap();
-    app.storage_mut()
-        .write_channel(num, &flash_map::Channel::from_bytes(&raw));
+    app.storage_mut().write_channel_bytes(num, data);
     true
 }
 
@@ -250,7 +284,23 @@ fn contact_index(logical: u32) -> u8 {
     ((logical - addr::DTMF_CODE_ADDR) / addr::CONTACT_SIZE) as u8
 }
 
-fn handle_read_logo(app: &mut App<'_>, wire_addr: u16) {
+/// Where an image command reads or writes: the boot logo or the background.
+fn image_base(cmd: u8) -> u32 {
+    if cmd == frame::CMD_READ_LOGO || cmd == frame::CMD_WRITE_LOGO {
+        addr::BOOT_LOGO_ADDR
+    } else {
+        addr::BACKGROUND_ADDR
+    }
+}
+
+fn handle_read_logo(app: &mut App<'_>, wire_addr: u16, cmd: u8) {
+    #[cfg(feature = "ar5rm-nrf")]
+    if cmd == frame::CMD_READ_BG && wire_addr == u16::MAX {
+        let mut marker = [0u8; 4];
+        app.storage_mut().read_raw(addr::BACKGROUND_MARKER_ADDR, &mut marker);
+        send_response(cmd, wire_addr, &[u8::from(marker == *b"BG01")]);
+        return;
+    }
     let offset = wire_addr as u32;
     if !offset.is_multiple_of(frame::BOOT_LOGO_CHUNK)
         || offset + frame::BOOT_LOGO_CHUNK > flash_map::BOOT_LOGO_SIZE as u32
@@ -259,12 +309,24 @@ fn handle_read_logo(app: &mut App<'_>, wire_addr: u16) {
         return;
     }
     let mut buf = [0u8; frame::BOOT_LOGO_CHUNK as usize];
-    app.storage_mut()
-        .read_raw(addr::BOOT_LOGO_ADDR + offset, &mut buf);
-    send_response(frame::CMD_READ_LOGO, wire_addr, &buf);
+    app.storage_mut().read_raw(image_base(cmd) + offset, &mut buf);
+    send_response(cmd, wire_addr, &buf);
 }
 
-fn handle_write_logo(app: &mut App<'_>, wire_addr: u16, data: &[u8]) {
+fn handle_write_logo(app: &mut App<'_>, wire_addr: u16, data: &[u8], cmd: u8) {
+    #[cfg(feature = "ar5rm-nrf")]
+    if cmd == frame::CMD_WRITE_BG && wire_addr == u16::MAX && data.is_empty() {
+        app.storage_mut().norflash.erase_sector(addr::BACKGROUND_MARKER_ADDR);
+        send_response(cmd, wire_addr, &[]);
+        return;
+    }
+    #[cfg(feature = "ar5rm-nrf")]
+    if cmd == frame::CMD_WRITE_BG && wire_addr == u16::MAX - 1 && data.is_empty() {
+        app.storage_mut().write_raw(addr::BACKGROUND_MARKER_ADDR, b"BG01");
+        send_response(cmd, wire_addr, &[]);
+        return;
+    }
+    let base = image_base(cmd);
     let offset = wire_addr as u32;
     let ok = offset.is_multiple_of(frame::BOOT_LOGO_CHUNK)
         && data.len() == frame::BOOT_LOGO_CHUNK as usize
@@ -275,16 +337,19 @@ fn handle_write_logo(app: &mut App<'_>, wire_addr: u16, data: &[u8]) {
     }
     if offset == 0 {
         let storage = app.storage_mut();
-        let mut sector = addr::BOOT_LOGO_ADDR;
-        let end = addr::BOOT_LOGO_ADDR + flash_map::BOOT_LOGO_SIZE as u32;
+        #[cfg(feature = "ar5rm-nrf")]
+        if cmd == frame::CMD_WRITE_BG {
+            storage.norflash.erase_sector(addr::BACKGROUND_MARKER_ADDR);
+        }
+        let mut sector = base;
+        let end = base + flash_map::BOOT_LOGO_SIZE as u32;
         while sector < end {
             storage.norflash.erase_sector(sector);
             sector += SECTOR_SIZE;
         }
     }
-    app.storage_mut()
-        .write_raw(addr::BOOT_LOGO_ADDR + offset, data);
-    send_response(frame::CMD_WRITE_LOGO, wire_addr, &[]);
+    app.storage_mut().write_raw(base + offset, data);
+    send_response(cmd, wire_addr, &[]);
 }
 
 fn handle_app_erase(app: &mut App<'_>, wire_addr: u16) -> Option<u8> {
@@ -360,14 +425,21 @@ fn handle_read_flash_raw(app: &mut App<'_>, wire_addr: u16) {
         return;
     }
     let mut buf = [0u8; FLASH_RAW_CHUNK as usize];
-    app.storage_mut().read_raw(addr, &mut buf);
+    app.storage_mut().norflash.read_physical(addr, &mut buf);
     send_response(frame::CMD_READ_FLASH_RAW, wire_addr, &buf);
 }
 
 fn send_response(cmd: u8, addr: u16, data: &[u8]) {
-    let mut out = [0u8; 8 + frame::MAX_DATA];
-    let n = frame::encode(&mut out, cmd, addr, data);
-    hal::uart::write_bytes(&out[..n]);
+    use hal::wear_leveled::{crc16_update, crc16_xmodem};
+
+    let [addr_hi, addr_lo] = addr.to_be_bytes();
+    let [len_hi, len_lo] = (data.len() as u16).to_be_bytes();
+    let header = [cmd, addr_hi, addr_lo, len_hi, len_lo];
+    let crc = crc16_update(crc16_xmodem(&header), data);
+    hal::uart::write_byte(frame::HEADER);
+    hal::uart::write_bytes(&header);
+    hal::uart::write_bytes(data);
+    hal::uart::write_bytes(&crc.to_be_bytes());
 }
 
 fn send_error(addr: u16, code: u8) {

@@ -29,31 +29,43 @@ def crypt(data):
     return bytes(out)
 
 
-image_path, out_path, stock_dir = sys.argv[1:4]
+def wrap(image):
+    """Encode the application bytes the bootloader expects in a .BF file."""
+    assert 8 <= len(image) <= 0xF000, len(image)
+    sp, reset = struct.unpack_from("<II", image)
+    assert 0x20000000 < sp <= 0x20004000 and 0x08001000 < reset < 0x08010000 and reset & 1
+    encoded = crypt(image)
+    assert crypt(encoded) == image
+    return struct.pack(">BLL7x", 1, len(encoded), 0) + encoded
 
-# The transform must undo itself and turn factory files into real firmware.
-checked = 0
-for bf in sorted(glob.glob(os.path.join(stock_dir, "*", "*.BF"))):
-    raw = open(bf, "rb").read()
-    _, s1, _ = struct.unpack(">BLL", raw[:9])
-    enc = raw[16:16 + s1]
-    dec = crypt(enc)
-    assert crypt(dec) == enc, bf
-    sp, reset = struct.unpack("<II", dec[:8])
-    assert 0x20000000 < sp <= 0x20004000 and 0x08001000 < reset < 0x08010000, bf
-    assert b"PROGRAMBFNORMALU" in dec and b"VER:%s" in dec, bf
-    checked += 1
-assert checked >= 5, checked
-print("crypto verified against", checked, "factory images")
 
-image = open(image_path, "rb").read()
-assert len(image) <= 0xF000, len(image)
-sp, reset = struct.unpack("<II", image[:8])
-assert 0x20000000 < sp <= 0x20004000 and 0x08001000 < reset < 0x08010000 and reset & 1
-enc = crypt(image)
-assert crypt(enc) == image
-header = struct.pack(">BLL", 1, len(enc), 0) + b"\x00" * 7
-assert len(header) == 16
-open(out_path, "wb").write(header + enc)
-pkgs = -(-len(enc) // PKG)
-print(f"wrote {out_path}: {len(enc)} bytes, {pkgs} packages, SP={sp:#x} reset={reset:#x}")
+def main():
+    image_path, out_path, stock_dir = sys.argv[1:4]
+
+    # The transform must undo itself and turn factory files into real firmware.
+    checked = 0
+    for bf in sorted(glob.glob(os.path.join(stock_dir, "*", "*.BF"))):
+        with open(bf, "rb") as f:
+            raw = f.read()
+        _, size, _ = struct.unpack(">BLL", raw[:9])
+        encoded = raw[16:16 + size]
+        decoded = crypt(encoded)
+        assert crypt(decoded) == encoded, bf
+        sp, reset = struct.unpack_from("<II", decoded)
+        assert 0x20000000 < sp <= 0x20004000 and 0x08001000 < reset < 0x08010000, bf
+        assert b"PROGRAMBFNORMALU" in decoded and b"VER:%s" in decoded, bf
+        checked += 1
+    assert checked >= 5, checked
+    print("crypto verified against", checked, "factory images")
+
+    with open(image_path, "rb") as f:
+        image = f.read()
+    with open(out_path, "wb") as f:
+        f.write(wrap(image))
+    packages = -(-len(image) // PKG)
+    sp, reset = struct.unpack_from("<II", image)
+    print(f"wrote {out_path}: {len(image)} bytes, {packages} packages, SP={sp:#x} reset={reset:#x}")
+
+
+if __name__ == "__main__":
+    main()

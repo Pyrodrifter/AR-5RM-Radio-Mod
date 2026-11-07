@@ -1,7 +1,8 @@
+#[cfg(feature = "ar5rm-nrf")]
+use super::overlay;
 use super::{scan, App};
 use cortex_m::peripheral::SYST;
 
-// TODO: FM radio was made as app, add key function to app
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum KeyFunction {
     None,
@@ -9,6 +10,11 @@ pub enum KeyFunction {
     Monitor,
     Mode,
     TxTone,
+    /// Opens the installed app named "FM" (broadcast radio is an app now).
+    #[cfg(feature = "ar5rm-nrf")]
+    FmRadio,
+    #[cfg(feature = "ar5rm-nrf")]
+    DayNight,
     Scan,
     Power,
     Flashlight,
@@ -23,6 +29,10 @@ impl KeyFunction {
             KeyFunction::Monitor => "MONITOR",
             KeyFunction::Mode => "MODE",
             KeyFunction::TxTone => "TX TONE",
+            #[cfg(feature = "ar5rm-nrf")]
+            KeyFunction::FmRadio => "FM RADIO",
+            #[cfg(feature = "ar5rm-nrf")]
+            KeyFunction::DayNight => "DAY/NIGHT",
             KeyFunction::Scan => "SCAN",
             KeyFunction::Power => "POWER",
             KeyFunction::Flashlight => "LIGHT",
@@ -37,12 +47,15 @@ pub(super) fn from_u8(v: u8) -> KeyFunction {
         2 => KeyFunction::Monitor,
         3 => KeyFunction::Mode,
         4 => KeyFunction::TxTone,
-        // 5=> fm radio
+        #[cfg(feature = "ar5rm-nrf")]
+        5 => KeyFunction::FmRadio,
         6 => KeyFunction::Scan,
         7 => KeyFunction::Power,
         8 => KeyFunction::Flashlight,
         // 9 => search (now app)
         10 => KeyFunction::Reverse,
+        #[cfg(feature = "ar5rm-nrf")]
+        11 => KeyFunction::DayNight,
         _ => KeyFunction::None,
     }
 }
@@ -53,7 +66,20 @@ pub(super) fn invoke(app: &mut App, syst: &mut SYST, func: KeyFunction) {
         KeyFunction::WideNarrow => app.toggle_wide_narrow(syst),
         KeyFunction::Monitor => app.radio.toggle_monitor(),
         KeyFunction::Mode => app.toggle_modulation(syst),
-        // TODO: fm radio
+        // Does nothing when no FM app is installed. The UV-5RM image has no
+        // flash left for this yet, so there 5 still means NONE.
+        #[cfg(feature = "ar5rm-nrf")]
+        KeyFunction::FmRadio => overlay::enter_named(app, syst, "FM"),
+        #[cfg(feature = "ar5rm-nrf")]
+        KeyFunction::DayNight => {
+            if app.settings.theme == 3 {
+                app.settings.theme = app.settings.dark_theme.min(2);
+            } else {
+                app.settings.dark_theme = app.settings.theme.min(2);
+                app.settings.theme = 3;
+            }
+            app.save_settings();
+        }
         KeyFunction::Scan => scan::enter(app, syst),
         KeyFunction::Power => app.toggle_power(syst),
         KeyFunction::Flashlight => app.flashlight.toggle(),

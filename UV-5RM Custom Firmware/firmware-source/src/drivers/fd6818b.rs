@@ -18,10 +18,10 @@ const REG_BANDWIDTH: u8 = 0x43;
 /// | [15]    | vco_cal_en                                   |
 /// | [14]    | pabias_en (voltage itself is REG_PA_BIAS)    |
 /// | [13:10] | rxlink_en (LNA, MIXER, FILTER, ADC)          |
-/// | [9]     | afout_en — 1 = enable AFOUT DAC              |
+/// | [9]     | afout_en â€” 1 = enable AFOUT DAC              |
 /// | [8:4]   | pll_en                                       |
 /// | [3]     | padrv_en                                     |
-/// | [2]     | micin_en — 1 = enable MICIN ADC              |
+/// | [2]     | micin_en â€” 1 = enable MICIN ADC              |
 /// | [1]     | txon                                         |
 /// | [0]     | rxon                                         |
 const STATE_RX_ON: u16 = 0xBFF1; // 1 0 1111 1 11111 0001
@@ -41,8 +41,14 @@ const REG_RXAGC_6: u8 = 0x49;
 
 const REG_AGC_MODE: u8 = 0x7E;
 const AGC_INDEX_BY_RANK: [u16; 8] = [3, 2, 1, 0, 7, 6, 5, 4];
+#[cfg(not(feature = "ar5rm-nrf"))]
 const RXAGC_5_FM: u16 = 0x0210;
+#[cfg(not(feature = "ar5rm-nrf"))]
 const RXAGC_6_FM: u16 = 0x2AB2;
+#[cfg(feature = "ar5rm-nrf")]
+const RXAGC_5_FM: u16 = 0x0019;
+#[cfg(feature = "ar5rm-nrf")]
+const RXAGC_6_FM: u16 = 0x2A38;
 const RXAGC_5_AM: u16 = RXAGC_5_FM;
 const RXAGC_6_AM: u16 = RXAGC_6_FM;
 const REG_RSSI_TABLE_LO: u8 = 0x7B;
@@ -231,7 +237,10 @@ const GPIO6: u16 = 0x40; // RX switch, high bands (>=300MHz)
 const REG_PA: u8 = 0x36;
 /// PACTL disabled, gain forced to the UHF word (don't-care while gated
 /// off).
+#[cfg(not(feature = "ar5rm-nrf"))]
 const PA_OFF_VALUE: u16 = 0x0022;
+#[cfg(feature = "ar5rm-nrf")]
+const PA_OFF_VALUE: u16 = 0x007F;
 /// PACTL on (bit7) + BK4829's UHF driver gain (bit[5:0] = 0x22).
 const PA_GAIN_UHF: u16 = 0x00A2;
 /// PACTL on (bit7) + BK4829's VHF driver gain (bit[5:0] = 0x08).
@@ -494,8 +503,14 @@ const XTAL_ADJUST_ZERO_POINT: u8 = 8;
 
 /// BK4829's init-time REG_37 words. Both bit15+bit4 set relative to
 /// BK4819's `0x1D0F`/`0x1F0F`.
+#[cfg(not(feature = "ar5rm-nrf"))]
 const POWER_UP_VALUE: u16 = 0x9D1F;
+#[cfg(not(feature = "ar5rm-nrf"))]
 const POWER_RX_VALUE: u16 = 0x9F1F;
+#[cfg(feature = "ar5rm-nrf")]
+const POWER_UP_VALUE: u16 = 0x1D0F;
+#[cfg(feature = "ar5rm-nrf")]
+const POWER_RX_VALUE: u16 = 0x1F0F;
 /// REG_POWER (0x37) value for RX duty-cycle power-save: same base as
 /// `POWER_UP_VALUE` but with the low nibble (xtal-osc enable + bandgap-ref
 /// enable) cleared
@@ -604,6 +619,7 @@ impl<'a> Fd6818<'a> {
 
     /// Enables the PA stage at the calibrated APC target, paired with
     /// BK4829's fixed band-dependent driver gain.
+    #[cfg(not(feature = "ar5rm-nrf"))]
     pub fn pa_enable(&mut self, syst: &mut SYST, _power: Power) {
         let gain = if self.band_uhf {
             PA_GAIN_UHF
@@ -612,6 +628,17 @@ impl<'a> Fd6818<'a> {
         };
         let value = ((self.pa_target as u16) << 8) | gain;
         self.write_reg(syst, REG_PA, value);
+    }
+
+    /// Low-power PA drive from the stock 5RH NRF v0.14 routine at 0x08009DDC.
+    #[cfg(feature = "ar5rm-nrf")]
+    pub fn pa_enable(&mut self, syst: &mut SYST, tx_hz: u32) {
+        let gain = if (155_000_000..175_000_000).contains(&tx_hz) {
+            0xC3
+        } else {
+            0xD7
+        };
+        self.write_reg(syst, REG_PA, (u16::from(self.pa_target) << 8) | gain);
     }
 
     pub fn pa_off(&mut self, syst: &mut SYST) {
@@ -1154,7 +1181,7 @@ impl<'a> Fd6818<'a> {
                 self.rx_match_bit = SubaudioMatchBit::Ctcss;
                 let primary_tenths_hz = match sub {
                     SubAudio::Ctcss(tenths_hz) => tenths_hz,
-                    _ => 551, // 55.1Hz — same as the fixed tail tone
+                    _ => 551, // 55.1Hz â€” same as the fixed tail tone
                 };
                 let gain = (self.cts_mod_depth & 0x7F) as u16;
                 self.write_reg(syst, REG_CTCSS, 0x9000 | gain);
@@ -1337,6 +1364,22 @@ impl<'a> Fd6818<'a> {
     /// REG 0x0C bit1 (`sq_out`, read-only): true while squelch is open.
     pub fn squelch_open(&mut self, syst: &mut SYST) -> bool {
         self.read_reg(syst, REG_STATUS) & STATUS_SQ_OPEN != 0
+    }
+
+    /// AM carrier detection uses the measured noise floor because the
+    /// hardware gate also demands FM-oriented RSSI and glitch thresholds.
+    #[cfg(feature = "ar5rm-nrf")]
+    pub fn am_squelch_open(
+        &mut self,
+        syst: &mut SYST,
+        level: u8,
+        was_open: bool,
+    ) -> bool {
+        const REG_RX_NOISE: u8 = 0x65;
+        // The NRF's stock 0x4F sets the open and close noise limits to 50 and 55.
+        let threshold = if was_open { 55 } else { 50 };
+        let threshold = threshold - 3 * level.saturating_sub(1).min(8);
+        self.read_reg(syst, REG_RX_NOISE) as u8 <= threshold
     }
 
     pub fn wake(&mut self, syst: &mut SYST) {
@@ -1565,7 +1608,7 @@ impl<'a> Fd6818<'a> {
         }
     }
 
-    /// REG 0x67[8:1]：RSSI
+    /// REG 0x67[8:1]ï¼šRSSI
     pub fn get_rssi(&mut self, syst: &mut SYST) -> u16 {
         (self.read_reg(syst, REG_RSSI) & 0x01FF) >> 1
     }
@@ -1646,55 +1689,93 @@ impl<'a> Fd6818<'a> {
         self.write_reg(syst, REG_PA, PA_OFF_VALUE);
 
         // RX AGC
-        self.write_reg(syst, REG_RXAGC_1, 0x03DF);
-        self.write_reg(syst, REG_RXAGC_2, 0x03DB);
-        self.write_reg(syst, REG_RXAGC_3, 0x033A);
-        self.write_reg(syst, REG_RXAGC_4, 0x0318);
+        #[cfg(not(feature = "ar5rm-nrf"))]
+        {
+            self.write_reg(syst, REG_RXAGC_1, 0x03DF);
+            self.write_reg(syst, REG_RXAGC_2, 0x03DB);
+            self.write_reg(syst, REG_RXAGC_3, 0x033A);
+            self.write_reg(syst, REG_RXAGC_4, 0x0318);
+        }
+        // FD6818 register values from the stock 5RH NRF v0.14 init at 0x08008AE8.
+        #[cfg(feature = "ar5rm-nrf")]
+        {
+            self.write_reg(syst, REG_RXAGC_1, 0x03BE);
+            self.write_reg(syst, REG_RXAGC_2, 0x037B);
+            self.write_reg(syst, REG_RXAGC_3, 0x027B);
+            self.write_reg(syst, REG_RXAGC_4, 0x007A);
+        }
         self.write_reg(syst, REG_RXAGC_5, RXAGC_5_FM);
         self.write_reg(syst, REG_RXAGC_6, RXAGC_6_FM);
+        #[cfg(not(feature = "ar5rm-nrf"))]
         self.write_reg(syst, REG_RSSI_TABLE_LO, 0x73DC);
+        #[cfg(feature = "ar5rm-nrf")]
+        self.write_reg(syst, REG_RSSI_TABLE_LO, 0x8420);
 
         // PA bias output: low nibble 0x1 ~= 1.4V
         self.write_reg(syst, REG_PA_BIAS, 0x1041);
 
+        #[cfg(not(feature = "ar5rm-nrf"))]
         self.write_reg(syst, REG_2A, 0x6600);
+        #[cfg(feature = "ar5rm-nrf")]
+        self.write_reg(syst, REG_2A, 0x4F18);
 
         // DTMF Goertzel coefficient table (decoder itself not implemented yet)
         for &value in DTMF_COEF_TABLE.iter() {
             self.write_reg(syst, REG_DTMF_COEF, value);
         }
 
+        #[cfg(feature = "ar5rm-nrf")]
+        self.write_reg(syst, 0x21, 0x06D8);
         self.write_reg(syst, REG_FSK_BAUD, FSK_BAUD_1200);
         self.write_reg(syst, REG_FSK_5C, FSK_5C_VALUE);
         self.write_reg(syst, REG_FSK_5D, FSK_5D_VALUE);
 
+        #[cfg(not(feature = "ar5rm-nrf"))]
         self.write_reg(syst, REG_DEVIATION, DEVIATION_VALUE);
+        #[cfg(feature = "ar5rm-nrf")]
+        {
+            let deviation = (self.read_reg(syst, REG_DEVIATION) & 0xF000) | 0x04D2;
+            self.write_reg(syst, REG_DEVIATION, deviation);
+        }
 
         let scramble = self.read_reg(syst, REG_SCRAMBLE) & !0x0002;
         self.write_reg(syst, REG_SCRAMBLE, scramble);
 
-        self.write_reg(syst, REG_MIC_SENS, MIC_SENS_VALUE);
-        self.write_reg(syst, REG_VOLUME, 0x33A8);
+        #[cfg(not(feature = "ar5rm-nrf"))]
+        {
+            self.write_reg(syst, REG_MIC_SENS, MIC_SENS_VALUE);
+            self.write_reg(syst, REG_VOLUME, 0x33A8);
 
-        self.write_reg(syst, REG_PLL_VCO_BIAS, 0xC65A);
-        self.write_reg(syst, REG_FIXED_3E, 0x94C6);
-        self.write_reg(syst, REG_ANTI_SPUR, 0x88EF);
-        self.write_reg(syst, REG_OOB_NOISE, 0x2F2E); // unverified for BK4829
-        self.write_reg(syst, REG_DISTORTION, 0x13A0); // unverified for BK4829
+            self.write_reg(syst, REG_PLL_VCO_BIAS, 0xC65A);
+            self.write_reg(syst, REG_FIXED_3E, 0x94C6);
+            self.write_reg(syst, REG_ANTI_SPUR, 0x88EF);
+            self.write_reg(syst, REG_OOB_NOISE, 0x2F2E); // unverified for BK4829
+            self.write_reg(syst, REG_DISTORTION, 0x13A0); // unverified for BK4829
 
-        self.write_reg(syst, REG_AFC_DISABLE, 0x4691);
+            self.write_reg(syst, REG_AFC_DISABLE, 0x4691);
 
-        self.write_reg(syst, 0x1C, 0x07C0);
-        self.write_reg(syst, 0x1D, 0xE555);
-        self.write_reg(syst, 0x1E, 0x4C58);
-        self.write_reg(syst, 0x28, 0x0B40);
-        self.write_reg(syst, 0x29, 0xAA00);
-        self.write_reg(syst, 0x2C, 0x1822);
-        self.write_reg(syst, 0x2F, 0x9890);
-        self.write_reg(syst, 0x53, 0x2028);
-        self.write_reg(syst, 0x7E, 0x303E);
-        self.write_reg(syst, 0x46, 0x600A);
-        self.write_reg(syst, 0x4A, 0x5430);
+            self.write_reg(syst, 0x1C, 0x07C0);
+            self.write_reg(syst, 0x1D, 0xE555);
+            self.write_reg(syst, 0x1E, 0x4C58);
+            self.write_reg(syst, 0x28, 0x0B40);
+            self.write_reg(syst, 0x29, 0xAA00);
+            self.write_reg(syst, 0x2C, 0x1822);
+            self.write_reg(syst, 0x2F, 0x9890);
+            self.write_reg(syst, 0x53, 0x2028);
+            self.write_reg(syst, 0x7E, 0x303E);
+            self.write_reg(syst, 0x46, 0x600A);
+            self.write_reg(syst, 0x4A, 0x5430);
+        }
+        #[cfg(feature = "ar5rm-nrf")]
+        {
+            self.write_reg(syst, REG_MIC_SENS, 0xE952);
+            self.write_reg(syst, REG_VOLUME, 0xB3BF);
+            self.write_reg(syst, REG_PLL_VCO_BIAS, 0x5454);
+            self.write_reg(syst, REG_FIXED_3E, 0xA037);
+            self.write_reg(syst, REG_ANTI_SPUR, 0x88EF);
+            self.write_reg(syst, REG_OOB_NOISE, 0x3732);
+            self.write_reg(syst, REG_DISTORTION, 0x13A0);
+        }
 
         self.write_reg(syst, REG_SUBAUDIO_FREQ, 0x61CE);
 

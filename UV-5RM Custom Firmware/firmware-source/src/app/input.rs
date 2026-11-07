@@ -61,7 +61,7 @@ impl<const N: usize> DigitInput<N> {
                 let _ = w.write_char('.');
             }
             if i < self.len {
-                let _ = write!(w, "{}", self.digits[i] as u32);
+                crate::ui::num(w, self.digits[i] as u32, 1);
             } else {
                 let _ = w.write_char('-');
             }

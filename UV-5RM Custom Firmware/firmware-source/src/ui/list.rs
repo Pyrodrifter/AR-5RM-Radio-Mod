@@ -1,16 +1,13 @@
-use embedded_graphics::mono_font::{ascii::FONT_6X10, MonoTextStyle};
+use core::fmt::Write as _;
+use embedded_graphics::mono_font::{ascii::FONT_6X10, MonoFont, MonoTextStyle};
 use embedded_graphics::pixelcolor::Rgb565;
 use embedded_graphics::prelude::*;
 use embedded_graphics::primitives::{PrimitiveStyle, Rectangle};
 use embedded_graphics::text::Text;
 
-use super::backdrop::draw_backdrop;
+use super::theme;
 use super::{TextBuf, SCREEN_H, SCREEN_W};
 
-const BG: Rgb565 = Rgb565::BLACK;
-const FG: Rgb565 = Rgb565::WHITE;
-const TITLE_BG: Rgb565 = Rgb565::new(11, 0, 0);
-const SELECT_BG: Rgb565 = Rgb565::new(16, 0, 0);
 
 const ROW_HEIGHT: i32 = FONT_6X10.character_size.height as i32 + 4;
 const TITLE_HEIGHT: i32 = ROW_HEIGHT;
@@ -19,6 +16,8 @@ const VISIBLE_ROWS: usize = ((SCREEN_H - LIST_TOP) / ROW_HEIGHT) as usize;
 const RIGHT_MARGIN: i32 = 4;
 
 const ARROW_GAP: i32 = 6;
+const CHAR_WIDTH: i32 = 7;
+const MENU_FONT: MonoFont = MonoFont { character_spacing: 1, ..FONT_6X10 };
 
 const TITLE_MAX: usize = 16;
 const VALUE_MAX: usize = 18;
@@ -131,6 +130,10 @@ pub(crate) fn draw_list<D>(
         let prev_top = cache.scroll_top.unwrap();
         let prev_total = cache.total.unwrap();
 
+        // The title carries the position counter.
+        if selected != prev_selected || total != prev_total {
+            draw_title(lcd, title, selected, total);
+        }
         if top != prev_top || total != prev_total {
             for slot in 0..VISIBLE_ROWS {
                 draw_row(
@@ -199,32 +202,52 @@ fn draw_full<D>(
 ) where
     D: DrawTarget<Color = Rgb565>,
 {
-    draw_title(lcd, title);
+    draw_title(lcd, title, selected, total);
 
     for slot in 0..VISIBLE_ROWS {
         draw_row(lcd, source, top + slot, selected, show_arrows, total, slot);
     }
     let bottom = LIST_TOP + VISIBLE_ROWS as i32 * ROW_HEIGHT;
-    draw_backdrop(
-        lcd,
-        &mut |addr, buf| source.read_flash(addr, buf),
-        bottom,
-        SCREEN_H - bottom,
-    );
+    fill(lcd, 0, bottom, SCREEN_W, SCREEN_H - bottom, theme::t().bg);
 }
 
-fn draw_title<D>(lcd: &mut D, title: &str)
+fn fill<D>(lcd: &mut D, x: i32, y: i32, w: i32, h: i32, color: Rgb565)
 where
     D: DrawTarget<Color = Rgb565>,
 {
-    Rectangle::new(
-        Point::new(0, 0),
-        Size::new(SCREEN_W as u32, TITLE_HEIGHT as u32),
-    )
-    .into_styled(PrimitiveStyle::with_fill(TITLE_BG))
-    .draw(lcd)
-    .ok();
-    draw_centered(lcd, title, FONT_6X10.baseline as i32 + 2);
+    Rectangle::new(Point::new(x, y), Size::new(w as u32, h as u32))
+        .into_styled(PrimitiveStyle::with_fill(color))
+        .draw(lcd)
+        .ok();
+}
+
+/// Add weight while keeping a clear gap between glyphs.
+#[inline(never)]
+fn txt<D>(lcd: &mut D, s: &str, x: i32, baseline_y: i32, color: Rgb565)
+where
+    D: DrawTarget<Color = Rgb565>,
+{
+    let style = MonoTextStyle::new(&MENU_FONT, color);
+    Text::new(s, Point::new(x + 1, baseline_y), style).draw(lcd).ok();
+    Text::new(s, Point::new(x, baseline_y), style).draw(lcd).ok();
+}
+
+fn draw_title<D>(lcd: &mut D, title: &str, selected: usize, total: usize)
+where
+    D: DrawTarget<Color = Rgb565>,
+{
+    let t = theme::t();
+    fill(lcd, 0, 0, SCREEN_W, TITLE_HEIGHT - 1, t.card);
+    fill(lcd, 0, TITLE_HEIGHT - 1, SCREEN_W, 1, t.accent);
+    let baseline = FONT_6X10.baseline as i32 + 2;
+    txt(lcd, title, 5, baseline, t.text);
+    if total > 1 {
+        let mut pos: TextBuf<10> = TextBuf::new();
+        super::num(&mut pos, selected as u32 + 1, 1);
+        pos.write_str("/").ok();
+        super::num(&mut pos, total as u32, 1);
+        draw_value(lcd, pos.as_str(), baseline, t.dim);
+    }
 }
 
 fn draw_row<D>(
@@ -240,29 +263,19 @@ fn draw_row<D>(
 {
     let row_top = LIST_TOP + slot as i32 * ROW_HEIGHT;
     let is_selected = index < total && index == selected;
-    if !is_selected {
-        draw_backdrop(
-            lcd,
-            &mut |addr, buf| source.read_flash(addr, buf),
-            row_top,
-            ROW_HEIGHT,
-        );
-    }
+    let t = theme::t();
+    fill(lcd, 0, row_top, SCREEN_W, ROW_HEIGHT, t.bg);
 
     if index >= total {
         return; // blank row below the end of a shorter list
     }
 
     if is_selected {
-        Rectangle::new(
-            Point::new(0, row_top),
-            Size::new(SCREEN_W as u32, ROW_HEIGHT as u32),
-        )
-        .into_styled(PrimitiveStyle::with_fill(SELECT_BG))
-        .draw(lcd)
-        .ok();
+        // A bar with clipped corners.
+        fill(lcd, 3, row_top + 1, SCREEN_W - 6, ROW_HEIGHT - 2, t.accent);
+        fill(lcd, 2, row_top + 2, SCREEN_W - 4, ROW_HEIGHT - 4, t.accent);
     }
-    let fg = FG;
+    let fg = if is_selected { t.on_accent } else { t.text };
     let baseline = row_top + FONT_6X10.baseline as i32 + 2;
 
     let mut label: TextBuf<20> = TextBuf::new();
@@ -270,13 +283,7 @@ fn draw_row<D>(
     let label_is_empty = label.as_str().is_empty();
 
     if !label_is_empty {
-        Text::new(
-            label.as_str(),
-            Point::new(4, baseline),
-            MonoTextStyle::new(&FONT_6X10, fg),
-        )
-        .draw(lcd)
-        .ok();
+        txt(lcd, label.as_str(), 6, baseline, fg);
     }
 
     let mut value: TextBuf<18> = TextBuf::new();
@@ -319,49 +326,21 @@ fn scroll_top(total: usize, selected: usize) -> usize {
     selected.saturating_sub(half).min(total - VISIBLE_ROWS)
 }
 
-fn draw_centered<D>(lcd: &mut D, text: &str, baseline_y: i32)
-where
-    D: DrawTarget<Color = Rgb565>,
-{
-    let width =
-        text.chars().count() as i32 * FONT_6X10.character_size.width as i32;
-    let x = (SCREEN_W - width) / 2;
-    Text::new(
-        text,
-        Point::new(x, baseline_y),
-        MonoTextStyle::new(&FONT_6X10, FG),
-    )
-    .draw(lcd)
-    .ok();
-}
-
 fn draw_value<D>(lcd: &mut D, text: &str, baseline_y: i32, fg: Rgb565)
 where
     D: DrawTarget<Color = Rgb565>,
 {
     let width =
-        text.chars().count() as i32 * FONT_6X10.character_size.width as i32;
+        text.chars().count() as i32 * CHAR_WIDTH;
     let x = SCREEN_W - RIGHT_MARGIN - width;
-    Text::new(
-        text,
-        Point::new(x, baseline_y),
-        MonoTextStyle::new(&FONT_6X10, fg),
-    )
-    .draw(lcd)
-    .ok();
+    txt(lcd, text, x, baseline_y, fg);
 }
 
 fn draw_value_left<D>(lcd: &mut D, text: &str, baseline_y: i32, fg: Rgb565)
 where
     D: DrawTarget<Color = Rgb565>,
 {
-    Text::new(
-        text,
-        Point::new(4, baseline_y),
-        MonoTextStyle::new(&FONT_6X10, fg),
-    )
-    .draw(lcd)
-    .ok();
+    txt(lcd, text, 6, baseline_y, fg);
 }
 
 fn draw_value_with_cursor<D>(
@@ -376,7 +355,7 @@ fn draw_value_with_cursor<D>(
 {
     draw_value(lcd, text, baseline_y, fg);
 
-    let char_w = FONT_6X10.character_size.width as i32;
+    let char_w = CHAR_WIDTH;
     let width = text.chars().count() as i32 * char_w;
     let x0 = SCREEN_W - RIGHT_MARGIN - width;
 
@@ -394,7 +373,7 @@ fn draw_value_with_cursor_left<D>(
     D: DrawTarget<Color = Rgb565>,
 {
     draw_value_left(lcd, text, baseline_y, fg);
-    draw_cursor_box(lcd, text, cursor_index, 4, row_top, baseline_y, fg);
+    draw_cursor_box(lcd, text, cursor_index, 6, row_top, baseline_y, fg);
 }
 
 fn draw_cursor_box<D>(
@@ -408,11 +387,12 @@ fn draw_cursor_box<D>(
 ) where
     D: DrawTarget<Color = Rgb565>,
 {
-    let char_w = FONT_6X10.character_size.width as i32;
+    let char_w = CHAR_WIDTH;
 
     let ch = text.chars().nth(cursor_index).unwrap_or(' ');
     let cursor_x = x0 + cursor_index as i32 * char_w;
-    let inverted = if fg == FG { BG } else { FG };
+    let t = theme::t();
+    let inverted = if fg == t.on_accent { t.accent } else { t.bg };
     Rectangle::new(
         Point::new(cursor_x, row_top),
         Size::new(char_w as u32, ROW_HEIGHT as u32),
@@ -425,7 +405,7 @@ fn draw_cursor_box<D>(
     Text::new(
         ch.encode_utf8(&mut ch_buf),
         Point::new(cursor_x, baseline_y),
-        MonoTextStyle::new(&FONT_6X10, inverted),
+        MonoTextStyle::new(&MENU_FONT, inverted),
     )
     .draw(lcd)
     .ok();
@@ -436,12 +416,12 @@ fn draw_editing_value<D>(lcd: &mut D, text: &str, row_top: i32, fg: Rgb565)
 where
     D: DrawTarget<Color = Rgb565>,
 {
-    let char_w = FONT_6X10.character_size.width as i32;
+    let char_w = CHAR_WIDTH;
     let value_width = text.chars().count() as i32 * char_w;
     let total_width = char_w + ARROW_GAP + value_width + ARROW_GAP + char_w;
     let start_x = SCREEN_W - RIGHT_MARGIN - total_width;
     let baseline = row_top + FONT_6X10.baseline as i32 + 2;
-    let style = MonoTextStyle::new(&FONT_6X10, fg);
+    let style = MonoTextStyle::new(&MENU_FONT, fg);
 
     Text::new("^", Point::new(start_x, baseline), style)
         .draw(lcd)

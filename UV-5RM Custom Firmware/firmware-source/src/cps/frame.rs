@@ -9,6 +9,12 @@ pub const CMD_END: u8 = 0x45; // 'E'
 pub const CMD_READ_LOGO: u8 = 0x4C; // 'L'
 pub const CMD_WRITE_LOGO: u8 = 0x6C; // 'l'
 
+/// Home-screen background, same chunking as the logo. A successful read at
+/// offset 0 tells the CPS tool this firmware has themes and backgrounds;
+/// older firmware answers ERR_BAD_LEN (unknown command).
+pub const CMD_READ_BG: u8 = 0x42; // 'B'
+pub const CMD_WRITE_BG: u8 = 0x62; // 'b'
+
 pub const CMD_APP_ERASE: u8 = 0x41; // 'A'
 pub const CMD_APP_WRITE: u8 = 0x61; // 'a'
 
@@ -28,30 +34,24 @@ pub const BOOT_LOGO_CHUNK: u32 = 512;
 pub const APP_CHUNK: u32 = 512;
 pub const SAT_CHUNK: u32 = 512;
 
-pub struct Frame {
+pub struct Frame<'a> {
     pub cmd: u8,
     pub addr: u16,
-    pub data: [u8; MAX_DATA],
-    pub len: usize,
+    pub data: &'a [u8],
 }
 
-pub enum FeedResult {
+pub enum FeedResult<'a> {
     /// Frame not yet complete; keep feeding bytes.
     Pending,
     /// A complete, CRC-valid frame.
-    Frame(Frame),
+    Frame(Frame<'a>),
     /// A frame completed but its CRC didn't match.
     CrcError { addr: u16 },
 }
 
 enum State {
     Header,
-    Cmd,
-    AddrHi,
-    AddrLo,
-    LenHi,
-    LenLo,
-    Data,
+    Body,
     CrcHi,
     CrcLo,
 }
@@ -59,10 +59,8 @@ enum State {
 /// Byte-at-a-time frame decoder fed from the USART1 RX ring buffer.
 pub struct FrameReader {
     state: State,
-    cmd: u8,
-    addr: u16,
-    len: usize,
-    data: [u8; MAX_DATA],
+    body_len: usize,
+    body: [u8; 5 + MAX_DATA],
     idx: usize,
     crc_hi: u8,
 }
@@ -71,10 +69,8 @@ impl FrameReader {
     pub const fn new() -> Self {
         FrameReader {
             state: State::Header,
-            cmd: 0,
-            addr: 0,
-            len: 0,
-            data: [0; MAX_DATA],
+            body_len: 5,
+            body: [0; 5 + MAX_DATA],
             idx: 0,
             crc_hi: 0,
         }
@@ -88,45 +84,27 @@ impl FrameReader {
     /// complete, `CrcError` if a frame completed but failed its CRC check,
     /// or `Pending` otherwise. Oversized frames are silently dropped and
     /// the reader resyncs on the next header byte.
-    pub fn feed(&mut self, byte: u8) -> FeedResult {
+    pub fn feed(&mut self, byte: u8) -> FeedResult<'_> {
         match self.state {
             State::Header => {
                 if byte == HEADER {
-                    self.state = State::Cmd;
+                    self.idx = 0;
+                    self.body_len = 5;
+                    self.state = State::Body;
                 }
             }
-            State::Cmd => {
-                self.cmd = byte;
-                self.state = State::AddrHi;
-            }
-            State::AddrHi => {
-                self.addr = (byte as u16) << 8;
-                self.state = State::AddrLo;
-            }
-            State::AddrLo => {
-                self.addr |= byte as u16;
-                self.state = State::LenHi;
-            }
-            State::LenHi => {
-                self.len = (byte as usize) << 8;
-                self.state = State::LenLo;
-            }
-            State::LenLo => {
-                self.len |= byte as usize;
-                if self.len > MAX_DATA {
-                    self.reset();
-                } else if self.len == 0 {
-                    self.idx = 0;
-                    self.state = State::CrcHi;
-                } else {
-                    self.idx = 0;
-                    self.state = State::Data;
-                }
-            }
-            State::Data => {
-                self.data[self.idx] = byte;
+            State::Body => {
+                self.body[self.idx] = byte;
                 self.idx += 1;
-                if self.idx == self.len {
+                if self.idx == 5 {
+                    let len = u16::from_be_bytes([self.body[3], byte]);
+                    if usize::from(len) > MAX_DATA {
+                        self.reset();
+                        return FeedResult::Pending;
+                    }
+                    self.body_len += usize::from(len);
+                }
+                if self.idx == self.body_len {
                     self.state = State::CrcHi;
                 }
             }
@@ -136,17 +114,16 @@ impl FrameReader {
             }
             State::CrcLo => {
                 let crc_rx = ((self.crc_hi as u16) << 8) | byte as u16;
-                let addr = self.addr;
+                let addr = u16::from_be_bytes([self.body[1], self.body[2]]);
                 self.reset();
 
-                let crc_calc =
-                    frame_crc(self.cmd, addr, &self.data[..self.len]);
+                let end = self.body_len;
+                let crc_calc = crc16_xmodem(&self.body[..end]);
                 if crc_rx == crc_calc {
                     return FeedResult::Frame(Frame {
-                        cmd: self.cmd,
+                        cmd: self.body[0],
                         addr,
-                        data: self.data,
-                        len: self.len,
+                        data: &self.body[5..end],
                     });
                 }
                 return FeedResult::CrcError { addr };
@@ -154,26 +131,4 @@ impl FrameReader {
         }
         FeedResult::Pending
     }
-}
-
-fn frame_crc(cmd: u8, addr: u16, data: &[u8]) -> u16 {
-    let mut buf = [0u8; 5 + MAX_DATA];
-    buf[0] = cmd;
-    buf[1..3].copy_from_slice(&addr.to_be_bytes());
-    buf[3..5].copy_from_slice(&(data.len() as u16).to_be_bytes());
-    buf[5..5 + data.len()].copy_from_slice(data);
-    crc16_xmodem(&buf[..5 + data.len()])
-}
-
-/// Encode a response frame into `out`, returning the number of bytes
-/// written. `out` must be at least `8 + data.len()` bytes.
-pub fn encode(out: &mut [u8], cmd: u8, addr: u16, data: &[u8]) -> usize {
-    out[0] = HEADER;
-    out[1] = cmd;
-    out[2..4].copy_from_slice(&addr.to_be_bytes());
-    out[4..6].copy_from_slice(&(data.len() as u16).to_be_bytes());
-    out[6..6 + data.len()].copy_from_slice(data);
-    let crc = frame_crc(cmd, addr, data);
-    out[6 + data.len()..8 + data.len()].copy_from_slice(&crc.to_be_bytes());
-    8 + data.len()
 }
