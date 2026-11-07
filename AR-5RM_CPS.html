@@ -138,6 +138,7 @@ dialog h2 { margin: 0 0 10px; font-size: 17px; }
     <p class="muted">One note per line as note number, duration. Notes 1–45 run from A2 to F6. Use 0 for a rest. Duration units are 30 ms.</p>
     <textarea id="bootTune" rows="5" aria-label="Startup tune notes" placeholder="Read appearance to load the current tune" style="width:100%" disabled></textarea>
     <div class="toolbar">
+      <label>Import MIDI or RTTTL <input id="tuneFile" type="file" accept=".mid,.midi,.rtttl,.txt,audio/midi,text/plain" disabled></label>
       <label>Boot sound <select id="bootSound" disabled><option value="">Keep current</option><option value="1">On</option><option value="0">Off</option></select></label>
       <button id="tuneDefault" type="button" disabled>Default tune</button>
       <button id="tuneDoom" type="button" disabled>Doom riff</button>
@@ -929,7 +930,7 @@ function renderAppearance() {
   $("backgroundFile").disabled = appearanceBusy || !supported;
   $("backgroundClear").disabled = appearanceBusy || appearance?.backgroundPresent == null;
   theme.disabled = appearanceBusy || !supported;
-  for (const id of ["bootTune", "bootSound", "tuneDefault", "tuneDoom", "tunePreview"]) {
+  for (const id of ["bootTune", "bootSound", "tuneDefault", "tuneDoom", "tunePreview", "tuneFile"]) {
     $(id).disabled = appearanceBusy || !appearance;
   }
   for (const id of ["startupFile", "imageFit", "appearanceBackup"]) $(id).disabled = appearanceBusy;
@@ -1037,6 +1038,119 @@ async function readThemeSettings(link) {
   const { data } = await link.send(CMD_READ, SETTINGS_ADDR);
   if (data.length !== SETTINGS_BYTES) throw new Error("The radio returned an invalid settings record.");
   return data;
+}
+
+function tuneFromEvents(events) {
+  const result = [];
+  let end = 0;
+  function add(note, ms) {
+    let units = Math.max(1, Math.round(ms / 30));
+    while (units > 0) {
+      const part = Math.min(255, units);
+      result.push(`${note}, ${part}`);
+      units -= part;
+    }
+  }
+  for (const event of events) {
+    if (event.start < end - 1) continue;
+    if (event.start - end >= 15) add(0, event.start - end);
+    const frequency = 440 * Math.pow(2, (event.note - 69) / 12);
+    if (frequency < TUNE_FREQ[0] || frequency > TUNE_FREQ[TUNE_FREQ.length - 1]) {
+      throw new Error(`Note ${event.note} is outside the radio's A2–F6 range.`);
+    }
+    let closest = 0;
+    for (let i = 1; i < TUNE_FREQ.length; i++) {
+      if (Math.abs(Math.log(frequency / TUNE_FREQ[i])) < Math.abs(Math.log(frequency / TUNE_FREQ[closest]))) closest = i;
+    }
+    add(closest + 1, event.end - event.start);
+    end = event.end;
+  }
+  if (!result.length) throw new Error("No playable notes were found.");
+  if (result.length > 48) throw new Error(`This tune needs ${result.length} note/rest entries. The radio supports 48; shorten the tune and import it again.`);
+  return result.join("\n");
+}
+
+function importRtttl(text) {
+  const parts = text.trim().split(":");
+  if (parts.length !== 3) throw new Error("Invalid RTTTL ringtone. Expected name:settings:notes.");
+  const defaults = { d: 4, o: 6, b: 63 };
+  for (const item of parts[1].split(",")) {
+    const match = item.trim().match(/^([dob])=(\d+)$/i);
+    if (!match || !Number(match[2])) throw new Error("Invalid RTTTL settings.");
+    defaults[match[1].toLowerCase()] = Number(match[2]);
+  }
+  const pitches = { c: 0, d: 2, e: 4, f: 5, g: 7, a: 9, b: 11 };
+  let time = 0;
+  const events = [];
+  for (const token of parts[2].split(",")) {
+    const m = token.trim().toLowerCase().match(/^(\d+)?([a-gp])(#)?(\.)?(\d)?(\.)?$/);
+    if (!m || (m[4] && m[6])) throw new Error(`Invalid RTTTL note: ${token}`);
+    const length = Number(m[1] || defaults.d);
+    if (!length) throw new Error("Invalid RTTTL note length.");
+    const duration = 240000 / defaults.b / length * ((m[4] || m[6]) ? 1.5 : 1);
+    if (m[2] !== "p") events.push({ start: time, end: time + duration, note: (Number(m[5] || defaults.o) + 1) * 12 + pitches[m[2]] + (m[3] ? 1 : 0) });
+    time += duration;
+  }
+  return tuneFromEvents(events);
+}
+
+function importMidi(buffer) {
+  const bytes = new Uint8Array(buffer), view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const ascii = (pos, length) => String.fromCharCode(...bytes.subarray(pos, pos + length));
+  if (bytes.length < 14 || ascii(0, 4) !== "MThd" || view.getUint32(4) < 6) throw new Error("Invalid MIDI header.");
+  const format = view.getUint16(8), trackCount = view.getUint16(10), division = view.getUint16(12);
+  if (format > 1 || !division || division & 0x8000) throw new Error("Only MIDI formats 0 and 1 with beat-based timing are supported.");
+  let pos = 8 + view.getUint32(4);
+  const tempos = [{ tick: 0, value: 500000 }], tracks = [];
+  for (let t = 0; t < trackCount; t++) {
+    if (pos + 8 > bytes.length || ascii(pos, 4) !== "MTrk") throw new Error("Invalid MIDI track.");
+    const limit = pos + 8 + view.getUint32(pos + 4); pos += 8;
+    if (limit > bytes.length) throw new Error("Truncated MIDI track.");
+    let tick = 0, running = 0;
+    const notes = [], active = new Map();
+    function read() { if (pos >= limit) throw new Error("Truncated MIDI event."); return bytes[pos++]; }
+    function variable() {
+      let result = 0;
+      for (let i = 0; i < 4; i++) { const b = read(); result = result * 128 + (b & 127); if (!(b & 128)) return result; }
+      throw new Error("Invalid MIDI variable length value.");
+    }
+    while (pos < limit) {
+      tick += variable();
+      let status = read(), first = null;
+      if (status < 128) { first = status; status = running; if (!status) throw new Error("Invalid MIDI running status."); }
+      else if (status < 0xf0) running = status;
+      if (status === 0xff) {
+        running = 0;
+        const type = read(), length = variable(), end = pos + length;
+        if (end > limit) throw new Error("Truncated MIDI metadata.");
+        if (type === 0x51 && length === 3) tempos.push({ tick, value: bytes[pos] * 65536 + bytes[pos+1] * 256 + bytes[pos+2] });
+        pos = end;
+      } else if (status === 0xf0 || status === 0xf7) {
+        running = 0; const length = variable(); pos += length; if (pos > limit) throw new Error("Truncated MIDI system event.");
+      } else if (status >= 0x80 && status < 0xf0) {
+        const type = status & 0xf0, channel = status & 15;
+        const a = first === null ? read() : first;
+        const b = (type === 0xc0 || type === 0xd0) ? 0 : read();
+        if (a > 127 || b > 127) throw new Error("Invalid MIDI event data.");
+        if (channel !== 9 && (type === 0x80 || type === 0x90)) {
+          const key = channel * 128 + a;
+          if (type === 0x90 && b) { if (!active.has(key)) active.set(key, tick); }
+          else if (active.has(key)) { const start = active.get(key); active.delete(key); if (tick > start) notes.push({start, end: tick, note: a}); }
+        }
+      } else throw new Error("Unsupported MIDI system event.");
+    }
+    tracks.push(notes);
+  }
+  tempos.sort((a,b) => a.tick - b.tick);
+  function milliseconds(tick) {
+    let last = 0, tempo = 500000, total = 0;
+    for (const item of tempos) { if (item.tick > tick) break; total += (item.tick - last) * tempo / division / 1000; last = item.tick; tempo = item.value; }
+    return total + (tick - last) * tempo / division / 1000;
+  }
+  const track = tracks.find(notes => notes.length);
+  if (!track) throw new Error("No playable MIDI notes found.");
+  track.sort((a,b) => a.start - b.start || b.note - a.note);
+  return tuneFromEvents(track.map(n => ({start: milliseconds(n.start), end: milliseconds(n.end), note: n.note})));
 }
 
 function parseBootTune(text) {
@@ -1289,6 +1403,21 @@ $("backgroundClear").addEventListener("click", () => {
 });
 $("bootSound").addEventListener("change", renderAppearance);
 $("bootTune").addEventListener("input", () => { tuneDirty = true; renderAppearance(); });
+$("tuneFile").addEventListener("change", async e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  try {
+    const data = await file.arrayBuffer();
+    const isMidi = new Uint8Array(data, 0, Math.min(4, data.byteLength)).join(",") === "77,84,104,100";
+    const tune = isMidi ? importMidi(data) : importRtttl(new TextDecoder().decode(data));
+    parseBootTune(tune);
+    $("bootTune").value = tune;
+    tuneDirty = true;
+    appearanceStatus("Tune imported. Preview it, then choose Write and verify.", "ok");
+    renderAppearance();
+  } catch (error) { appearanceStatus(error.message, "error"); }
+  finally { e.target.value = ""; }
+});
 $("tunePreview").addEventListener("click", previewBootTune);
 $("tuneDefault").addEventListener("click", () => {
   $("bootTune").value = "1, 4\n13, 4\n20, 4\n25, 4\n32, 4\n37, 10";

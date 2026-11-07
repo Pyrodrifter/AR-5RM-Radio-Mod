@@ -85,7 +85,12 @@ channels, import or export a CHIRP CSV, and save a backup before uploading.
 Open **Radio appearance** and click **Read appearance**. Choose a photo or a
 160 × 128 RGB565 image and preview it before clicking **Write and verify**.
 The startup tune editor accepts up to 48 note and duration pairs and provides
-default and Doom presets with an audio preview. The CPS downloads an
+default and Doom presets with an audio preview. MIDI (`.mid` or `.midi`) and
+RTTTL ringtone files can be imported into the tune editor. MIDI import uses the
+first track with non-drum notes and skips overlapping notes. The radio is
+monophonic, supports 48 note/rest entries in 30 ms units, and can play pitches
+from A2 to approximately F6. Files outside those limits must be edited first.
+The CPS downloads an
 appearance backup before replacing artwork, a theme, or the tune. Use
 **Open appearance backup** to stage that backup for restoration.
 

@@ -88,6 +88,25 @@ function run(body) {
   `, ctx);
 }
 
+test("RTTTL import keeps notes, rests and dotted timing", () => run(`
+  const tune = importRtttl("sample:d=4,o=4,b=120:a,p,8a.");
+  assert.equal(tune, "25, 17\\n0, 17\\n25, 13");
+  assert.throws(() => importRtttl("sample:d=4,o=8,b=120:c"), /outside/);
+  assert.throws(() => importRtttl("sample:d=4,o=4,b=120:" + Array(49).fill("a").join(",")), /48/);
+`));
+
+test("MIDI import respects tempo and running status", () => run(`
+  const midi = Uint8Array.from([
+    77,84,104,100, 0,0,0,6, 0,0, 0,1, 0,96,
+    77,84,114,107, 0,0,0,18,
+    0,0xff,0x51,3,0x07,0xa1,0x20,
+    0,0x90,69,100, 96,69,0,
+    0,0xff,0x2f,0
+  ]);
+  assert.equal(importMidi(midi.buffer), "25, 17");
+  assert.throws(() => importMidi(midi.slice(0, 18).buffer), /track|Truncated/);
+`));
+
 test("legacy firmware gates themes and background, and verifies the shared artwork", () => run(`
   port = new AppearanceRadio(false);
   await readAppearance();
