@@ -95,6 +95,18 @@ test("RTTTL import keeps notes, rests and dotted timing", () => run(`
   assert.throws(() => importRtttl("sample:d=4,o=4,b=120:" + Array(49).fill("a").join(",")), /48/);
 `));
 
+test("all built-in RTTTL tunes fit the radio", () => run(`
+  assert.equal(Object.keys(TUNE_PRESETS).length, 5);
+  for (const preset of Object.values(TUNE_PRESETS)) {
+    const tune = importRtttl(preset);
+    assert.ok(tune.length > 0);
+    assert.ok(tune.split("\\n").length <= 48);
+    const encoded = parseBootTune(tune);
+    assert.equal(encoded.length, TUNE_BYTES);
+    assert.ok(encoded.some(byte => byte !== 0));
+  }
+`));
+
 test("MIDI import respects tempo and running status", () => run(`
   const midi = Uint8Array.from([
     77,84,104,100, 0,0,0,6, 0,0, 0,1, 0,96,

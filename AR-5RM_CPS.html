@@ -7,8 +7,8 @@
 <style>
 :root {
   color-scheme: dark;
-  --bg: #000; --panel: rgba(14, 3, 3, .62); --panel-solid: #120404; --ink: #f5ecec; --muted: #b39a9a;
-  --line: #4a1616; --red: #8b0000; --red-hi: #b01212; --red-ink: #ff6b5e; --select: #520707; --warn: #ffb347; --ok: #6fd09c;
+  --bg: #0c0e14; --panel: #171b24; --panel-solid: #171b24; --ink: #f3f5fa; --muted: #bec6d5;
+  --line: #3c4759; --red: #a32f3d; --red-hi: #df5968; --red-ink: #ff9aa3; --select: #3a2733; --warn: #ffd073; --ok: #91e4b8;
 }
 * { box-sizing: border-box; }
 html { background: var(--bg); }
@@ -17,18 +17,18 @@ body::before {
   content: ""; position: fixed; inset: 0; z-index: -1; opacity: .8;
   background: none center center / min(96vw, 1180px) auto no-repeat;
 }
-header { background: rgba(50, 0, 0, .92); border-bottom: 2px solid var(--red-hi); padding: 12px 20px; display: flex; gap: 14px; align-items: center; flex-wrap: wrap; position: sticky; top: 0; z-index: 4; }
+header { background: #191d28; border-bottom: 1px solid var(--line); padding: 14px 20px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; position: sticky; top: 0; z-index: 4; }
 h1 { font-size: 20px; margin: 0; letter-spacing: .03em; }
 .spacer { flex: 1; }
 main { max-width: 1320px; margin: 0 auto; padding: 14px 20px 110px; }
-button, .filebtn { font: inherit; padding: 7px 12px; border: 1px solid var(--line); border-radius: 6px; background: rgba(30, 6, 6, .95); color: var(--ink); cursor: pointer; display: inline-block; }
+button, .filebtn { font: inherit; padding: 8px 13px; border: 1px solid var(--line); border-radius: 7px; background: #252b38; color: var(--ink); cursor: pointer; display: inline-block; }
 button:hover:not(:disabled), .filebtn:hover { border-color: var(--red-hi); background: var(--select); }
 button:disabled { opacity: .45; cursor: not-allowed; }
 button.primary { background: var(--red); border-color: var(--red-hi); font-weight: 600; }
 button.primary:hover:not(:disabled) { background: var(--red-hi); }
 button.link { background: none; border: 0; padding: 0; color: var(--red-ink); text-decoration: underline; }
 :focus-visible { outline: 2px solid var(--red-ink); outline-offset: 1px; }
-input, select, textarea { font: inherit; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; background: #0c0202; color: var(--ink); min-width: 0; }
+input, select, textarea { font: inherit; padding: 7px 9px; border: 1px solid var(--line); border-radius: 6px; background: #10141c; color: var(--ink); min-width: 0; }
 input[type=checkbox] { accent-color: var(--red-hi); width: 16px; height: 16px; padding: 0; }
 .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; margin-bottom: 10px; }
 .toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
@@ -38,12 +38,12 @@ input[type=checkbox] { accent-color: var(--red-hi); width: 16px; height: 16px; p
 #notice.err { color: var(--warn); font-weight: 600; }
 #notice.ok { color: var(--ok); }
 details.sec { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; margin-bottom: 8px; overflow: hidden; }
-details.sec > summary { background: rgba(70, 0, 0, .5); padding: 8px 10px; cursor: pointer; display: flex; gap: 8px; align-items: center; font-weight: 600; }
+details.sec > summary { background: #222936; padding: 10px 12px; cursor: pointer; display: flex; gap: 8px; align-items: center; font-weight: 600; }
 summary .count { margin-left: auto; font-weight: 400; color: var(--muted); font-size: 12px; white-space: nowrap; }
 .tablewrap { overflow-x: auto; }
 table { width: 100%; border-collapse: collapse; font-size: 13px; }
 th { text-align: left; font-size: 12px; color: var(--muted); font-weight: 600; padding: 5px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
-td { padding: 4px 8px; border-bottom: 1px solid rgba(74, 22, 22, .55); }
+td { padding: 6px 8px; border-bottom: 1px solid #2c3543; }
 tr:last-child td { border-bottom: 0; }
 tbody tr { cursor: pointer; }
 tbody tr:hover td { background: var(--select); }
@@ -52,7 +52,7 @@ td.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
 .tag { font-size: 11px; padding: 1px 6px; border-radius: 10px; border: 1px solid var(--red-hi); color: var(--red-ink); white-space: nowrap; }
 .tag.new { border-color: var(--warn); color: var(--warn); }
 .muted { color: var(--muted); font-size: 12px; }
-.bar { position: fixed; left: 0; right: 0; bottom: 0; background: rgba(32, 0, 0, .96); border-top: 2px solid var(--red-hi); padding: 10px 20px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; z-index: 4; }
+.bar { position: fixed; left: 0; right: 0; bottom: 0; background: #191d28; border-top: 1px solid var(--line); padding: 10px 20px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; z-index: 4; }
 #tally { font-weight: 600; }
 progress { flex: 1 1 200px; height: 12px; accent-color: var(--red-hi); }
 dialog { background: var(--panel-solid); color: var(--ink); border: 2px solid var(--red-hi); border-radius: 10px; max-width: min(620px, 94vw); padding: 16px; }
@@ -66,7 +66,7 @@ dialog h2 { margin: 0 0 10px; font-size: 17px; }
 .actions .danger { margin-right: auto; }
 #formErr { color: var(--warn); font-weight: 600; margin: 8px 0 0; min-height: 1.2em; }
 #diffList { max-height: 240px; overflow: auto; margin: 8px 0; padding: 0; list-style: none; font-size: 13px; }
-#diffList li { padding: 2px 0; border-bottom: 1px solid rgba(74, 22, 22, .55); }
+#diffList li { padding: 2px 0; border-bottom: 1px solid #2c3543; }
 #appearanceDlg { width: min(680px, 94vw); max-width: none; }
 .artwork { border: 1px solid var(--line); border-radius: 8px; padding: 10px; min-width: 0; }
 .artwork h3 { margin: 0 0 8px; font-size: 14px; }
@@ -85,7 +85,8 @@ dialog h2 { margin: 0 0 10px; font-size: 17px; }
   <span class="spacer"></span>
   <label class="filebtn" tabindex="0">Open CSV or backup<input type="file" id="fileIn" accept=".csv,.bin,text/csv" class="hidden"></label>
   <button id="saveCsv">Save CSV</button>
-  <button id="appearanceBtn">Radio appearance</button>
+  <button id="appearanceBtn">Screens &amp; themes</button>
+  <button id="startupToneBtn">Startup tones</button>
 </header>
 
 <main>
@@ -110,8 +111,9 @@ dialog h2 { margin: 0 0 10px; font-size: 17px; }
 </div>
 
 <dialog id="appearanceDlg" aria-labelledby="appearanceTitle">
-  <h2 id="appearanceTitle">Radio appearance</h2>
-  <p id="appearanceSupport" class="muted">Read appearance to check what the installed firmware supports.</p>
+  <h2 id="appearanceTitle">Screens, themes &amp; startup tones</h2>
+  <p id="appearanceSupport" class="muted">Connect the radio and select Read appearance to unlock these controls.</p>
+  <p class="muted">To change the startup tone: select Read appearance, import a MIDI or RTTTL file or edit notes below, preview, then select Write and verify.</p>
   <div class="grid">
     <section class="artwork" aria-labelledby="startupTitle">
       <h3 id="startupTitle">Startup screen</h3>
@@ -133,11 +135,20 @@ dialog h2 { margin: 0 0 10px; font-size: 17px; }
       <select id="radioTheme" disabled><option value="">Keep current</option><option value="0">Default</option><option value="1">Blue</option><option value="2">Purple</option><option value="3">Sun</option></select>
     </label>
   </div>
-  <section class="artwork" style="margin-top:10px" aria-labelledby="tuneTitle">
+  <section id="tuneSection" class="artwork" style="margin-top:10px" aria-labelledby="tuneTitle">
     <h3 id="tuneTitle">Startup tune</h3>
     <p class="muted">One note per line as note number, duration. Notes 1–45 run from A2 to F6. Use 0 for a rest. Duration units are 30 ms.</p>
     <textarea id="bootTune" rows="5" aria-label="Startup tune notes" placeholder="Read appearance to load the current tune" style="width:100%" disabled></textarea>
     <div class="toolbar">
+      <label>Built-in tunes <select id="tunePreset" disabled>
+        <option value="">Choose a tune</option>
+        <option value="launch">Launch</option>
+        <option value="arcade">Arcade</option>
+        <option value="ocean">Ocean bell</option>
+        <option value="racer">Racer</option>
+        <option value="powerup">Power up</option>
+      </select></label>
+      <button id="tuneLoadPreset" type="button" disabled>Load tune</button>
       <label>Import MIDI or RTTTL <input id="tuneFile" type="file" accept=".mid,.midi,.rtttl,.txt,audio/midi,text/plain" disabled></label>
       <label>Boot sound <select id="bootSound" disabled><option value="">Keep current</option><option value="1">On</option><option value="0">Off</option></select></label>
       <button id="tuneDefault" type="button" disabled>Default tune</button>
@@ -560,7 +571,7 @@ function setNotice(msg, kind) { const n = $("notice"); n.textContent = msg; n.cl
 function setDirty(v) { dirty = v; $("source").textContent = sourceName + (dirty ? " (unsaved changes)" : ""); }
 function setBusy(v) {
   busy = v;
-  for (const id of ["readBtn", "uploadBtn", "useRadio", "saveCsv", "addCh", "appearanceBtn"]) {
+  for (const id of ["readBtn", "uploadBtn", "useRadio", "saveCsv", "addCh", "appearanceBtn", "startupToneBtn"]) {
     $(id).disabled = v || (!("serial" in navigator) && ["readBtn", "uploadBtn"].includes(id));
   }
   $("prog").classList.toggle("hidden", !v);
@@ -902,6 +913,14 @@ const ART_COMMANDS = { startup: [0x4C, 0x6C], background: [0x42, 0x62] };
 const SETTINGS_ADDR = 0x9000, SETTINGS_BYTES = 168, BOOT_THEME_BYTE = 30;
 const BOOT_SOUND_BYTE = 31, TUNE_OFFSET = 72, TUNE_BYTES = 96;
 const TUNE_FREQ = [110,120,120,130,140,150,160,160,170,190,200,210,220,230,250,260,280,290,310,330,350,370,390,420,440,470,490,520,550,590,620,660,700,740,780,830,880,930,990,1050,1110,1170,1240,1320,1400];
+// Original short RTTTL melodies, compatible with the radio's 48-entry limit.
+const TUNE_PRESETS = {
+  launch: "Launch:d=8,o=5,b=150:c,e,g,4c6",
+  arcade: "Arcade:d=8,o=5,b=170:e,g,a,16p,g,4c6",
+  ocean: "Ocean:d=8,o=5,b=100:g,16p,e,16p,c,4g",
+  racer: "Racer:d=16,o=5,b=160:c,e,g,c6,8g,4c6",
+  powerup: "PowerUp:d=16,o=5,b=150:c,d,e,g,a,b,4c6"
+};
 const THEME_NAMES = ["Default", "Blue", "Purple", "Sun"];
 let appearance = null, appearanceBusy = false;
 let pendingArt = {};
@@ -930,7 +949,7 @@ function renderAppearance() {
   $("backgroundFile").disabled = appearanceBusy || !supported;
   $("backgroundClear").disabled = appearanceBusy || appearance?.backgroundPresent == null;
   theme.disabled = appearanceBusy || !supported;
-  for (const id of ["bootTune", "bootSound", "tuneDefault", "tuneDoom", "tunePreview", "tuneFile"]) {
+  for (const id of ["bootTune", "bootSound", "tuneDefault", "tuneDoom", "tunePreview", "tuneFile", "tunePreset", "tuneLoadPreset"]) {
     $(id).disabled = appearanceBusy || !appearance;
   }
   for (const id of ["startupFile", "imageFit", "appearanceBackup"]) $(id).disabled = appearanceBusy;
@@ -1390,6 +1409,11 @@ $("appearanceBtn").addEventListener("click", () => {
   renderAppearance();
   $("appearanceDlg").showModal();
 });
+$("startupToneBtn").addEventListener("click", () => {
+  renderAppearance();
+  $("appearanceDlg").showModal();
+  $("tuneSection").scrollIntoView({ block: "start" });
+});
 $("appearanceClose").addEventListener("click", () => $("appearanceDlg").close());
 $("appearanceDlg").addEventListener("cancel", e => { if (appearanceBusy) e.preventDefault(); });
 $("appearanceRead").addEventListener("click", readAppearance);
@@ -1403,6 +1427,18 @@ $("backgroundClear").addEventListener("click", () => {
 });
 $("bootSound").addEventListener("change", renderAppearance);
 $("bootTune").addEventListener("input", () => { tuneDirty = true; renderAppearance(); });
+$("tuneLoadPreset").addEventListener("click", () => {
+  const preset = TUNE_PRESETS[$("tunePreset").value];
+  if (!preset) { appearanceStatus("Choose a built-in tune first.", "error"); return; }
+  try {
+    const tune = importRtttl(preset);
+    parseBootTune(tune);
+    $("bootTune").value = tune;
+    tuneDirty = true;
+    appearanceStatus("Tune loaded. Preview it, then choose Write and verify.", "ok");
+    renderAppearance();
+  } catch (error) { appearanceStatus(error.message, "error"); }
+});
 $("tuneFile").addEventListener("change", async e => {
   const file = e.target.files[0];
   if (!file) return;
