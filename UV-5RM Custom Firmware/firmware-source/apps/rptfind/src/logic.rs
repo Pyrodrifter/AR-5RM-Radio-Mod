@@ -3,19 +3,13 @@
 //! Receive-only: `set_tx_enabled` is never called, so PTT can't key from here.
 
 use bf5rh_abi::{Api, AppEvent, AppResult};
+use app_theme::pal;
 
 const KIND_SINGLE: u8 = 2;
 const KEY_MENU: u8 = 12;
 const KEY_EXIT: u8 = 13;
 const KEY_UP: u8 = 14;
 const KEY_DOWN: u8 = 15;
-
-const BLACK: u16 = 0x0000;
-const WHITE: u16 = 0xFFFF;
-const GRAY: u16 = 0x8410;
-const TITLE_BG: u16 = 0x5800;
-const SELECT_BG: u16 = 0x8000;
-const YELLOW: u16 = 0xFFE0;
 
 const F5: u8 = 0;
 const F6: u8 = 1;
@@ -586,9 +580,9 @@ fn line(api: &Api, y: i16, h: u16, s: &[u8], fg: u16, bg: u16, font: u8) {
 fn draw_cand(api: &Api, st: &State, i: usize, y: i16) {
     let c = &st.cands[i];
     let bg = if i == st.selected && st.n_cands > 1 {
-        SELECT_BG
+        pal().card_hi
     } else {
-        BLACK
+        pal().bg
     };
 
     let mut a = Buf::new();
@@ -597,7 +591,7 @@ fn draw_cand(api: &Api, st: &State, i: usize, y: i16) {
     a.ch(if c.offset_khz < 0 { b'-' } else { b'+' });
     a.u(api, c.offset_khz.unsigned_abs());
     a.ch(b'K');
-    line(api, y, 12, a.as_slice(), WHITE, bg, F6);
+    line(api, y, 12, a.as_slice(), pal().text, bg, F6);
 
     let mut b = Buf::new();
     b.s(b"SEEN ");
@@ -619,7 +613,7 @@ fn draw_cand(api: &Api, st: &State, i: usize, y: i16) {
     if c.idle > 0 {
         b.s(b" BUSY");
     }
-    let fg = if c.idle > 0 { YELLOW } else { WHITE };
+    let fg = if c.idle > 0 { pal().warn } else { pal().text };
     line(api, y + 12, 12, b.as_slice(), fg, bg, F6);
 }
 
@@ -629,12 +623,12 @@ fn draw(api: &Api) -> AppResult {
         return AppResult::Continue;
     }
     if st.full {
-        (api.fill_rect)(0, 0, SCREEN_W as u16, SCREEN_H, BLACK);
-        line(api, 0, 13, b"REPEATER FINDER", WHITE, TITLE_BG, F6);
+        (api.fill_rect)(0, 0, SCREEN_W as u16, SCREEN_H, pal().bg);
+        line(api, 0, 13, b"REPEATER FINDER", pal().text, pal().card, F6);
         let mut out = Buf::new();
         out.freq(api, st.out_hz);
-        text(api, 4, 15, b"OUT", GRAY, BLACK, F5);
-        text(api, 24, 15, out.as_slice(), WHITE, BLACK, F9);
+        text(api, 4, 15, b"OUT", pal().dim, pal().bg, F5);
+        text(api, 24, 15, out.as_slice(), pal().text, pal().bg, F9);
         st.full = false;
     }
 
@@ -657,14 +651,14 @@ fn draw(api: &Api) -> AppResult {
             }
         }
     }
-    line(api, 36, 12, status.as_slice(), YELLOW, BLACK, F6);
+    line(api, 36, 12, status.as_slice(), pal().warn, pal().bg, F6);
 
     for i in 0..MAX_CANDS {
         let y = 50 + i as i16 * 26;
         if i < st.n_cands {
             draw_cand(api, st, i, y);
         } else {
-            (api.fill_rect)(0, y, SCREEN_W as u16, 24, BLACK);
+            (api.fill_rect)(0, y, SCREEN_W as u16, 24, pal().bg);
         }
     }
 
@@ -684,7 +678,7 @@ fn draw(api: &Api) -> AppResult {
         _ if st.phase == Phase::NoPlan => hint.s(b"TUNE A REPEATER  EXIT"),
         _ => hint.s(b"MENU SAVE  EXIT"),
     }
-    line(api, 110, 12, hint.as_slice(), GRAY, BLACK, F6);
+    line(api, 110, 12, hint.as_slice(), pal().dim, pal().bg, F6);
     st.dirty = false;
     AppResult::Continue
 }

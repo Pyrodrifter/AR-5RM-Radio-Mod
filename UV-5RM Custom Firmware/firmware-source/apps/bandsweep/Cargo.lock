@@ -3,9 +3,17 @@
 version = 4
 
 [[package]]
+name = "app-theme"
+version = "0.1.0"
+dependencies = [
+ "bf5rh-abi",
+]
+
+[[package]]
 name = "bandsweep"
 version = "0.1.0"
 dependencies = [
+ "app-theme",
  "bf5rh-abi",
 ]
 

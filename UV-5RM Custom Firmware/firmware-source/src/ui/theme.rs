@@ -1,20 +1,24 @@
-//! Colour themes, picked by `Settings::theme` (high bits of settings byte 30).
-//! Index 0 keeps the original black and red look.
+//! Clean colour themes, picked by `Settings::theme` (bits 2..3 of settings
+//! byte 30). Labels are `accent`, readouts `value`, rules and selections
+//! `card_hi`. Index 3 is the daylight one that the DAY/NIGHT key switches to.
 
 use embedded_graphics::pixelcolor::Rgb565;
 
 pub struct Theme {
-    /// Screen background, where no card is drawn.
+    /// Screen background.
     pub bg: Rgb565,
-    /// Cards, status bar and list rows.
+    /// Status bar and panels, a step off the background.
     pub card: Rgb565,
-    /// Raised parts of a card: tags, the channel box, unlit meter segments.
+    /// Rules, unlit meter segments, inactive markings.
     pub card_hi: Rgb565,
     pub text: Rgb565,
     pub dim: Rgb565,
+    /// Labels and headings.
     pub accent: Rgb565,
     /// Text drawn on `accent`.
     pub on_accent: Rgb565,
+    /// Readouts: the frequency, selected values, and the frames around them.
+    pub value: Rgb565,
     pub ok: Rgb565,
     pub warn: Rgb565,
     pub alert: Rgb565,
@@ -25,57 +29,61 @@ const fn c(r: u8, g: u8, b: u8) -> Rgb565 {
 }
 
 static THEMES: [Theme; 4] = [
-    // 0: classic black and red
+    // 0: night, white readouts and blue labels on near-black
+    Theme {
+        bg: c(11, 13, 16),
+        card: c(20, 23, 28),
+        card_hi: c(38, 43, 51),
+        text: c(242, 244, 247),
+        dim: c(124, 133, 145),
+        accent: c(79, 179, 255),
+        on_accent: c(0, 0, 0),
+        value: c(242, 244, 247),
+        ok: c(61, 220, 132),
+        warn: c(255, 194, 75),
+        alert: c(255, 80, 80),
+    },
+    // 1: night vision, all green
     Theme {
         bg: c(0, 0, 0),
-        card: c(8, 8, 10),
-        card_hi: c(28, 20, 24),
+        card: c(0, 10, 2),
+        card_hi: c(20, 60, 22),
+        text: c(170, 255, 160),
+        dim: c(70, 130, 70),
+        accent: c(90, 230, 120),
+        on_accent: c(0, 0, 0),
+        value: c(150, 255, 110),
+        ok: c(110, 255, 110),
+        warn: c(230, 255, 110),
+        alert: c(255, 90, 70),
+    },
+    // 2: high contrast, white readouts
+    Theme {
+        bg: c(0, 0, 0),
+        card: c(10, 10, 10),
+        card_hi: c(56, 56, 56),
         text: c(255, 255, 255),
-        dim: c(160, 150, 155),
-        accent: c(240, 32, 48),
+        dim: c(150, 150, 150),
+        accent: c(150, 200, 255),
         on_accent: c(0, 0, 0),
-        ok: c(0, 220, 50),
-        warn: c(255, 200, 0),
-        alert: c(255, 40, 40),
+        value: c(255, 255, 255),
+        ok: c(80, 255, 120),
+        warn: c(255, 210, 80),
+        alert: c(255, 70, 70),
     },
-    // 1: blue
+    // 3: day, dark ink on a light panel for sunlight
     Theme {
-        bg: c(0, 4, 12),
-        card: c(4, 12, 24),
-        card_hi: c(8, 28, 52),
-        text: c(230, 242, 250),
-        dim: c(140, 170, 195),
-        accent: c(0, 205, 250),
-        on_accent: c(0, 8, 16),
-        ok: c(80, 230, 170),
-        warn: c(255, 200, 90),
-        alert: c(255, 80, 96),
-    },
-    // 2: purple
-    Theme {
-        bg: c(8, 0, 16),
-        card: c(18, 6, 30),
-        card_hi: c(38, 14, 60),
-        text: c(242, 230, 255),
-        dim: c(185, 158, 205),
-        accent: c(220, 40, 235),
-        on_accent: c(0, 0, 0),
-        ok: c(60, 240, 220),
-        warn: c(255, 200, 80),
-        alert: c(255, 70, 120),
-    },
-    // 3: sunlight, with dark text on light cards
-    Theme {
-        bg: c(230, 230, 220),
-        card: c(255, 255, 245),
-        card_hi: c(210, 215, 205),
-        text: c(0, 0, 0),
-        dim: c(48, 52, 55),
-        accent: c(0, 65, 125),
+        bg: c(244, 241, 234),
+        card: c(232, 228, 219),
+        card_hi: c(214, 208, 197),
+        text: c(18, 20, 23),
+        dim: c(93, 100, 109),
+        accent: c(0, 96, 192),
         on_accent: c(255, 255, 255),
-        ok: c(0, 100, 45),
-        warn: c(110, 65, 0),
-        alert: c(155, 0, 0),
+        value: c(18, 20, 23),
+        ok: c(10, 143, 74),
+        warn: c(168, 100, 0),
+        alert: c(190, 0, 0),
     },
 ];
 

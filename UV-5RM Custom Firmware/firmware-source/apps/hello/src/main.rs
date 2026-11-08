@@ -2,12 +2,10 @@
 #![no_main]
 
 use bf5rh_abi::{Api, AppEvent, AppResult};
+use app_theme::pal;
 
 const KEY_EXIT: u8 = 13;
 const KIND_SINGLE: u8 = 2;
-
-const WHITE: u16 = 0xFFFF;
-const CYAN: u16 = 0x07FF;
 
 static mut API_PTR: *const Api = core::ptr::null();
 
@@ -15,6 +13,7 @@ static mut DRAWN: bool = false;
 
 #[no_mangle]
 pub extern "C" fn app_entry(api: &Api, ev: AppEvent) -> AppResult {
+    app_theme::load(api);
     unsafe {
         API_PTR = api as *const Api;
     }
@@ -47,12 +46,12 @@ pub extern "C" fn app_entry(api: &Api, ev: AppEvent) -> AppResult {
 }
 
 fn draw_once(api: &Api) {
-    (api.fill_rect)(20, 30, 40, 24, CYAN);
-    (api.draw_circle)(100, 60, 18, WHITE, false);
-    (api.draw_line)(10, 100, 150, 100, WHITE);
+    (api.fill_rect)(20, 30, 40, 24, pal().accent);
+    (api.draw_circle)(100, 60, 18, pal().text, false);
+    (api.draw_line)(10, 100, 150, 100, pal().text);
 
     let text = b"HELLO OVERLAY";
-    (api.draw_text)(10, 10, text.as_ptr(), text.len() as u16, WHITE, 0, 1);
+    (api.draw_text)(10, 10, text.as_ptr(), text.len() as u16, pal().text, 0, 1);
 }
 
 #[panic_handler]

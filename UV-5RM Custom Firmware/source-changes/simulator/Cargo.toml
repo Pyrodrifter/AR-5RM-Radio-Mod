@@ -11,5 +11,6 @@ path = "main.rs"
 
 [dependencies]
 bf5rh-abi = { path = "../../firmware-source/abi" }
+app-theme = { path = "../../firmware-source/app-theme" }
 sgp4mini = { path = "../../firmware-source/sgp4mini" }
 embedded-graphics = "0.8"

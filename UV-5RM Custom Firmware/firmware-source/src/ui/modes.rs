@@ -1,19 +1,15 @@
-use crate::ui::rounded_font::FONT_9X18;
-use super::backdrop::draw_backdrop;
+use crate::ui::fonts::FONT_9X18;
+use super::theme;
 use super::list::{draw_list, Cache, ListSource};
 use super::{TextBuf, SCREEN_H};
 use crate::app::{self, modes_table};
 use core::fmt::Write as _;
-use embedded_graphics::mono_font::ascii::{FONT_6X10};
+use crate::ui::fonts::FONT_6X10;
 use embedded_graphics::mono_font::MonoTextStyle;
 use embedded_graphics::pixelcolor::Rgb565;
 use embedded_graphics::prelude::*;
 use embedded_graphics::text::Text;
 
-const FG: Rgb565 = Rgb565::WHITE;
-const DIM: Rgb565 = Rgb565::new(13, 26, 13);
-const ACTIVE: Rgb565 = Rgb565::new(31, 50, 0);
-const ALERT: Rgb565 = Rgb565::new(31, 8, 4);
 
 struct ModeSource<'a, 'b> {
     current: usize,
@@ -89,7 +85,7 @@ fn field<D>(lcd: &mut D, label: &str, value: &str, y: i32, active: bool)
 where
     D: DrawTarget<Color = Rgb565>,
 {
-    let color = if active { ACTIVE } else { FG };
+    let color = if active { theme::t().value } else { theme::t().text };
     small(lcd, label, y, color);
     Text::new(value, Point::new(52, y + 2), MonoTextStyle::new(&FONT_9X18, color))
         .draw(lcd)
@@ -119,13 +115,8 @@ where
     }
     cache.snap = Some(snap);
 
-    draw_backdrop(
-        lcd,
-        &mut |addr, buf| app.storage_mut().read_raw(addr, buf),
-        0,
-        SCREEN_H,
-    );
-    small(lcd, "CUSTOM RANGE (MHZ)", 12, FG);
+    super::clear_strip(lcd, 0, SCREEN_H);
+    small(lcd, "CUSTOM RANGE (MHZ)", 12, theme::t().accent);
 
     for (stage, label, hz, y) in [(0u8, "START", lo, 40), (1u8, "STOP", hi, 66)] {
         let mut value: TextBuf<8> = TextBuf::new();
@@ -143,10 +134,10 @@ where
     step.write_str(".").ok();
     super::num(&mut step, snap.step as u32 % 100, 2);
     step.write_str(" KHZ UP/DN").ok();
-    small(lcd, step.as_str(), 90, FG);
+    small(lcd, step.as_str(), 90, theme::t().text);
 
     if snap.err {
-        small(lcd, "BAD RANGE, TRY AGAIN", 106, ALERT);
+        small(lcd, "BAD RANGE, TRY AGAIN", 106, theme::t().alert);
     }
-    small(lcd, "MENU NEXT  EXIT BACK", 120, DIM);
+    small(lcd, "MENU NEXT  EXIT BACK", 120, theme::t().dim);
 }

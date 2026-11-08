@@ -78,6 +78,8 @@ pub mod ui {
     pub mod backdrop;
     #[path = "../../../firmware-source/src/ui/list.rs"]
     pub mod list;
+    #[path = "../../../firmware-source/src/ui/fonts.rs"]
+    pub(crate) mod fonts;
     #[path = "../../../firmware-source/src/ui/theme.rs"]
     #[allow(dead_code)]
     pub(crate) mod theme;

@@ -1,5 +1,6 @@
 use bf5rh_abi::{Api, AppEvent, AppResult};
 use sgp4mini::{civil_from_days, days_from_civil};
+use app_theme::pal;
 
 const SLOT_BASE: u32 = 0x14_C000;
 const SLOT_SIZE: u32 = 0x8000;
@@ -11,12 +12,6 @@ const POINTS: u32 = 41;
 const MAX_PASSES: usize = 12;
 const VISIBLE: usize = 5;
 const DAY: u32 = 86_400;
-const BLUE: u16 = 0x1033;
-const PANEL: u16 = 0x08A5;
-const WHITE: u16 = 0xFFFF;
-const CYAN: u16 = 0x4EFD;
-const GRAY: u16 = 0xBDF7;
-const BLACK: u16 = 0;
 
 #[derive(Clone, Copy)]
 struct Pass {
@@ -310,9 +305,9 @@ fn date_label(time: u32) -> [u8; 11] {
 }
 
 fn draw(api: &Api, s: &mut State) {
-    (api.fill_rect)(0, 0, 160, 128, BLACK);
-    (api.fill_rect)(0, 0, 160, 20, BLUE);
-    (api.fill_rect)(0, 110, 160, 18, PANEL);
+    (api.fill_rect)(0, 0, 160, 128, pal().bg);
+    (api.fill_rect)(0, 0, 160, 20, pal().card);
+    (api.fill_rect)(0, 110, 160, 18, pal().card);
     let title: &[u8] = match s.page {
         Page::Passes => b"SATELLITE RX",
         Page::Clock => b"SET UTC",
@@ -321,38 +316,38 @@ fn draw(api: &Api, s: &mut State) {
             &s.name[..len]
         }
     };
-    txt(api, 4, 1, title, WHITE, BLUE, 2);
+    txt(api, 4, 1, title, pal().text, pal().card, 2);
     let hint: &[u8] = match s.page {
         Page::Passes => b"MENU TRACK  * UTC  EXIT",
         Page::Clock => b"MENU SAVE     EXIT DELETE",
         Page::Track => b"EXIT BACK TO PASSES",
     };
-    txt(api, 4, 114, hint, GRAY, PANEL, 1);
+    txt(api, 4, 114, hint, pal().dim, pal().card, 1);
     match s.page {
         Page::Clock => {
-            txt(api, 5, 35, b"YYMMDD HHMMSS (UTC)", GRAY, BLACK, 1);
+            txt(api, 5, 35, b"YYMMDD HHMMSS (UTC)", pal().dim, pal().bg, 1);
             let mut line = *b"------ ------";
             for i in 0..s.len {
                 line[i + usize::from(i >= 6)] = b'0' + s.digits[i];
             }
-            txt(api, 5, 54, &line, CYAN, BLACK, 2);
+            txt(api, 5, 54, &line, pal().accent, pal().bg, 2);
             if s.bad_clock {
-                txt(api, 5, 86, b"CHECK DATE AND TIME", CYAN, BLACK, 1);
+                txt(api, 5, 86, b"CHECK DATE AND TIME", pal().accent, pal().bg, 1);
             }
         }
-        Page::Passes if s.count == 0 => txt(api, 5, 45, b"UPLOAD PASSES FROM CPS", GRAY, BLACK, 1),
+        Page::Passes if s.count == 0 => txt(api, 5, 45, b"UPLOAD PASSES FROM CPS", pal().dim, pal().bg, 1),
         Page::Passes => {
             let top = s.selected.saturating_sub(VISIBLE - 1);
             for (row, index) in (top..s.count.min(top + VISIBLE)).enumerate() {
                 let y = 23 + row as i16 * 14;
                 let pass = s.passes[index];
-                let bg = if index == s.selected { BLUE } else { BLACK };
+                let bg = if index == s.selected { pal().card } else { pal().bg };
                 (api.fill_rect)(0, y, 160, 14, bg);
-                let color = if s.now >= pass.end { GRAY } else { WHITE };
+                let color = if s.now >= pass.end { pal().dim } else { pal().text };
                 txt(api, 5, y + 2, &date_label(pass.start), color, bg, 1);
-                txt(api, 82, y + 2, b"UTC", GRAY, bg, 1);
-                number(api, 113, y + 2, u32::from(pass.peak), CYAN, bg);
-                txt(api, 132, y + 2, b"DEG", GRAY, bg, 1);
+                txt(api, 82, y + 2, b"UTC", pal().dim, bg, 1);
+                number(api, 113, y + 2, u32::from(pass.peak), pal().accent, bg);
+                txt(api, 132, y + 2, b"DEG", pal().dim, bg, 1);
             }
             let footer: &[u8] = if s.now == 0 {
                 b"SET UTC BEFORE TRACKING"
@@ -361,14 +356,14 @@ fn draw(api: &Api, s: &mut State) {
             } else {
                 b"START TIME / PEAK ELEV"
             };
-            txt(api, 5, 97, footer, CYAN, BLACK, 1);
+            txt(api, 5, 97, footer, pal().accent, pal().bg, 1);
         }
         Page::Track => {
             let pass = s.passes[s.selected];
             let label: &[u8] = if s.now < pass.start { b"STARTS IN" }
                 else if s.now < pass.end { b"ENDS IN" }
                 else { b"PASS ENDED" };
-            txt(api, 5, 26, label, CYAN, BLACK, 1);
+            txt(api, 5, 26, label, pal().accent, pal().bg, 1);
             if s.now < pass.end {
                 let seconds = if s.now < pass.start { pass.start - s.now } else { pass.end - s.now };
                 if seconds < DAY {
@@ -376,20 +371,20 @@ fn draw(api: &Api, s: &mut State) {
                     two(&mut b[0..2], seconds / 3600);
                     two(&mut b[3..5], seconds % 3600 / 60);
                     two(&mut b[6..8], seconds % 60);
-                    txt(api, 77, 26, &b, WHITE, BLACK, 1);
+                    txt(api, 77, 26, &b, pal().text, pal().bg, 1);
                 } else {
-                    txt(api, 68, 26, &date_label(pass.start), WHITE, BLACK, 1);
-                    txt(api, 138, 26, b"UTC", GRAY, BLACK, 1);
+                    txt(api, 68, 26, &date_label(pass.start), pal().text, pal().bg, 1);
+                    txt(api, 138, 26, b"UTC", pal().dim, pal().bg, 1);
                 }
             }
-            txt(api, 5, 47, b"AZ DEG", GRAY, BLACK, 1);
-            number(api, 50, 47, u32::from(s.az / 10), WHITE, BLACK);
-            txt(api, 82, 47, b"EL DEG", GRAY, BLACK, 1);
-            number(api, 127, 47, s.el.max(0) as u32 / 10, WHITE, BLACK);
+            txt(api, 5, 47, b"AZ DEG", pal().dim, pal().bg, 1);
+            number(api, 50, 47, u32::from(s.az / 10), pal().text, pal().bg);
+            txt(api, 82, 47, b"EL DEG", pal().dim, pal().bg, 1);
+            number(api, 127, 47, s.el.max(0) as u32 / 10, pal().text, pal().bg);
             let mut freq = [0; 16];
             let len = (api.fmt_freq)(s.hz, freq.as_mut_ptr()) as usize;
-            txt(api, 5, 67, &freq[..len], WHITE, BLACK, 2);
-            txt(api, 5, 95, if s.listening { b"FM RX  DOPPLER ON" } else { b"FM DOWNLINK" }, CYAN, BLACK, 1);
+            txt(api, 5, 67, &freq[..len], pal().text, pal().bg, 2);
+            txt(api, 5, 95, if s.listening { b"FM RX  DOPPLER ON" } else { b"FM DOWNLINK" }, pal().accent, pal().bg, 1);
         }
     }
     s.dirty = false;

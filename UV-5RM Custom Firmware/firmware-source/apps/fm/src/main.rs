@@ -2,6 +2,7 @@
 #![no_main]
 
 use bf5rh_abi::{Api, AppEvent, AppResult};
+use app_theme::pal;
 
 const KIND_SINGLE: u8 = 2;
 const KIND_LONG: u8 = 3;
@@ -30,14 +31,6 @@ const NOTICE_DURATION_100US: u32 = 40_000;
 const METER_WINDOW_100US: u32 = 3_000;
 const METER_HYSTERESIS: u8 = 2;
 const METER_THRESHOLDS: [u8; 10] = [8, 14, 20, 27, 35, 44, 54, 65, 78, 92];
-
-const BLACK: u16 = 0x0000;
-const WHITE: u16 = 0xFFFF;
-const TITLE_BG: u16 = 0x1033;
-const CYAN: u16 = 0x4EFD;
-const GRAY: u16 = 0xBDF7;
-const PANEL: u16 = 0x08A5;
-const TRACK: u16 = 0x29CA;
 
 const F6: u8 = 1; // 6x10
 const F9: u8 = 2; // 9x18
@@ -185,6 +178,7 @@ static mut LAST_SNAP: Option<Snap> = None;
 
 #[no_mangle]
 pub extern "C" fn app_entry(api: &Api, ev: AppEvent) -> AppResult {
+    app_theme::load(api);
     unsafe {
         API_PTR = api as *const Api;
     }
@@ -644,7 +638,7 @@ fn tick(api: &Api, dt_100us: u32) -> AppResult {
 // UI
 
 fn clear_strip(api: &Api, y: i16, h: i16) {
-    (api.fill_rect)(0, y, SCREEN_W as u16, h as u16, BLACK);
+    (api.fill_rect)(0, y, SCREEN_W as u16, h as u16, pal().bg);
 }
 
 fn text(api: &Api, x: i16, y: i16, s: &[u8], fg: u16, bg: u16, font: u8) {
@@ -748,14 +742,14 @@ fn full_redraw_tuning(api: &Api, snap: &Snap) {
 }
 
 fn draw_header(api: &Api, snap: &Snap) {
-    (api.fill_rect)(0, 0, SCREEN_W as u16, HEADER_HEIGHT as u16, TITLE_BG);
-    text(api, 5, 2, b"FM RADIO", WHITE, TITLE_BG, F9);
+    (api.fill_rect)(0, 0, SCREEN_W as u16, HEADER_HEIGHT as u16, pal().card);
+    text(api, 5, 2, b"FM RADIO", pal().text, pal().card, F9);
     if snap.channel_mode {
         let mut label = *b"PRESET 00";
         label[7..].copy_from_slice(&two_digits(snap.channel_index + 1));
-        text(api, 101, 6, &label, CYAN, TITLE_BG, F6);
+        text(api, 101, 6, &label, pal().accent, pal().card, F6);
     } else {
-        text(api, 119, 6, b"MANUAL", CYAN, TITLE_BG, F6);
+        text(api, 119, 6, b"MANUAL", pal().accent, pal().card, F6);
     }
 }
 
@@ -764,19 +758,19 @@ fn two_digits(value: u8) -> [u8; 2] {
 }
 
 fn draw_footer(api: &Api, snap: &Snap) {
-    (api.fill_rect)(0, FOOTER_Y, SCREEN_W as u16, (SCREEN_H - FOOTER_Y) as u16, PANEL);
+    (api.fill_rect)(0, FOOTER_Y, SCREEN_W as u16, (SCREEN_H - FOOTER_Y) as u16, pal().card);
     if matches!(snap.status, Status::Scanning(_)) {
-        text(api, 5, FOOTER_Y + 7, b"SCAN ADDS TO EMPTY SLOTS", GRAY, PANEL, F6);
-        text(api, 5, FOOTER_Y + 21, b"EXIT  STOP AND SAVE", WHITE, PANEL, F6);
+        text(api, 5, FOOTER_Y + 7, b"SCAN ADDS TO EMPTY SLOTS", pal().dim, pal().card, F6);
+        text(api, 5, FOOTER_Y + 21, b"EXIT  STOP AND SAVE", pal().text, pal().card, F6);
     } else {
         let arrows = if snap.channel_mode { b"UP/DN PRESET" } else { b"UP/DN TUNE  " };
         let mode = if snap.channel_mode { b"V/M MANUAL " } else { b"V/M PRESETS" };
-        text(api, 5, FOOTER_Y + 2, arrows, WHITE, PANEL, F6);
-        text(api, 89, FOOTER_Y + 2, b"HOLD SEEK", GRAY, PANEL, F6);
-        text(api, 5, FOOTER_Y + 14, b"MENU SAVE", WHITE, PANEL, F6);
-        text(api, 89, FOOTER_Y + 14, b"HOLD # SCAN", GRAY, PANEL, F6);
-        text(api, 5, FOOTER_Y + 26, mode, WHITE, PANEL, F6);
-        text(api, 89, FOOTER_Y + 26, b"EXIT CLOSE", GRAY, PANEL, F6);
+        text(api, 5, FOOTER_Y + 2, arrows, pal().text, pal().card, F6);
+        text(api, 89, FOOTER_Y + 2, b"HOLD SEEK", pal().dim, pal().card, F6);
+        text(api, 5, FOOTER_Y + 14, b"MENU SAVE", pal().text, pal().card, F6);
+        text(api, 89, FOOTER_Y + 14, b"HOLD # SCAN", pal().dim, pal().card, F6);
+        text(api, 5, FOOTER_Y + 26, mode, pal().text, pal().card, F6);
+        text(api, 89, FOOTER_Y + 26, b"EXIT CLOSE", pal().dim, pal().card, F6);
     }
 }
 
@@ -793,7 +787,7 @@ fn draw_big_frequency(api: &Api, value: &[u8]) {
     let mut x = (SCREEN_W - width - 18) / 2;
     for &c in value {
         if c == b'.' {
-            (api.fill_rect)(x + 2, FREQ_TOP + 24, 4, 4, CYAN);
+            (api.fill_rect)(x + 2, FREQ_TOP + 24, 4, 4, pal().accent);
             x += 8;
             continue;
         }
@@ -804,7 +798,7 @@ fn draw_big_frequency(api: &Api, value: &[u8]) {
         for (row, &bits) in rows.iter().enumerate() {
             for col in 0..5 {
                 if bits & (1 << (4 - col)) != 0 {
-                    (api.fill_rect)(x + col * 4, FREQ_TOP + row as i16 * 4, 4, 4, WHITE);
+                    (api.fill_rect)(x + col * 4, FREQ_TOP + row as i16 * 4, 4, 4, pal().text);
                 }
             }
         }
@@ -821,15 +815,15 @@ fn draw_freq(api: &Api, snap: &Snap) {
         draw_big_frequency(api, &buf[..n]);
     }
     let unit = if snap.channel_mode && snap.input_len > 0 { b"CH " } else { b"MHz" };
-    text(api, 135, 47, unit, GRAY, BLACK, F6);
+    text(api, 135, 47, unit, pal().dim, pal().bg, F6);
     // A dial marker shows the tuned frequency within the broadcast band.
     let offset = snap.deci_mhz.clamp(FREQ_LO_DECI_MHZ, FREQ_HI_DECI_MHZ) - FREQ_LO_DECI_MHZ;
     let marker = 8 + (offset * 143 / (FREQ_HI_DECI_MHZ - FREQ_LO_DECI_MHZ)) as i16;
-    (api.fill_rect)(8, 65, 144, 2, TRACK);
+    (api.fill_rect)(8, 65, 144, 2, pal().card_hi);
     for x in [8, 44, 80, 116, 151] {
-        (api.fill_rect)(x, 67, 1, 3, TRACK);
+        (api.fill_rect)(x, 67, 1, 3, pal().card_hi);
     }
-    (api.fill_rect)(marker - 1, 62, 3, 8, CYAN);
+    (api.fill_rect)(marker - 1, 62, 3, 8, pal().accent);
 }
 
 fn draw_freq_input(api: &Api, snap: &Snap) {
@@ -867,19 +861,19 @@ fn draw_status(api: &Api, snap: &Snap) {
     let mut label = *b"+00 ADDED";
     let message: &[u8] = match snap.status {
         Status::Signal(level) => {
-            text(api, 5, STATUS_TOP, b"SIGNAL", GRAY, BLACK, F6);
+            text(api, 5, STATUS_TOP, b"SIGNAL", pal().dim, pal().bg, F6);
             draw_signal_bars(api, level, 0..METER_THRESHOLDS.len() as u8);
             return;
         }
         Status::Seeking => b"SEEKING...",
         Status::Scanning(added) => {
             label[1..3].copy_from_slice(&two_digits(added));
-            text(api, 101, STATUS_TOP, &label, WHITE, BLACK, F6);
+            text(api, 101, STATUS_TOP, &label, pal().text, pal().bg, F6);
             b"SCANNING..."
         }
         Status::Notice(Notice::ScanDone { added, stopped }) => {
             label[1..3].copy_from_slice(&two_digits(added));
-            text(api, 101, STATUS_TOP, &label, WHITE, BLACK, F6);
+            text(api, 101, STATUS_TOP, &label, pal().text, pal().bg, F6);
             if stopped { b"SCAN STOPPED" } else { b"SCAN DONE" }
         }
         Status::Notice(Notice::PresetsFull) => b"PRESETS FULL (30/30)",
@@ -887,31 +881,31 @@ fn draw_status(api: &Api, snap: &Snap) {
         Status::Notice(Notice::Saved(slot)) => {
             let mut saved = *b"SAVED TO PRESET 00";
             saved[16..].copy_from_slice(&two_digits(slot));
-            text(api, 5, STATUS_TOP, &saved, CYAN, BLACK, F6);
+            text(api, 5, STATUS_TOP, &saved, pal().accent, pal().bg, F6);
             return;
         }
         Status::Notice(Notice::SaveFailed) => b"COULD NOT SAVE PRESETS",
         Status::Notice(Notice::None) => return,
     };
-    text(api, 5, STATUS_TOP, message, CYAN, BLACK, F6);
+    text(api, 5, STATUS_TOP, message, pal().accent, pal().bg, F6);
 }
 
 fn draw_signal_bars(api: &Api, level: u8, bars: core::ops::Range<u8>) {
     for i in bars {
-        let color = if i < level { CYAN } else { TRACK };
+        let color = if i < level { pal().accent } else { pal().card_hi };
         (api.fill_rect)(56 + i16::from(i) * 10, STATUS_TOP + 2, 8, 6, color);
     }
 }
 
 fn full_redraw_picker(api: &Api, snap: &Snap) {
     clear_strip(api, 0, SCREEN_H);
-    (api.fill_rect)(0, 0, SCREEN_W as u16, HEADER_HEIGHT as u16, TITLE_BG);
-    text(api, 5, 2, b"SAVE PRESET", WHITE, TITLE_BG, F9);
+    (api.fill_rect)(0, 0, SCREEN_W as u16, HEADER_HEIGHT as u16, pal().card);
+    text(api, 5, 2, b"SAVE PRESET", pal().text, pal().card, F9);
     let mut freq = [0u8; 8];
     let len = fmt_deci(api, snap.deci_mhz, &mut freq);
-    text(api, SCREEN_W - RIGHT_MARGIN - len as i16 * FW6, 6, &freq[..len], CYAN, TITLE_BG, F6);
-    (api.fill_rect)(0, PICKER_FOOTER_Y, SCREEN_W as u16, (SCREEN_H - PICKER_FOOTER_Y) as u16, PANEL);
-    text(api, 5, PICKER_FOOTER_Y + 4, b"MENU SAVE     EXIT BACK", WHITE, PANEL, F6);
+    text(api, SCREEN_W - RIGHT_MARGIN - len as i16 * FW6, 6, &freq[..len], pal().accent, pal().card, F6);
+    (api.fill_rect)(0, PICKER_FOOTER_Y, SCREEN_W as u16, (SCREEN_H - PICKER_FOOTER_Y) as u16, pal().card);
+    text(api, 5, PICKER_FOOTER_Y + 4, b"MENU SAVE     EXIT BACK", pal().text, pal().card, F6);
     draw_picker(api, snap);
 }
 
@@ -937,11 +931,11 @@ fn scroll_top(selected: usize) -> usize {
 
 fn draw_picker_row(api: &Api, index: usize, selected: usize, row_top: i16) {
     let is_sel = index == selected;
-    let bg = if is_sel { TITLE_BG } else { BLACK };
-    let fg = if is_sel { CYAN } else { WHITE };
+    let bg = if is_sel { pal().card } else { pal().bg };
+    let fg = if is_sel { pal().accent } else { pal().text };
     (api.fill_rect)(0, row_top, SCREEN_W as u16, ROW_HEIGHT as u16, bg);
     if is_sel {
-        (api.fill_rect)(0, row_top, 2, ROW_HEIGHT as u16, CYAN);
+        (api.fill_rect)(0, row_top, 2, ROW_HEIGHT as u16, pal().accent);
     }
     let text_top = row_top + 2;
 
@@ -956,7 +950,7 @@ fn draw_picker_row(api: &Api, index: usize, selected: usize, row_top: i16) {
             SCREEN_W - RIGHT_MARGIN - 5 * FW9,
             text_top,
             b"EMPTY",
-            if is_sel { CYAN } else { GRAY },
+            if is_sel { pal().accent } else { pal().dim },
             bg,
             F9,
         );

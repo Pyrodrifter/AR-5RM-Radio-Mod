@@ -1,4 +1,5 @@
 use bf5rh_abi::{Api, AppEvent, AppResult};
+use app_theme::pal;
 
 const MENU: u8 = 12;
 const EXIT: u8 = 13;
@@ -24,13 +25,6 @@ const OPEN_CONFIRM: u32 = 800;
 const CLOSE_HANG: u32 = 5_000;
 const LOG_CAPACITY: usize = 24;
 const LOG_ROWS: usize = 6;
-
-const BLACK: u16 = 0;
-const WHITE: u16 = 0xFFFF;
-const BLUE: u16 = 0x1033;
-const PANEL: u16 = 0x08A5;
-const CYAN: u16 = 0x4EFD;
-const GRAY: u16 = 0xBDF7;
 const F6: u8 = 1;
 const F9: u8 = 2;
 
@@ -346,40 +340,40 @@ fn number<'a>(api: &Api, value: u32, buffer: &'a mut [u8; 10]) -> &'a [u8] {
 
 fn draw(api: &Api, s: &mut State) {
     if s.chrome {
-        (api.fill_rect)(0, 0, 160, 128, BLACK);
-        (api.fill_rect)(0, 0, 160, 22, BLUE);
+        (api.fill_rect)(0, 0, 160, 128, pal().bg);
+        (api.fill_rect)(0, 0, 160, 22, pal().card);
         let title: &[u8] = match s.page {
             Page::Activity => b"RECENT ACTIVITY",
             Page::Listen => b"LISTENING",
             _ => b"RADIO WATCH",
         };
-        text(api, 5, 2, title, WHITE, BLUE, F9);
-        (api.fill_rect)(0, 109, 160, 19, PANEL);
+        text(api, 5, 2, title, pal().text, pal().card, F9);
+        (api.fill_rect)(0, 109, 160, 19, pal().card);
         let hint: &[u8] = match s.page {
             Page::Lists => b"MENU SCAN  # LOG  EXIT",
             Page::Scan => b"DN SKIP  # LOG  EXIT STOP",
             Page::Activity => b"MENU LISTEN    EXIT BACK",
             Page::Listen => b"EXIT BACK TO ACTIVITY",
         };
-        text(api, 4, 113, hint, GRAY, PANEL, F6);
+        text(api, 4, 113, hint, pal().dim, pal().card, F6);
         s.chrome = false;
     }
-    (api.fill_rect)(0, 22, 160, 87, BLACK);
+    (api.fill_rect)(0, 22, 160, 87, pal().bg);
     let mut buffer = [0u8; 10];
     match s.page {
-        Page::Lists if s.list_count == 0 => text(api, 5, 43, b"ADD SCAN LISTS IN THE CPS", GRAY, BLACK, F6),
+        Page::Lists if s.list_count == 0 => text(api, 5, 43, b"ADD SCAN LISTS IN THE CPS", pal().dim, pal().bg, F6),
         Page::Lists => {
             for i in 0..s.list_count {
                 let y = 23 + i as i16 * 12;
-                let bg = if i == s.list { BLUE } else { BLACK };
+                let bg = if i == s.list { pal().card } else { pal().bg };
                 (api.fill_rect)(0, y, 160, 12, bg);
                 let list = s.list_at(i);
-                text(api, 5, y + 1, name_or(&list[..NAME_BYTES], b"LIST"), WHITE, bg, F6);
-                text(api, 123, y + 1, number(api, u32::from(list[NAME_BYTES]), &mut buffer), CYAN, bg, F6);
-                text(api, 141, y + 1, b"CH", GRAY, bg, F6);
+                text(api, 5, y + 1, name_or(&list[..NAME_BYTES], b"LIST"), pal().text, bg, F6);
+                text(api, 123, y + 1, number(api, u32::from(list[NAME_BYTES]), &mut buffer), pal().accent, bg, F6);
+                text(api, 141, y + 1, b"CH", pal().dim, bg, F6);
             }
             if s.empty_list {
-                text(api, 5, 97, b"NO SAVED CHANNELS IN LIST", CYAN, BLACK, F6);
+                text(api, 5, 97, b"NO SAVED CHANNELS IN LIST", pal().accent, pal().bg, F6);
             }
         }
         Page::Scan | Page::Listen => {
@@ -390,32 +384,32 @@ fn draw(api: &Api, s: &mut State) {
             } else {
                 b"SCANNING"
             };
-            text(api, 5, 29, status, CYAN, BLACK, F6);
+            text(api, 5, 29, status, pal().accent, pal().bg, F6);
             if s.page == Page::Scan {
-                text(api, 81, 29, name_or(&s.list_at(s.list)[..NAME_BYTES], b"LIST"), GRAY, BLACK, F6);
+                text(api, 81, 29, name_or(&s.list_at(s.list)[..NAME_BYTES], b"LIST"), pal().dim, pal().bg, F6);
             }
-            text(api, 5, 47, name_or(&s.channel_name, b"CHANNEL"), WHITE, BLACK, F9);
+            text(api, 5, 47, name_or(&s.channel_name, b"CHANNEL"), pal().text, pal().bg, F9);
             let mut frequency = [0; 16];
             let len = (api.fmt_freq)(s.hz, frequency.as_mut_ptr()) as usize;
-            text(api, 5, 74, &frequency[..len], WHITE, BLACK, F9);
-            text(api, 112, 78, b"CH", GRAY, BLACK, F6);
-            text(api, 127, 78, number(api, u32::from(s.channel), &mut buffer), CYAN, BLACK, F6);
+            text(api, 5, 74, &frequency[..len], pal().text, pal().bg, F9);
+            text(api, 112, 78, b"CH", pal().dim, pal().bg, F6);
+            text(api, 127, 78, number(api, u32::from(s.channel), &mut buffer), pal().accent, pal().bg, F6);
         }
-        Page::Activity if s.used == 0 => text(api, 5, 43, b"NO ACTIVITY YET", GRAY, BLACK, F6),
+        Page::Activity if s.used == 0 => text(api, 5, 43, b"NO ACTIVITY YET", pal().dim, pal().bg, F6),
         Page::Activity => {
             let start = s.selected.saturating_sub(LOG_ROWS - 1);
             for (row, back) in (start..s.used.min(start + LOG_ROWS)).enumerate() {
                 let hit = s.hit_at(back);
                 let y = 23 + row as i16 * 14;
-                let bg = if back == s.selected { BLUE } else { BLACK };
+                let bg = if back == s.selected { pal().card } else { pal().bg };
                 (api.fill_rect)(0, y, 160, 14, bg);
                 let mut record = [0; 32];
                 if channel_record(api, hit.channel, &mut record) {
-                    text(api, 4, y + 2, name_or(&record[20..32], b"CHANNEL"), WHITE, bg, F6);
+                    text(api, 4, y + 2, name_or(&record[20..32], b"CHANNEL"), pal().text, bg, F6);
                 }
-                text(api, 80, y + 2, number(api, u32::from(hit.channel), &mut buffer), GRAY, bg, F6);
-                text(api, 112, y + 2, number(api, u32::from(hit.seconds), &mut buffer), CYAN, bg, F6);
-                text(api, 148, y + 2, b"s", GRAY, bg, F6);
+                text(api, 80, y + 2, number(api, u32::from(hit.channel), &mut buffer), pal().dim, bg, F6);
+                text(api, 112, y + 2, number(api, u32::from(hit.seconds), &mut buffer), pal().accent, bg, F6);
+                text(api, 148, y + 2, b"s", pal().dim, bg, F6);
             }
         }
     }

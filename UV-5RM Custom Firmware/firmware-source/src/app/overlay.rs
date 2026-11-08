@@ -1,4 +1,4 @@
-use crate::ui::rounded_font::FONT_9X18;
+use crate::ui::fonts::FONT_9X18;
 use core::mem::MaybeUninit;
 
 use bf5rh_abi::{
@@ -6,7 +6,8 @@ use bf5rh_abi::{
     ARENA_SIZE, BUILD_HASH, HANDOFF_SIZE, MAGIC,
 };
 use cortex_m::peripheral::{SCB, SYST};
-use embedded_graphics::mono_font::ascii::{FONT_5X8, FONT_6X10};
+use embedded_graphics::mono_font::ascii::FONT_5X8;
+use crate::ui::fonts::FONT_6X10;
 use embedded_graphics::mono_font::{MonoFont, MonoTextStyleBuilder};
 use embedded_graphics::pixelcolor::{raw::RawU16, Rgb565};
 use embedded_graphics::prelude::*;
@@ -875,6 +876,7 @@ extern "C" fn api_settings_get(id: u16) -> u32 {
         5 => s.obs_lat as u32,
         6 => s.obs_lon as u32,
         7 => app.chip_id() as u32,
+        8 => s.theme as u32,
         _ => 0,
     }
 }

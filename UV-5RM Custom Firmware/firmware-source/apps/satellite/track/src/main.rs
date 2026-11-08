@@ -6,6 +6,7 @@ use bf5rh_abi::{Api, AppEvent, AppResult};
 #[path = "../../common.rs"]
 mod common;
 use common::*;
+use app_theme::pal;
 
 static mut API_PTR: *const Api = core::ptr::null();
 
@@ -93,6 +94,7 @@ fn state() -> &'static mut State {
 
 #[no_mangle]
 pub extern "C" fn app_entry(api: &Api, ev: AppEvent) -> AppResult {
+    app_theme::load(api);
     unsafe {
         API_PTR = api as *const Api;
     }
@@ -352,16 +354,6 @@ const fn rgb(r: u16, g: u16, b: u16) -> u16 {
     (r << 11) | (g << 5) | b
 }
 
-const TITLE_BG: u16 = rgb(4, 8, 16);
-const DIM: u16 = rgb(6, 12, 6);
-const GRAY: u16 = rgb(16, 32, 16);
-const CYAN: u16 = rgb(0, 48, 24);
-const PAST: u16 = rgb(7, 14, 10);
-const GREEN: u16 = rgb(0, 60, 0);
-const YELLOW: u16 = rgb(31, 60, 0);
-const ORANGE: u16 = rgb(31, 36, 0);
-const RED: u16 = rgb(31, 0, 0);
-
 const TITLE_H: u16 = 12;
 const FREQ_Y: i16 = 14;
 const FREQ_L: i16 = 18;
@@ -431,14 +423,14 @@ fn draw(api: &Api) -> AppResult {
 }
 
 fn draw_chrome(api: &Api, st: &State) {
-    (api.fill_rect)(0, 0, SCREEN_W as u16, SCREEN_H as u16, BLACK);
-    (api.fill_rect)(0, 0, SCREEN_W as u16, TITLE_H, TITLE_BG);
+    (api.fill_rect)(0, 0, SCREEN_W as u16, SCREEN_H as u16, pal().bg);
+    (api.fill_rect)(0, 0, SCREEN_W as u16, TITLE_H, pal().card);
     let n = st.head.name_len();
     if n > 0 {
-        text(api, 3, 1, &st.head.name[..n], WHITE, TITLE_BG, F6);
+        text(api, 3, 1, &st.head.name[..n], pal().text, pal().card, F6);
     }
     let hint: &[u8] = b"U/D SQL   MENU GAIN   BND W/N";
-    text(api, 2, HINT_Y, hint, GRAY, BLACK, F5);
+    text(api, 2, HINT_Y, hint, pal().dim, pal().bg, F5);
 }
 
 fn draw_status(api: &Api, st: &State) {
@@ -450,17 +442,17 @@ fn draw_status(api: &Api, st: &State) {
     } else {
         put_u32(&mut b, i, st.sql as u32, 0);
     }
-    text(api, SCREEN_W - 56, 1, &b, WHITE, TITLE_BG, F6);
+    text(api, SCREEN_W - 56, 1, &b, pal().text, pal().card, F6);
 }
 
 fn draw_freq(api: &Api, st: &State) {
     let tx = st.transmitting && st.head.tx_freq_hz != 0;
     let (hz, fg) = if tx {
-        (tx_freq(st), ORANGE)
+        (tx_freq(st), pal().warn)
     } else {
         (
             (st.head.rx_freq_hz as i32 + st.doppler_hz).max(0) as u32,
-            WHITE,
+            pal().text,
         )
     };
 
@@ -468,58 +460,58 @@ fn draw_freq(api: &Api, st: &State) {
     let len = put_freq_hz(&mut buf, 0, hz) as i16;
     let x = FREQ_L + (FREQ_R - FREQ_L - len * 9) / 2;
     if x > FREQ_L {
-        (api.fill_rect)(FREQ_L, FREQ_Y, (x - FREQ_L) as u16, 18, BLACK);
+        (api.fill_rect)(FREQ_L, FREQ_Y, (x - FREQ_L) as u16, 18, pal().bg);
     }
     let end = x + len * 9;
     if end < FREQ_R {
-        (api.fill_rect)(end, FREQ_Y, (FREQ_R - end) as u16, 18, BLACK);
+        (api.fill_rect)(end, FREQ_Y, (FREQ_R - end) as u16, 18, pal().bg);
     }
-    text(api, x, FREQ_Y, &buf[..len as usize], fg, BLACK, F9);
+    text(api, x, FREQ_Y, &buf[..len as usize], fg, pal().bg, F9);
 
     let (badge, bfg, bbg): (&[u8], u16, u16) = if tx {
-        (b"TX", BLACK, RED)
+        (b"TX", pal().bg, pal().alert)
     } else {
-        (b"RX", GRAY, BLACK)
+        (b"RX", pal().dim, pal().bg)
     };
     text(api, 2, BADGE_Y, badge, bfg, bbg, F5);
 
-    text(api, SCREEN_W - 2 - 15, FREQ_Y, b"DOP", GRAY, BLACK, F5);
+    text(api, SCREEN_W - 2 - 15, FREQ_Y, b"DOP", pal().dim, pal().bg, F5);
     let mut d = [0u8; DOP_CHARS];
     let i = put_char(&mut d, 0, if st.doppler_hz < 0 { b'-' } else { b'+' });
     let i = put_u32(&mut d, i, st.doppler_hz.unsigned_abs(), 0);
     right_align(&mut d, i, DOP_CHARS);
-    text(api, DOP_X, FREQ_Y + 9, &d, CYAN, BLACK, F5);
+    text(api, DOP_X, FREQ_Y + 9, &d, pal().accent, pal().bg, F5);
 }
 
 fn draw_column(api: &Api, st: &State) {
-    text(api, COL_X, AZ_Y + LAB_DY, b"AZ", GRAY, BLACK, F5);
+    text(api, COL_X, AZ_Y + LAB_DY, b"AZ", pal().dim, pal().bg, F5);
     let mut b = [0u8; 3];
     put_u32(&mut b, 0, st.az_cdeg as u32 / 100, 3);
-    text(api, VAL_X, AZ_Y, &b, WHITE, BLACK, F9);
+    text(api, VAL_X, AZ_Y, &b, pal().text, pal().bg, F9);
     let mut o = [b' '; 2];
     write_at(&mut o, 0, octant(st.az_cdeg));
-    text(api, OCT_X, AZ_Y + LAB_DY, &o, GRAY, BLACK, F5);
+    text(api, OCT_X, AZ_Y + LAB_DY, &o, pal().dim, pal().bg, F5);
 
     let el = st.el_cdeg as i32 / 100;
-    text(api, COL_X, EL_Y + LAB_DY, b"EL", GRAY, BLACK, F5);
+    text(api, COL_X, EL_Y + LAB_DY, b"EL", pal().dim, pal().bg, F5);
     let mut b = [0u8; 3];
     let i = put_i32(&mut b, 0, el, 0);
     let i = pad(&mut b, i, 3);
-    text(api, VAL_X, EL_Y, &b[..i], el_color(el), BLACK, F9);
+    text(api, VAL_X, EL_Y, &b[..i], el_color(el), pal().bg, F9);
 
     let now = st.last_secs;
     let mut cd = [0u8; 10];
     let (i, fg) = if now < st.aos {
         let i = write_at(&mut cd, 0, b"T-");
-        (put_duration(&mut cd, i, st.aos - now), ORANGE)
+        (put_duration(&mut cd, i, st.aos - now), pal().warn)
     } else if now < st.los {
         let i = write_at(&mut cd, 0, b"T+");
-        (put_duration(&mut cd, i, now - st.aos), GREEN)
+        (put_duration(&mut cd, i, now - st.aos), pal().ok)
     } else {
-        (write_at(&mut cd, 0, b"PASSED"), GRAY)
+        (write_at(&mut cd, 0, b"PASSED"), pal().dim)
     };
     let i = pad(&mut cd, i, 10);
-    text(api, COL_X, CD_Y, &cd[..i], fg, BLACK, F6);
+    text(api, COL_X, CD_Y, &cd[..i], fg, pal().bg, F6);
 
     let mut up = [0u8; 10];
     let i = if st.head.tx_freq_hz == 0 {
@@ -529,35 +521,35 @@ fn draw_column(api: &Api, st: &State) {
         put_freq_mhz(&mut up, i, tx_freq(st))
     };
     let i = pad(&mut up, i, 10);
-    text(api, COL_X, UP_Y, &up[..i], GRAY, BLACK, F6);
+    text(api, COL_X, UP_Y, &up[..i], pal().dim, pal().bg, F6);
 }
 
 fn el_color(el_deg: i32) -> u16 {
     if el_deg < 10 {
-        ORANGE
+        pal().warn
     } else if el_deg < 30 {
-        YELLOW
+        pal().warn
     } else {
-        GREEN
+        pal().ok
     }
 }
 
 fn draw_gauge(api: &Api, st: &State) {
-    (api.fill_rect)(GAUGE_X, GAUGE_Y, GAUGE_W, GAUGE_H as u16, GRAY);
+    (api.fill_rect)(GAUGE_X, GAUGE_Y, GAUGE_W, GAUGE_H as u16, pal().dim);
     let (x, y) = (GAUGE_X + 1, GAUGE_Y + 1);
     let (w, h) = (GAUGE_W - 2, GAUGE_H - 2);
     let scale = |cdeg: i32| (cdeg.clamp(0, 9000) * h as i32 / 9000) as i16;
 
     let lit = scale(st.el_cdeg as i32);
     let top = y + h - lit;
-    (api.fill_rect)(x, y, w, (top - y) as u16, DIM);
+    (api.fill_rect)(x, y, w, (top - y) as u16, pal().card_hi);
     if lit > 0 {
         let c = el_color(st.el_cdeg as i32 / 100);
         (api.fill_rect)(x, top, w, lit as u16, c);
     }
-    (api.fill_rect)(x, y + h - scale(3000), w, 1, GRAY);
-    (api.fill_rect)(x, y + h - scale(6000), w, 1, GRAY);
-    (api.fill_rect)(x, y + h - scale(st.max_el_cdeg as i32), w, 1, WHITE);
+    (api.fill_rect)(x, y + h - scale(3000), w, 1, pal().dim);
+    (api.fill_rect)(x, y + h - scale(6000), w, 1, pal().dim);
+    (api.fill_rect)(x, y + h - scale(st.max_el_cdeg as i32), w, 1, pal().text);
 }
 
 // sky plot
@@ -634,18 +626,18 @@ fn point(plot: &[u8], i: usize) -> (i16, i16) {
 }
 
 fn draw_plot(api: &Api, st: &mut State) {
-    (api.fill_rect)(st.dot_x - 3, st.dot_y - 3, 7, 7, BLACK);
+    (api.fill_rect)(st.dot_x - 3, st.dot_y - 3, 7, 7, pal().bg);
 
-    (api.draw_circle)(PLOT_CX, PLOT_CY, PLOT_R as u16, GRAY, false);
-    (api.draw_circle)(PLOT_CX, PLOT_CY, 16, DIM, false); // 30 deg
-    (api.draw_circle)(PLOT_CX, PLOT_CY, 8, DIM, false); // 60 deg
+    (api.draw_circle)(PLOT_CX, PLOT_CY, PLOT_R as u16, pal().dim, false);
+    (api.draw_circle)(PLOT_CX, PLOT_CY, 16, pal().card_hi, false); // 30 deg
+    (api.draw_circle)(PLOT_CX, PLOT_CY, 8, pal().card_hi, false); // 60 deg
     text(
         api,
         PLOT_CX - 2,
         PLOT_CY - PLOT_R - 9,
         b"N",
-        GRAY,
-        BLACK,
+        pal().dim,
+        pal().bg,
         F5,
     );
     text(
@@ -653,8 +645,8 @@ fn draw_plot(api: &Api, st: &mut State) {
         PLOT_CX - 2,
         PLOT_CY + PLOT_R + 2,
         b"S",
-        GRAY,
-        BLACK,
+        pal().dim,
+        pal().bg,
         F5,
     );
     text(
@@ -662,8 +654,8 @@ fn draw_plot(api: &Api, st: &mut State) {
         PLOT_CX + PLOT_R + 2,
         PLOT_CY - 4,
         b"E",
-        GRAY,
-        BLACK,
+        pal().dim,
+        pal().bg,
         F5,
     );
     text(
@@ -671,8 +663,8 @@ fn draw_plot(api: &Api, st: &mut State) {
         PLOT_CX - PLOT_R - 7,
         PLOT_CY - 4,
         b"W",
-        GRAY,
-        BLACK,
+        pal().dim,
+        pal().bg,
         F5,
     );
 
@@ -683,18 +675,18 @@ fn draw_plot(api: &Api, st: &mut State) {
     for i in 1..n {
         let (x0, y0) = point(plot, i - 1);
         let (x1, y1) = point(plot, i);
-        let c = if (i as u32) <= cur { PAST } else { CYAN };
+        let c = if (i as u32) <= cur { pal().dim } else { pal().accent };
         (api.draw_line)(x0, y0, x1, y1, c);
     }
     if n > 1 {
         let (x, y) = point(plot, 0);
-        (api.draw_circle)(x, y, 1, GREEN, true);
+        (api.draw_circle)(x, y, 1, pal().ok, true);
         let (x, y) = point(plot, n - 1);
-        (api.draw_circle)(x, y, 1, RED, true);
+        (api.draw_circle)(x, y, 1, pal().alert, true);
     }
 
     let (x, y) = project(st.az_cdeg, st.el_cdeg);
-    (api.draw_circle)(x, y, 3, YELLOW, true);
+    (api.draw_circle)(x, y, 3, pal().warn, true);
     st.dot_x = x;
     st.dot_y = y;
 }
@@ -708,13 +700,13 @@ fn draw_smeter(api: &Api, st: &mut State) {
     st.shown_lit = lit;
     for i in 0..SM_SEGS {
         let c = if i >= lit {
-            DIM
+            pal().card_hi
         } else if i < 11 {
-            GREEN
+            pal().ok
         } else if i < 15 {
-            YELLOW
+            pal().warn
         } else {
-            RED
+            pal().alert
         };
         (api.fill_rect)(2 + i * 8, SM_Y, 7, 8, c);
     }
@@ -726,22 +718,22 @@ fn draw_gain_popup(api: &Api, st: &State) {
         2,
         HINT_Y,
         b"U/D ADJ  MENU NEXT  EXIT CLOSE",
-        GRAY,
-        BLACK,
+        pal().dim,
+        pal().bg,
         F5,
     );
-    (api.fill_rect)(2, 34, 156, 66, GRAY);
-    (api.fill_rect)(3, 35, 154, 64, BLACK);
+    (api.fill_rect)(2, 34, 156, 66, pal().dim);
+    (api.fill_rect)(3, 35, 154, 64, pal().bg);
     for k in 0..4usize {
         let y = 42 + (k as i16) * 14;
         let selected = st.gain_menu == (k + 1) as u8;
         let (fg, bg) = if selected {
-            (BLACK, WHITE)
+            (pal().bg, pal().text)
         } else {
-            (WHITE, BLACK)
+            (pal().text, pal().bg)
         };
         if selected {
-            (api.fill_rect)(6, y - 1, 148, 12, WHITE);
+            (api.fill_rect)(6, y - 1, 148, 12, pal().text);
         }
         text(api, 10, y, GAIN_NAMES[k], fg, bg, F6);
         let mut v = [0u8; 3];

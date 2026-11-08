@@ -10,6 +10,7 @@ static mut API_PTR: *const Api = core::ptr::null();
 
 #[no_mangle]
 pub extern "C" fn app_entry(api: &Api, ev: AppEvent) -> AppResult {
+    app_theme::load(api);
     unsafe { API_PTR = api; }
     logic::entry(api, ev)
 }

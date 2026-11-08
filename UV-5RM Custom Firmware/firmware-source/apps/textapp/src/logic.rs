@@ -11,6 +11,7 @@
 //! radios are assumed to be a pair; with more, the replies would collide.
 
 use bf5rh_abi::{Api, AppEvent, AppResult};
+use app_theme::pal;
 
 #[cfg(target_os = "none")]
 mod bus {
@@ -120,14 +121,6 @@ const KEY_UP: u8 = 14;
 const KEY_DOWN: u8 = 15;
 const KEY_AB: u8 = 17;
 const NO_KEY: u8 = 0xFF;
-
-const BLACK: u16 = 0x0000;
-const WHITE: u16 = 0xFFFF;
-const GRAY: u16 = 0x8410;
-const GREEN: u16 = 0x07E0;
-const HEADER: u16 = 0x6000;
-const HILITE: u16 = 0xA000;
-const AMBER: u16 = 0xFD20;
 
 const F5: u8 = 0; // 5x8
 const F6: u8 = 1; // 6x10
@@ -1199,14 +1192,15 @@ fn text(api: &Api, x: i16, y: i16, s: &[u8], fg: u16, bg: u16, font: u8) {
 }
 
 fn draw_title(api: &Api, s: &State) {
-    (api.fill_rect)(0, TITLE_Y, SCREEN_W, 12, HEADER);
+    let p = pal();
+    (api.fill_rect)(0, TITLE_Y, SCREEN_W, 12, p.card);
     let mut l = Line::new();
     l.push(b"TEXT ");
     let mut f = [0u8; 12];
     let n = (api.fmt_freq)(s.hz, f.as_mut_ptr()) as usize;
     l.push(&f[..n]);
     l.push(if s.high_power { b" HIGH" } else { b" LOW" });
-    text(api, 4, TITLE_Y + 1, l.as_slice(), WHITE, HEADER, F6);
+    text(api, 4, TITLE_Y + 1, l.as_slice(), p.text, p.card, F6);
 }
 
 fn slot_back(s: &State, back: u16) -> u16 {
@@ -1218,9 +1212,10 @@ fn rows_for(len: u8) -> usize {
 }
 
 fn draw_msgs(api: &Api, s: &State) {
-    (api.fill_rect)(0, MSG_Y, SCREEN_W, MSG_ROWS as u16 * 10, BLACK);
+    let p = pal();
+    (api.fill_rect)(0, MSG_Y, SCREEN_W, MSG_ROWS as u16 * 10, p.bg);
     if s.log_count == 0 {
-        text(api, 4, MSG_Y, b"NO MESSAGES YET", GRAY, BLACK, F6);
+        text(api, 4, MSG_Y, b"NO MESSAGES YET", p.dim, p.bg, F6);
         return;
     }
     // Fit as many messages as possible, ending at the one scrolled to.
@@ -1243,25 +1238,26 @@ fn draw_msgs(api: &Api, s: &State) {
         // Still marked sending, but not the one being sent: the app closed mid-try.
         let live = s.pending && slot == s.out_slot;
         let (mark, color) = match rec[1] {
-            STATUS_RECEIVED => (b'<', GREEN),
-            STATUS_SENDING if live => (b'>', GRAY),
-            STATUS_DELIVERED => (b'+', WHITE),
-            _ => (b'!', AMBER),
+            STATUS_RECEIVED => (b'<', p.ok),
+            STATUS_SENDING if live => (b'>', p.dim),
+            STATUS_DELIVERED => (b'+', p.text),
+            _ => (b'!', p.warn),
         };
         // The last header byte is no longer needed in this local copy. Use it
         // to put the status marker immediately before the message bytes.
         rec[REC_HEAD - 1] = mark;
         let len = (rec[3] as usize).min(MAX_LEN);
         for row in rec[REC_HEAD - 1..REC_HEAD + len].chunks(COLS) {
-            text(api, 2, y, row, color, BLACK, F6);
+            text(api, 2, y, row, color, p.bg, F6);
             y += 10;
         }
     }
 }
 
 fn draw_comp(api: &Api, s: &State) {
-    (api.fill_rect)(0, COMP_Y, SCREEN_W, 21, BLACK);
-    (api.fill_rect)(0, COMP_Y, SCREEN_W, 1, HEADER);
+    let p = pal();
+    (api.fill_rect)(0, COMP_Y, SCREEN_W, 21, p.bg);
+    (api.fill_rect)(0, COMP_Y, SCREEN_W, 1, p.card);
     let mut draft = [0; DRAFT_RECORD];
     let composing = s.drafts_count == 0;
     let message = if composing {
@@ -1271,7 +1267,7 @@ fn draw_comp(api: &Api, s: &State) {
         &draft[1..1 + len]
     };
     for (row, chunk) in message.chunks(COLS).enumerate() {
-        text(api, 2, COMP_Y + 2 + row as i16 * 10, chunk, WHITE, BLACK, F6);
+        text(api, 2, COMP_Y + 2 + row as i16 * 10, chunk, p.text, p.bg, F6);
     }
     if !composing {
         return;
@@ -1280,40 +1276,43 @@ fn draw_comp(api: &Api, s: &State) {
     let at = |i: usize| (2 + (i % COLS) as i16 * 6, COMP_Y + 2 + (i / COLS) as i16 * 10);
     if s.tap_key != NO_KEY && n > 0 {
         let (x, y) = at(n - 1);
-        text(api, x, y, &s.comp[n - 1..n], WHITE, HILITE, F6);
+        text(api, x, y, &s.comp[n - 1..n], p.text, p.card_hi, F6);
     }
     if n < MAX_LEN {
         let (x, y) = at(n);
-        text(api, x, y, b"_", GRAY, BLACK, F6);
+        text(api, x, y, b"_", p.dim, p.bg, F6);
     }
 }
 
 fn draw_hint(api: &Api, s: &State) {
-    (api.fill_rect)(0, HINT_Y, SCREEN_W, 9, BLACK);
-    if s.drafts_count != 0 {
-        text(api, 2, HINT_Y, b"UP/DN DRAFT  MENU LOAD  EXIT", AMBER, BLACK, F5);
+    let p = pal();
+    (api.fill_rect)(0, HINT_Y, SCREEN_W, 9, p.bg);
+    let mut l = Line::new();
+    let (hint, color): (&[u8], u16) = if s.drafts_count != 0 {
+        (b"UP/DN DRAFT  MENU LOAD  EXIT", p.warn)
     } else if let Some(n) = s.notice {
-        text(api, 2, HINT_Y, n, AMBER, BLACK, F5);
+        (n, p.warn)
     } else if s.pending {
-        let mut l = Line::new();
         l.push(b"TRY ");
         l.num(api, s.tries as u32);
         l.push(b" OF ");
         l.num(api, MAX_TRIES as u32);
         l.push(b"  EXIT STOPS");
-        text(api, 2, HINT_Y, l.as_slice(), AMBER, BLACK, F5);
+        (l.as_slice(), p.warn)
     } else {
-        text(api, 2, HINT_Y, b"MENU SEND  *PING  HOLD * DRAFTS", GRAY, BLACK, F5);
-    }
+        (b"MENU SEND  *PING  HOLD * DRAFTS", p.dim)
+    };
+    text(api, 2, HINT_Y, hint, color, p.bg, F5);
 }
 
 fn draw(api: &Api) -> AppResult {
+    let p = pal();
     let s = st();
     if s.redraw_all {
-        (api.fill_rect)(0, 0, SCREEN_W, 128, BLACK);
+        (api.fill_rect)(0, 0, SCREEN_W, 128, p.bg);
         draw_title(api, s);
-        text(api, 2, KEYS_Y, b"1.,? 2ABC 3DEF 4GHI 5JKL", GRAY, BLACK, F5);
-        text(api, 2, KEYS_Y + 8, b"6MNO 7PQRS 8TUV 9WXYZ 0SP", GRAY, BLACK, F5);
+        text(api, 2, KEYS_Y, b"1.,? 2ABC 3DEF 4GHI 5JKL", p.dim, p.bg, F5);
+        text(api, 2, KEYS_Y + 8, b"6MNO 7PQRS 8TUV 9WXYZ 0SP", p.dim, p.bg, F5);
         s.redraw_msgs = true;
         s.redraw_comp = true;
         s.redraw_hint = true;

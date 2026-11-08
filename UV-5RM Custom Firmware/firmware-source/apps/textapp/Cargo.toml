@@ -12,6 +12,7 @@ bench = false
 
 [dependencies]
 bf5rh-abi = { path = "../../abi" }
+app-theme = { path = "../../app-theme" }
 
 [profile.release]
 opt-level = "z"

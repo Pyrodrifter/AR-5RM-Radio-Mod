@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 
 use bf5rh_abi::Api;
+use app_theme::pal;
 
 pub const KIND_SINGLE: u8 = 2;
 pub const KIND_LONG: u8 = 3;
@@ -13,9 +14,6 @@ pub const KEY_EXIT: u8 = 13;
 pub const KEY_UP: u8 = 14;
 pub const KEY_DOWN: u8 = 15;
 pub const KEY_BAND: u8 = 18;
-
-pub const BLACK: u16 = 0x0000;
-pub const WHITE: u16 = 0xFFFF;
 pub const F5: u8 = 0;
 pub const F6: u8 = 1;
 pub const F9: u8 = 2;

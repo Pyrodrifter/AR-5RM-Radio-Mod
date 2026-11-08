@@ -3,6 +3,13 @@
 version = 4
 
 [[package]]
+name = "app-theme"
+version = "0.1.0"
+dependencies = [
+ "bf5rh-abi",
+]
+
+[[package]]
 name = "bf5rh-abi"
 version = "0.1.0"
 
@@ -10,6 +17,7 @@ version = "0.1.0"
 name = "satrx"
 version = "0.1.0"
 dependencies = [
+ "app-theme",
  "bf5rh-abi",
  "sgp4mini",
 ]

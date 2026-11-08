@@ -5,7 +5,7 @@ mod icons;
 mod launcher;
 mod list;
 mod modes;
-pub(crate) mod rounded_font;
+pub(crate) mod fonts;
 mod scan;
 mod standby;
 pub(crate) mod theme;
@@ -121,7 +121,8 @@ where
     D: DrawTarget<Color = Rgb565>,
 {
     use core::fmt::Write;
-    use embedded_graphics::mono_font::{ascii::FONT_6X10, MonoTextStyle};
+    use crate::ui::fonts::FONT_6X10;
+    use embedded_graphics::mono_font::MonoTextStyle;
     use embedded_graphics::text::Text;
 
     let (used, free) = crate::hal::stackprobe::high_water();

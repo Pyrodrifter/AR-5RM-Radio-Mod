@@ -1,5 +1,6 @@
 use core::fmt::Write as _;
-use embedded_graphics::mono_font::{ascii::FONT_6X10, MonoFont, MonoTextStyle};
+use embedded_graphics::mono_font::{MonoFont, MonoTextStyle};
+use crate::ui::fonts::FONT_6X10;
 use embedded_graphics::pixelcolor::Rgb565;
 use embedded_graphics::prelude::*;
 use embedded_graphics::primitives::{PrimitiveStyle, Rectangle};
@@ -221,15 +222,15 @@ where
         .ok();
 }
 
-/// Add weight while keeping a clear gap between glyphs.
+/// The pixel 6x10 with a pixel of letter spacing: crisp at this size.
 #[inline(never)]
 fn txt<D>(lcd: &mut D, s: &str, x: i32, baseline_y: i32, color: Rgb565)
 where
     D: DrawTarget<Color = Rgb565>,
 {
-    let style = MonoTextStyle::new(&MENU_FONT, color);
-    Text::new(s, Point::new(x + 1, baseline_y), style).draw(lcd).ok();
-    Text::new(s, Point::new(x, baseline_y), style).draw(lcd).ok();
+    Text::new(s, Point::new(x, baseline_y), MonoTextStyle::new(&MENU_FONT, color))
+        .draw(lcd)
+        .ok();
 }
 
 fn draw_title<D>(lcd: &mut D, title: &str, selected: usize, total: usize)
@@ -237,10 +238,10 @@ where
     D: DrawTarget<Color = Rgb565>,
 {
     let t = theme::t();
-    fill(lcd, 0, 0, SCREEN_W, TITLE_HEIGHT - 1, t.card);
-    fill(lcd, 0, TITLE_HEIGHT - 1, SCREEN_W, 1, t.accent);
+    fill(lcd, 0, 0, SCREEN_W, TITLE_HEIGHT - 1, t.bg);
+    fill(lcd, 0, TITLE_HEIGHT - 1, SCREEN_W, 1, t.card_hi);
     let baseline = FONT_6X10.baseline as i32 + 2;
-    txt(lcd, title, 5, baseline, t.text);
+    txt(lcd, title, 4, baseline, t.accent);
     if total > 1 {
         let mut pos: TextBuf<10> = TextBuf::new();
         super::num(&mut pos, selected as u32 + 1, 1);
@@ -264,27 +265,27 @@ fn draw_row<D>(
     let row_top = LIST_TOP + slot as i32 * ROW_HEIGHT;
     let is_selected = index < total && index == selected;
     let t = theme::t();
-    fill(lcd, 0, row_top, SCREEN_W, ROW_HEIGHT, t.bg);
+    fill(lcd, 0, row_top, SCREEN_W, ROW_HEIGHT, if is_selected { t.card_hi } else { t.bg });
 
     if index >= total {
         return; // blank row below the end of a shorter list
     }
 
-    if is_selected {
-        // A bar with clipped corners.
-        fill(lcd, 3, row_top + 1, SCREEN_W - 6, ROW_HEIGHT - 2, t.accent);
-        fill(lcd, 2, row_top + 2, SCREEN_W - 4, ROW_HEIGHT - 4, t.accent);
-    }
-    let fg = if is_selected { t.on_accent } else { t.text };
     let baseline = row_top + FONT_6X10.baseline as i32 + 2;
+    if is_selected {
+        // A soft highlight with an accent bar at its left edge.
+        fill(lcd, 0, row_top, 3, ROW_HEIGHT, t.accent);
+    }
+    let fg = if is_selected { t.value } else { t.text };
 
     let mut label: TextBuf<20> = TextBuf::new();
     source.label(index, &mut label);
     let label_is_empty = label.as_str().is_empty();
 
     if !label_is_empty {
-        txt(lcd, label.as_str(), 6, baseline, fg);
+        txt(lcd, label.as_str(), 11, baseline, fg);
     }
+    let fg = if is_selected { t.value } else { t.accent };
 
     let mut value: TextBuf<18> = TextBuf::new();
     if source.value(index, &mut value) {
@@ -392,7 +393,7 @@ fn draw_cursor_box<D>(
     let ch = text.chars().nth(cursor_index).unwrap_or(' ');
     let cursor_x = x0 + cursor_index as i32 * char_w;
     let t = theme::t();
-    let inverted = if fg == t.on_accent { t.accent } else { t.bg };
+    let inverted = t.bg;
     Rectangle::new(
         Point::new(cursor_x, row_top),
         Size::new(char_w as u32, ROW_HEIGHT as u32),

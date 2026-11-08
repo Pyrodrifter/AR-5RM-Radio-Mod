@@ -1,47 +1,41 @@
-//! Home screen. One big card for the side you transmit on (seven-segment
-//! frequency, channel box, name, tags) with the other side on one line, or two
-//! equal cards with dual watch on. Colours come from `theme`; cards are the
-//! uploaded background at a quarter brightness, or plain when there is none.
-//! Only what changed is redrawn each tick.
+//! Home screen, clean style: no boxes, one thing per line. The side you
+//! transmit on gets a header line, large digits (or its name, in channel
+//! mode), a details line and a thin signal bar; the other side is one line
+//! at the bottom. With dual watch on, both sides get the large readout.
+//! Labels are `accent`, readouts `value`. Only what changed is redrawn.
 
-use crate::ui::rounded_font::FONT_9X18;
 use super::backdrop;
 use super::theme::{self, Theme};
 use super::{freq_text, icons, num, TextBuf, SCREEN_H, SCREEN_W};
 use crate::app::{self, ChannelDisplayMode};
 use crate::device::radio::{Modulation, Power, SubAudio};
+use core::convert::Infallible;
 use core::fmt::Write as _;
-use embedded_graphics::mono_font::{
-    ascii::{FONT_5X8, FONT_6X10},
-    MonoFont, MonoTextStyle,
-};
+use embedded_graphics::mono_font::{MonoFont, MonoTextStyle};
+use crate::ui::fonts::FONT_6X10;
 use embedded_graphics::pixelcolor::Rgb565;
 use embedded_graphics::prelude::*;
-use embedded_graphics::primitives::{PrimitiveStyle, Rectangle};
+use embedded_graphics::primitives::Rectangle;
 use embedded_graphics::text::{Baseline, Text};
 
-const STATUS_H: i32 = 14;
-const CARD_X: i32 = 2;
-const CARD_W: i32 = SCREEN_W - 4;
-const EDGE_W: i32 = 3;
+const STATUS_H: i32 = 13;
+/// The large readout uses the 6x10 font scaled up: frequencies 3x, names 2x
+/// (to fit 12 letters), so every character has the same size and stroke.
+const READ_H: i32 = 30;
+const SMALL_W: i32 = 6;
+const RIGHT: i32 = SCREEN_W - 4;
 
-// Single layout: the master's card, the meter, the other side's line.
-const MAIN_TOP: i32 = 16;
-const MAIN_H: i32 = 80;
-const METER_Y: i32 = 98;
-const METER_H: i32 = 14;
-const OTHER_Y: i32 = 114;
-const OTHER_H: i32 = SCREEN_H - OTHER_Y;
+// Single layout.
+const HEAD_Y: i32 = 20;
+const READ_Y: i32 = 38;
+const DETAIL_Y: i32 = 76;
+const METER_Y: i32 = 92;
+const RULE_Y: i32 = 108;
+const STBY_Y: i32 = 112;
 
-// Dual layout: two equal cards.
-const DUAL_H: i32 = 55;
-const DUAL_TOP1: i32 = SCREEN_H - DUAL_H;
-
-const BADGE_X: i32 = SCREEN_W - 28;
-const BADGE_W: i32 = 24;
-const FLAGS_W: i32 = 96;
-
-const SMALL_W: i32 = FONT_6X10.character_size.width as i32;
+// Dual layout: two blocks of this height, each a header line, the readout
+// and a thin bar.
+const BLOCK_H: i32 = 56;
 
 static mut BG_PRESENT: bool = false;
 
@@ -126,8 +120,6 @@ impl Snapshot {
     }
 
     fn capture(app: &app::App) -> Self {
-        let is_transmitting = app.is_transmitting();
-        let master_index = app.master_index();
         let side = |i: usize| -> SideSnapshot {
             SideSnapshot {
                 freq_hz: shown_freq(app, i),
@@ -144,12 +136,12 @@ impl Snapshot {
             }
         };
         Snapshot {
-            is_transmitting,
+            is_transmitting: app.is_transmitting(),
             power_save: app.power_save_active(),
             dual_standby: app.dual_standby_enabled(),
             vox: app.vox_enabled(),
             key_locked: app.is_key_locked(),
-            master_index,
+            master_index: app.master_index(),
             dtmf_dial_active: app.dtmf_dial_active(),
             dtmf_dial_len: app.dtmf_dial_len(),
             channel_input_len: app.channel_input_len(),
@@ -159,6 +151,14 @@ impl Snapshot {
             sides: [side(0), side(1)],
         }
     }
+}
+
+/// In channel (MR) mode a named channel shows its name large and its
+/// frequency small, unless the display mode asks for the frequency.
+fn name_big(app: &app::App, i: usize) -> bool {
+    app.side_is_channel_mode(i)
+        && !app.side_name_str(i).is_empty()
+        && app.channel_display_mode() != ChannelDisplayMode::Frequency
 }
 
 /// The frequency a side shows: its TX frequency while transmitting on it.
@@ -176,22 +176,17 @@ fn fill<D>(lcd: &mut D, x: i32, y: i32, w: i32, h: i32, color: Rgb565)
 where
     D: DrawTarget<Color = Rgb565>,
 {
-    if w <= 0 || h <= 0 {
-        return;
+    if w > 0 && h > 0 {
+        lcd.fill_solid(&Rectangle::new(Point::new(x, y), Size::new(w as u32, h as u32)), color).ok();
     }
-    Rectangle::new(Point::new(x, y), Size::new(w as u32, h as u32))
-        .into_styled(PrimitiveStyle::with_fill(color))
-        .draw(lcd)
-        .ok();
 }
 
-/// Card (`card` true) or open-screen backing for a rectangle.
+/// Clears a rectangle to the background (or the uploaded picture).
 #[inline(never)]
-fn paint<D>(lcd: &mut D, app: &mut app::App, x: i32, y: i32, w: i32, h: i32, card: bool)
+fn clear<D>(lcd: &mut D, app: &mut app::App, x: i32, y: i32, w: i32, h: i32)
 where
     D: DrawTarget<Color = Rgb565>,
 {
-    let t = theme::t();
     backdrop::paint_background(
         lcd,
         &mut |a, b| app.storage_mut().read_raw(a, b),
@@ -200,146 +195,142 @@ where
         y,
         w,
         h,
-        card,
-        if card { t.card } else { t.bg },
+        true,
+        theme::t().bg,
     );
 }
 
-/// Keep small text sharp and give large text extra weight.
+/// Text with its top at `y`; returns the x after it.
 #[inline(never)]
-fn bold<D>(lcd: &mut D, s: &str, font: &MonoFont, x: i32, y: i32, color: Rgb565) -> i32
+fn text<D>(lcd: &mut D, s: &str, font: &MonoFont, x: i32, y: i32, color: Rgb565) -> i32
 where
     D: DrawTarget<Color = Rgb565>,
 {
-    let style = MonoTextStyle::new(font, color);
-    if font.character_size.width >= 9 {
-        Text::with_baseline(s, Point::new(x + 1, y), style, Baseline::Top)
-            .draw(lcd)
-            .ok();
-    }
-    Text::with_baseline(s, Point::new(x, y), style, Baseline::Top)
+    Text::with_baseline(s, Point::new(x, y), MonoTextStyle::new(font, color), Baseline::Top)
         .draw(lcd)
         .ok();
     x + s.len() as i32 * font.character_size.width as i32
 }
 
-fn bold_right<D>(lcd: &mut D, s: &str, font: &MonoFont, right: i32, y: i32, color: Rgb565)
+fn text_right<D>(lcd: &mut D, s: &str, font: &MonoFont, right: i32, y: i32, color: Rgb565)
 where
     D: DrawTarget<Color = Rgb565>,
 {
-    bold(lcd, s, font, right - s.len() as i32 * font.character_size.width as i32, y, color);
+    text(lcd, s, font, right - s.len() as i32 * font.character_size.width as i32, y, color);
 }
 
-/// A filled box with clipped corners and `s` inside; returns the x after it.
-#[inline(never)]
-fn pill<D>(lcd: &mut D, s: &str, font: &MonoFont, x: i32, y: i32, h: i32, bg: Rgb565, fg: Rgb565) -> i32
-where
-    D: DrawTarget<Color = Rgb565>,
-{
-    let w = s.len() as i32 * font.character_size.width as i32 + 7;
-    fill(lcd, x + 1, y, w - 2, h, bg);
-    fill(lcd, x, y + 1, w, h - 2, bg);
-    bold(lcd, s, font, x + 3, y + (h - font.character_size.height as i32) / 2 + 1, fg);
-    x + w + 3
-}
-
-
-/// Draws the radio's existing font at twice its width and one-and-a-half
-/// times its height. This retains the letter shapes while using the space
-/// available in the frequency row.
-struct ScaledFrequency<'a, D> {
+/// Draws into `lcd` `k` times the size, from (x, y).
+struct Scaled<'a, D> {
     lcd: &'a mut D,
     x: i32,
     y: i32,
+    k: i32,
 }
 
-impl<D: DrawTarget<Color = Rgb565>> OriginDimensions for ScaledFrequency<'_, D> {
+impl<D> OriginDimensions for Scaled<'_, D> {
     fn size(&self) -> Size {
-        Size::new(80, 21)
+        Size::new(SCREEN_W as u32, SCREEN_H as u32)
     }
 }
 
-impl<D: DrawTarget<Color = Rgb565>> DrawTarget for ScaledFrequency<'_, D> {
+impl<D> DrawTarget for Scaled<'_, D>
+where
+    D: DrawTarget<Color = Rgb565>,
+{
     type Color = Rgb565;
-    type Error = D::Error;
+    type Error = Infallible;
 
-    fn draw_iter<I>(&mut self, pixels: I) -> Result<(), Self::Error>
+    fn draw_iter<I>(&mut self, pixels: I) -> Result<(), Infallible>
     where
         I: IntoIterator<Item = Pixel<Rgb565>>,
     {
-        for Pixel(point, color) in pixels {
-            let y = point.y * 3 / 2;
-            let next_y = (point.y + 1) * 3 / 2;
-            self.lcd.fill_solid(
-                &Rectangle::new(
-                    Point::new(self.x + point.x * 2, self.y + y),
-                    Size::new(3, (next_y - y) as u32),
-                ),
-                color,
-            )?;
+        for Pixel(p, c) in pixels {
+            fill(self.lcd, self.x + p.x * self.k, self.y + p.y * self.k, self.k, self.k, c);
         }
         Ok(())
     }
 }
 
-#[inline(never)]
-fn draw_scaled_text<D: DrawTarget<Color = Rgb565>>(lcd: &mut D, text: &str, x: i32, y: i32, color: Rgb565) {
-    let mut scaled = ScaledFrequency { lcd, x, y };
-    Text::with_baseline(text, Point::zero(), MonoTextStyle::new(&FONT_9X18, color), Baseline::Top)
-        .draw(&mut scaled).ok();
-}
+/// Large digits: the FM app's 5x7 dot font drawn in 4-pixel blocks, with a
+/// dash (index 10) for digits still to be typed.
+const DIGITS: [[u8; 7]; 11] = [
+    [14, 17, 17, 17, 17, 17, 14],
+    [4, 12, 4, 4, 4, 4, 14],
+    [14, 17, 1, 2, 4, 8, 31],
+    [30, 1, 1, 14, 1, 1, 30],
+    [2, 6, 10, 18, 31, 2, 2],
+    [31, 16, 16, 30, 1, 1, 30],
+    [14, 16, 16, 30, 17, 17, 14],
+    [31, 1, 2, 4, 8, 8, 8],
+    [14, 17, 17, 14, 17, 17, 14],
+    [14, 17, 17, 15, 1, 1, 14],
+    [0, 0, 0, 31, 0, 0, 0],
+];
+const DIGIT_PITCH: i32 = 22;
 
-
-/// Draw the six main frequency digits and the two smaller precision digits.
-fn seg_freq<D>(
-    lcd: &mut D,
-    t: &Theme,
-    hz: u32,
-    y: i32,
-    _big: bool,
-    color: Rgb565,
-    typed: Option<&app::App>,
-) where
+/// `MMM.kkk` in the large digits with `kk` small after it, right-aligned to
+/// `right`. With `typed`, shows the frequency being keyed in (dashes after).
+fn big_freq<D>(lcd: &mut D, t: &Theme, hz: u32, right: i32, y: i32, color: Rgb565, typed: Option<&app::App>)
+where
     D: DrawTarget<Color = Rgb565>,
 {
     let mhz = hz / 1_000_000;
     let khz = hz / 1000 % 1000;
     let digits = [mhz / 100, mhz / 10 % 10, mhz % 10, khz / 100, khz / 10 % 10, khz % 10];
-    let mut shown = [b' '; 7];
-    shown[3] = b'.';
-    for (pos, &digit) in digits.iter().enumerate() {
-        let at = pos + usize::from(pos >= 3);
-        shown[at] = match typed {
-            Some(app) if pos < app.freq_input_len() => b'0' + app.freq_input_digit(pos),
-            Some(_) => b'-',
-            None if pos == 0 && digit == 0 => b' ',
-            None => b'0' + digit as u8,
+    let color = if typed.is_some() { t.warn } else { color };
+    // Six digits, the point and the small tail fill 151 pixels.
+    let mut x = right - 151;
+    for (pos, &d) in digits.iter().enumerate() {
+        let glyph = match typed {
+            Some(app) if pos < app.freq_input_len() => app.freq_input_digit(pos) as usize,
+            Some(_) => 10,
+            None if pos == 0 && d == 0 => 11,
+            None => d as usize,
         };
+        if let Some(rows) = DIGITS.get(glyph) {
+            for (r, &bits) in rows.iter().enumerate() {
+                for col in 0..5 {
+                    if bits & (16 >> col) != 0 {
+                        fill(lcd, x + col * 4, y + 1 + r as i32 * 4, 4, 4, color);
+                    }
+                }
+            }
+        }
+        x += DIGIT_PITCH;
+        if pos == 2 {
+            fill(lcd, x + 1, y + 25, 4, 4, color);
+            x += 8;
+        }
     }
-    let text = core::str::from_utf8(&shown).unwrap_or("");
-    let x = CARD_X + CARD_W - 3 - 7 * 18 - 2 * SMALL_W;
-    draw_scaled_text(lcd, text, x, y, if typed.is_some() { t.warn } else { color });
     if typed.is_none() {
         let mut tail: TextBuf<4> = TextBuf::new();
         num(&mut tail, hz / 10 % 100, 2);
-        bold(lcd, tail.as_str(), &FONT_6X10, x + 7 * 18, y + 17, t.text);
+        text(lcd, tail.as_str(), &FONT_6X10, x, y + 21, t.dim);
     }
 }
 
 // ---- layout ----
 
-/// Top and height of side `i`'s card.
-fn card_area(snap: &Snapshot, i: usize) -> (i32, i32) {
+/// Top of side `i`'s large readout.
+fn box_top(snap: &Snapshot, i: usize) -> i32 {
     if snap.dual_standby {
-        (if i == 0 { MAIN_TOP } else { DUAL_TOP1 }, DUAL_H - 2)
+        header_y(snap, i) + 13
     } else {
-        (MAIN_TOP, MAIN_H)
+        READ_Y
     }
 }
 
-/// Whether side `i` gets a card (always with dual watch; else only the master).
-fn has_card(snap: &Snapshot, i: usize) -> bool {
+/// Whether side `i` gets a large readout: both with dual watch, else only the master.
+fn has_box(snap: &Snapshot, i: usize) -> bool {
     snap.dual_standby || i == snap.master_index
+}
+
+fn header_y(snap: &Snapshot, i: usize) -> i32 {
+    if snap.dual_standby {
+        STATUS_H + 5 + i as i32 * BLOCK_H
+    } else {
+        HEAD_Y
+    }
 }
 
 fn full_redraw<D>(lcd: &mut D, app: &mut app::App, snap: &Snapshot)
@@ -349,29 +340,27 @@ where
     unsafe {
         BG_PRESENT = backdrop::background_present(&mut |a, b| app.storage_mut().read_raw(a, b));
     }
-    paint(lcd, app, 0, 0, SCREEN_W, SCREEN_H, false);
-    paint(lcd, app, 0, 0, SCREEN_W, STATUS_H, true);
+    let t = theme::t();
+    clear(lcd, app, 0, 0, SCREEN_W, SCREEN_H);
     draw_flags(lcd, app);
 
     for i in 0..2 {
-        if has_card(snap, i) {
-            let (top, h) = card_area(snap, i);
-            paint(lcd, app, CARD_X, top, CARD_W, h, true);
-            draw_edge(lcd, app, snap, i);
-            draw_row1(lcd, app, snap, i);
-            draw_row2(lcd, app, snap, i);
-            if !snap.dual_standby {
-                draw_row3(lcd, app, i);
-            }
+        if has_box(snap, i) {
+            draw_header(lcd, app, snap, i);
+            draw_box(lcd, app, snap, i);
         } else {
-            draw_other(lcd, app, i);
+            draw_standby_line(lcd, app, i);
         }
+    }
+    if !snap.dual_standby {
+        draw_details(lcd, app, snap.master_index);
+        fill(lcd, 0, RULE_Y, SCREEN_W, 1, t.card_hi);
     }
 
     if app.tx_prohibited() {
-        draw_overlay(lcd, "TX PROHIBITED", theme::t().alert);
+        draw_overlay(lcd, "TX PROHIBITED", t.alert);
     } else if app.no_channels_notice() {
-        draw_overlay(lcd, "NO CHANNELS", theme::t().warn);
+        draw_overlay(lcd, "NO CHANNELS", t.warn);
     }
 }
 
@@ -391,6 +380,7 @@ where
                         != (snap.tx_prohibited, snap.no_channels_notice))
                 || p.dual_standby != snap.dual_standby
                 || p.master_index != snap.master_index
+                || p.is_transmitting != snap.is_transmitting
         }
     };
 
@@ -399,7 +389,6 @@ where
         cache.tx_elapsed = None;
     } else if !overlay_active {
         let prev = cache.structural.unwrap();
-        let tx_changed = prev.is_transmitting != snap.is_transmitting;
 
         if prev.flags() != snap.flags() {
             draw_flags(lcd, app);
@@ -410,8 +399,6 @@ where
                 cache.tx_elapsed = Some(secs);
                 draw_flags(lcd, app);
             }
-        } else {
-            cache.tx_elapsed = None;
         }
 
         for i in 0..2usize {
@@ -422,14 +409,11 @@ where
             let dtmf_changed = prev.dtmf_dial_active != snap.dtmf_dial_active
                 || (snap.dtmf_dial_active && prev.dtmf_dial_len != snap.dtmf_dial_len);
 
-            if !has_card(&snap, i) {
+            if !has_box(&snap, i) {
                 if channel_changed || p.freq_hz != s.freq_hz || dtmf_changed {
-                    draw_other(lcd, app, i);
+                    draw_standby_line(lcd, app, i);
                 }
                 continue;
-            }
-            if is_master && tx_changed {
-                draw_edge(lcd, app, &snap, i);
             }
             let input_changed = if is_master {
                 (prev.channel_input_len, prev.freq_input_len) != (snap.channel_input_len, snap.freq_input_len)
@@ -437,14 +421,15 @@ where
                 dtmf_changed
             };
             if input_changed || channel_changed || p.freq_hz != s.freq_hz {
-                draw_row1(lcd, app, &snap, i);
-                draw_row2(lcd, app, &snap, i);
+                draw_header(lcd, app, &snap, i);
+                draw_box(lcd, app, &snap, i);
             }
             if !snap.dual_standby
+                && is_master
                 && (p.modulation, p.power, p.subaudio_tx, p.subaudio_rx, p.offset_hz, p.freq_dir, p.wide_band, p.reversed)
                     != (s.modulation, s.power, s.subaudio_tx, s.subaudio_rx, s.offset_hz, s.freq_dir, s.wide_band, s.reversed)
             {
-                draw_row3(lcd, app, i);
+                draw_details(lcd, app, i);
             }
         }
     }
@@ -454,7 +439,7 @@ where
 
     draw_battery(lcd, app, &mut cache.battery, full);
     for i in 0..2usize {
-        if has_card(&snap, i) {
+        if has_box(&snap, i) {
             draw_rx_status(lcd, app, &snap, i, &mut cache.rx_status[i], full);
         }
     }
@@ -470,9 +455,9 @@ where
     let w = label.len() as i32 * SMALL_W + 16;
     let x = (SCREEN_W - w) / 2;
     let y = SCREEN_H / 2 - 12;
-    fill(lcd, x, y, w, 24, theme::t().card);
+    fill(lcd, x, y, w, 24, theme::t().bg);
     icons::draw_outline(lcd, Point::new(x, y), Size::new(w as u32, 24), color);
-    bold(lcd, label, &FONT_6X10, x + 8, y + 7, color);
+    text(lcd, label, &FONT_6X10, x + 8, y + 7, color);
 }
 
 // ---- status bar ----
@@ -482,25 +467,31 @@ where
     D: DrawTarget<Color = Rgb565>,
 {
     let t = theme::t();
-    paint(lcd, app, 0, 0, FLAGS_W, STATUS_H, true);
-    let mut x = pill(lcd, app.chan_mode_short(), &FONT_6X10, 2, 1, 12, t.accent, t.on_accent);
+    clear(lcd, app, 0, 0, 100, STATUS_H);
+    let y = 2;
+    let side = match (app.dual_standby_enabled(), app.master_index()) {
+        (true, 0) => "WATCH A",
+        (true, _) => "WATCH B",
+        (false, 0) => "VFO A",
+        (false, _) => "VFO B",
+    };
+    let mut x = text(lcd, side, &FONT_6X10, 3, y, t.accent) + 6;
 
     if app.is_transmitting() {
         let secs = app.tx_elapsed_seconds();
         let mut buf: TextBuf<8> = TextBuf::new();
+        buf.write_str("TX ").ok();
         num(&mut buf, secs / 60, 1);
         buf.write_str(":").ok();
         num(&mut buf, secs % 60, 2);
-        x = bold(lcd, buf.as_str(), &FONT_6X10, x, 2, t.alert) + 4;
-    } else {
-        for (on, label, color) in [(app.power_save_active(), "PS", t.dim), (app.dual_standby_enabled(), "DW", t.accent)] {
-            if on {
-                x = pill(lcd, label, &FONT_5X8, x, 2, 10, color, t.card);
-            }
-        }
+        text(lcd, buf.as_str(), &FONT_6X10, x, y, t.alert);
+        return;
     }
-    if app.vox_enabled() {
-        x = pill(lcd, "VOX", &FONT_5X8, x, 2, 10, t.ok, t.card);
+    x = text(lcd, app.chan_mode_short(), &FONT_6X10, x, y, t.dim) + 6;
+    for (on, label, color) in [(app.power_save_active(), "PS", t.dim), (app.vox_enabled(), "VOX", t.ok)] {
+        if on {
+            x = text(lcd, label, &FONT_6X10, x, y, color) + 6;
+        }
     }
     if app.is_key_locked() {
         icons::draw_padlock(lcd, x, 2, t.warn);
@@ -518,59 +509,44 @@ where
     *last = Some(state);
     let (bars, cv) = state;
     let t = theme::t();
-    paint(lcd, app, FLAGS_W, 0, SCREEN_W - FLAGS_W, STATUS_H, true);
-    let icon_x = SCREEN_W - 3 - icons::BATTERY_W;
+    clear(lcd, app, 100, 0, SCREEN_W - 100, STATUS_H);
+    let icon_x = SCREEN_W - 2 - icons::BATTERY_W;
     let mut volts: TextBuf<8> = TextBuf::new();
     num(&mut volts, cv as u32 / 100, 1);
     volts.write_str(".").ok();
     num(&mut volts, cv as u32 / 10 % 10, 1);
     volts.write_str("V").ok();
-    bold_right(lcd, volts.as_str(), &FONT_6X10, icon_x - 3, 2, t.text);
     let charge = match bars {
         0 | 1 => t.alert,
         2 => t.warn,
         _ => t.ok,
     };
-    icons::draw_battery(lcd, icon_x, 2, bars, t.dim, charge);
+    text_right(lcd, volts.as_str(), &FONT_6X10, icon_x - 3, 2, charge);
+    icons::draw_battery(lcd, icon_x, 1, bars, t.dim, charge);
 }
 
-// ---- cards ----
+// ---- the active side ----
 
-fn draw_edge<D>(lcd: &mut D, app: &mut app::App, snap: &Snapshot, i: usize)
-where
-    D: DrawTarget<Color = Rgb565>,
-{
-    let (top, h) = card_area(snap, i);
-    let t = theme::t();
-    if i != snap.master_index {
-        paint(lcd, app, CARD_X, top, EDGE_W, h, true);
-    } else {
-        fill(lcd, CARD_X, top, EDGE_W, h, if snap.is_transmitting { t.alert } else { t.accent });
-    }
-}
-
-/// Channel box, then the name (or the frequency in Name display mode).
-fn draw_row1<D>(lcd: &mut D, app: &mut app::App, snap: &Snapshot, i: usize)
+/// Channel number and name (or the frequency, in Name display mode).
+fn draw_header<D>(lcd: &mut D, app: &mut app::App, snap: &Snapshot, i: usize)
 where
     D: DrawTarget<Color = Rgb565>,
 {
     let t = theme::t();
-    let (top, _) = card_area(snap, i);
-    let big = !snap.dual_standby;
+    let dual = snap.dual_standby;
+    let y = header_y(snap, i);
     let is_master = i == snap.master_index;
-    let (y, h, font) = if big { (top + 3, 20, &FONT_9X18) } else { (top + 2, 13, &FONT_6X10) };
-    let mut x = CARD_X + EDGE_W + 3;
-    paint(lcd, app, x, y, BADGE_X - x, h, true);
+    clear(lcd, app, 0, y, RIGHT - 22, 10);
 
-    if !big {
-        x = bold(lcd, if i == 0 { "A" } else { "B" }, &FONT_6X10, x, y + 2, if is_master { t.accent } else { t.dim }) + 2;
+    let mut x = 4;
+    if dual {
+        x = text(lcd, if i == 0 { "A" } else { "B" }, &FONT_6X10, x, y, if is_master { t.accent } else { t.dim }) + 6;
     }
-
-    // The channel box: memory number, input in progress, or VFO.
-    let mut label: TextBuf<4> = TextBuf::new();
-    let mut label_color = if is_master { t.accent } else { t.dim };
+    let mut label: TextBuf<8> = TextBuf::new();
+    let mut label_color = t.accent;
     if is_master && app.channel_input_len() > 0 {
         let len = app.channel_input_len();
+        label.write_str("CH ").ok();
         for pos in 0..3usize {
             if pos + len < 3 {
                 label.write_str("-").ok();
@@ -580,71 +556,64 @@ where
         }
         label_color = t.warn;
     } else if app.side_is_channel_mode(i) {
+        label.write_str("CH ").ok();
         num(&mut label, app.side_channel_num(i) as u32 + 1, 3);
     } else {
         label.write_str("VFO").ok();
     }
-    x = bold(lcd, label.as_str(), &FONT_6X10, x, y + if big { 5 } else { 2 }, label_color) + 8;
+    x = text(lcd, label.as_str(), &FONT_6X10, x, y, label_color) + 7;
 
     if !is_master && app.dtmf_dial_active() {
         return;
     }
     let name = app.side_name_str(i);
-    if app.channel_display_mode() == ChannelDisplayMode::Name && app.side_is_channel_mode(i) && !name.is_empty() {
+    let named = app.side_is_channel_mode(i) && !name.is_empty();
+    if name_big(app, i) {
         let mut freq: TextBuf<12> = TextBuf::new();
         freq_text(&mut freq, shown_freq(app, i), 5);
-        bold(lcd, freq.as_str(), &FONT_6X10, x, y + if big { 5 } else { 2 }, t.text);
-    } else if app.channel_display_mode() != ChannelDisplayMode::Name && app.side_is_channel_mode(i) && !name.is_empty() {
-        let room = ((BADGE_X - x - 2) / font.character_size.width as i32).max(0) as usize;
-        let shown = &name[..name.len().min(room)];
-        bold(lcd, shown, font, x, y + if big { 1 } else { 2 }, t.text);
+        text(lcd, freq.as_str(), &FONT_6X10, x, y, t.text);
+    } else if named {
+        let room = ((RIGHT - 24 - x) / SMALL_W).max(0) as usize;
+        text(lcd, &name[..name.len().min(room)], &FONT_6X10, x, y, t.text);
     }
 }
 
-/// The frequency in segments, DTMF dialling, or a channel name in Name mode.
-fn draw_row2<D>(lcd: &mut D, app: &mut app::App, snap: &Snapshot, i: usize)
+/// The large readout: digits, the name in channel mode, typing, or DTMF.
+fn draw_box<D>(lcd: &mut D, app: &mut app::App, snap: &Snapshot, i: usize)
 where
     D: DrawTarget<Color = Rgb565>,
 {
     let t = theme::t();
-    let (top, _) = card_area(snap, i);
-    let big = !snap.dual_standby;
-    let (y, h) = if big { (top + 26, 32) } else { (top + 18, 28) };
-    paint(lcd, app, CARD_X + EDGE_W, y, CARD_W - EDGE_W, h, true);
+    let y = box_top(snap, i);
     let is_master = i == snap.master_index;
-    let color = if is_master || snap.dual_standby { t.text } else { t.dim };
+    clear(lcd, app, 0, y, SCREEN_W, READ_H);
+    let color = if is_master { t.value } else { t.dim };
 
     if is_master && app.freq_input_len() > 0 {
-        seg_freq(lcd, t, 0, y + 1, big, color, Some(app));
+        big_freq(lcd, t, 0, RIGHT - 2, y, color, Some(app));
         return;
     }
     if !is_master && app.dtmf_dial_active() {
-        draw_dtmf(lcd, app, CARD_X + EDGE_W + 4, y + 8);
+        draw_dtmf(lcd, app, 8, y + 9);
         return;
     }
-    let name = app.side_name_str(i);
-    if app.channel_display_mode() == ChannelDisplayMode::Name && app.side_is_channel_mode(i) && !name.is_empty() {
-        if name.len() <= 8 {
-            draw_scaled_text(lcd, name, CARD_X + EDGE_W + 4, y + 1, color);
-        } else {
-            let shown = &name[..name.len().min(16)];
-            bold(lcd, shown, &FONT_9X18, CARD_X + EDGE_W + 4, y + 6, color);
-        }
+    if name_big(app, i) {
+        let name = app.side_name_str(i);
+        let name = &name[..name.len().min(12)];
+        let mut big = Scaled { lcd, x: (SCREEN_W - name.len() as i32 * 12) / 2, y: y + 5, k: 2 };
+        text(&mut big, name, &FONT_6X10, 0, 0, color);
         return;
     }
-    seg_freq(lcd, t, shown_freq(app, i), y + 1, big, color, None);
+    big_freq(lcd, t, shown_freq(app, i), RIGHT - 2, y, color, None);
 }
 
-/// Tags: mode, power, tone, shift, bandwidth, reverse.
-fn draw_row3<D>(lcd: &mut D, app: &mut app::App, i: usize)
+/// Mode, power, tone, shift, bandwidth and reverse, as one line.
+fn draw_details<D>(lcd: &mut D, app: &mut app::App, i: usize)
 where
     D: DrawTarget<Color = Rgb565>,
 {
     let t = theme::t();
-    let y = MAIN_TOP + 62;
-    let mut x = CARD_X + EDGE_W + 4;
-    paint(lcd, app, x, y, CARD_W - EDGE_W - 4, 14, true);
-
+    clear(lcd, app, 0, DETAIL_Y, SCREEN_W, 10);
     let modulation = match app.side_modulation(i) {
         Modulation::Fm => "FM",
         Modulation::Am => "AM",
@@ -671,51 +640,47 @@ where
             shift.write_str("K").ok();
         }
     }
-    let tags = [
-        (modulation, t.text),
-        (power, t.text),
+    let fields = [
+        (modulation, t.ok),
+        (power, t.ok),
         (tone_mode_label(app.side_subaudio_tx(i), app.side_subaudio_rx(i)), t.accent),
         (shift.as_str(), t.accent),
-        (if app.side_wide_band(i) { "" } else { "NAR" }, t.text),
-        (if app.side_reversed(i) { "R" } else { "" }, t.alert),
+        (if app.side_wide_band(i) { "" } else { "NAR" }, t.ok),
+        (if app.side_reversed(i) { "REV" } else { "" }, t.alert),
     ];
-    for (label, color) in tags {
-        if label.is_empty() || x + label.len() as i32 * SMALL_W + 7 > CARD_X + CARD_W {
-            continue;
+    let mut x = 4;
+    for (label, color) in fields {
+        if !label.is_empty() && x + label.len() as i32 * SMALL_W <= RIGHT {
+            x = text(lcd, label, &FONT_6X10, x, DETAIL_Y, color) + 9;
         }
-        x = bold(lcd, label, &FONT_6X10, x, y + 2, color) + 6;
     }
 }
 
-/// Single layout: the side you're not on, as one line under the meter.
-fn draw_other<D>(lcd: &mut D, app: &mut app::App, i: usize)
+/// Single layout: the other side, under the rule at the bottom.
+fn draw_standby_line<D>(lcd: &mut D, app: &mut app::App, i: usize)
 where
     D: DrawTarget<Color = Rgb565>,
 {
     let t = theme::t();
-    paint(lcd, app, CARD_X, OTHER_Y, CARD_W, OTHER_H, true);
-    let y = OTHER_Y + 2;
-    let mut x = bold(lcd, if i == 0 { "A" } else { "B" }, &FONT_6X10, CARD_X + 4, y, t.dim) + 5;
+    clear(lcd, app, 0, STBY_Y, SCREEN_W, SCREEN_H - STBY_Y);
+    let y = STBY_Y + 1;
+    let mut x = text(lcd, "STBY", &FONT_6X10, 4, y, t.accent) + 6;
+    x = text(lcd, if i == 0 { "A" } else { "B" }, &FONT_6X10, x, y, t.accent) + 6;
     if app.dtmf_dial_active() {
         draw_dtmf(lcd, app, x, y);
         return;
     }
-    let mut label: TextBuf<6> = TextBuf::new();
-    if app.side_is_channel_mode(i) {
-        label.write_str("M").ok();
-        num(&mut label, app.side_channel_num(i) as u32 + 1, 3);
-    } else {
-        label.write_str("VFO").ok();
-    }
-    x = bold(lcd, label.as_str(), &FONT_6X10, x, y, t.dim) + 5;
-    let name = app.side_name_str(i);
-    if app.side_is_channel_mode(i) && !name.is_empty() {
-        bold(lcd, &name[..name.len().min(7)], &FONT_6X10, x, y, t.dim);
-    }
     let hz = app.side_freq_hz(i);
     let mut f: TextBuf<12> = TextBuf::new();
     freq_text(&mut f, hz, 5);
-    bold_right(lcd, f.as_str(), &FONT_6X10, CARD_X + CARD_W - 3, y, t.dim);
+    text_right(lcd, f.as_str(), &FONT_6X10, RIGHT, y, t.text);
+    let name = app.side_name_str(i);
+    let room = ((RIGHT - 9 * SMALL_W - 6 - x) / SMALL_W).max(0) as usize;
+    if app.side_is_channel_mode(i) && !name.is_empty() {
+        text(lcd, &name[..name.len().min(room)], &FONT_6X10, x, y, t.dim);
+    } else {
+        text(lcd, "VFO", &FONT_6X10, x, y, t.dim);
+    }
 }
 
 fn draw_dtmf<D>(lcd: &mut D, app: &app::App, x: i32, y: i32)
@@ -731,9 +696,10 @@ where
             buf.write_str("-").ok();
         }
     }
-    bold(lcd, buf.as_str(), &FONT_6X10, x, y, theme::t().warn);
+    text(lcd, buf.as_str(), &FONT_6X10, x, y, theme::t().warn);
 }
 
+/// RX / TX / last-signal marker at the right end of a side's header.
 fn draw_rx_status<D>(
     lcd: &mut D,
     app: &mut app::App,
@@ -764,16 +730,15 @@ fn draw_rx_status<D>(
     *last = Some(kind);
 
     let t = theme::t();
-    let (top, _) = card_area(snap, i);
-    let (y, h) = if snap.dual_standby { (top + 2, 13) } else { (top + 6, 14) };
-    paint(lcd, app, BADGE_X, y, BADGE_W, h, true);
-    let (label, bg, fg) = match kind {
-        RxStatusText::Tx => ("TX", t.alert, t.text),
-        RxStatusText::Rx => ("RX", t.ok, t.card),
-        RxStatusText::LastSignal => (">>", t.card_hi, t.warn),
+    let y = header_y(snap, i);
+    clear(lcd, app, RIGHT - 20, y, 20, 10);
+    let (label, color) = match kind {
+        RxStatusText::Tx => ("TX", t.alert),
+        RxStatusText::Rx => ("RX", t.ok),
+        RxStatusText::LastSignal => (">>", t.warn),
         RxStatusText::None => return,
     };
-    pill(lcd, label, &FONT_6X10, BADGE_X + 2, y, h, bg, fg);
+    text_right(lcd, label, &FONT_6X10, RIGHT, y, color);
 }
 
 fn tone_mode_label(tx: SubAudio, rx: SubAudio) -> &'static str {
@@ -802,13 +767,13 @@ fn dtmf_char(v: u8) -> char {
     }
 }
 
-/// The frequency in big segments across the screen, for the scan screen.
+/// The frequency in the large digits across the screen, for the scan screen.
 pub(super) fn draw_big_freq<D>(lcd: &mut D, hz: u32, y: i32)
 where
     D: DrawTarget<Color = Rgb565>,
 {
     let t = theme::t();
-    seg_freq(lcd, t, hz, y, true, t.text, None);
+    big_freq(lcd, t, hz, RIGHT - 2, y, t.value, None);
 }
 
 // ---- meter ----
@@ -871,39 +836,30 @@ where
     }
     *last = Some(state);
     let t = theme::t();
-    let seg_color = |i: u8| {
-        if state.tx || i >= 11 {
-            t.alert
-        } else if i >= 8 {
-            t.warn
-        } else {
-            t.ok
-        }
+    let color = if !state.live {
+        t.dim
+    } else if state.tx || state.level >= 11 {
+        t.alert
+    } else if state.level >= 8 {
+        t.warn
+    } else {
+        t.ok
     };
 
     if snap.dual_standby {
-        // A thin bar along the bottom of each card, lit on the active side.
         for side in 0..2usize {
-            let (top, h) = card_area(snap, side);
-            let lit = if side == state.side as usize && (state.live || state.tx) { state.level } else { 0 };
-            for i in 0..S_SEGS {
-                fill(lcd, CARD_X + 6 + i as i32 * 10, top + h - 5, 8, 3, if i < lit { seg_color(i) } else { t.card_hi });
-            }
+            let level = if side == state.side as usize { state.level } else { 0 };
+            bar(lcd, 4, box_top(snap, side) + READ_H + 4, SCREEN_W - 8, level, color, t.card_hi);
         }
         return;
     }
 
-    paint(lcd, app, CARD_X, METER_Y, CARD_W, METER_H, true);
-    let mut x = CARD_X + 4;
+    clear(lcd, app, 0, METER_Y, SCREEN_W, 10);
+    let mut x = 4;
     if state.tx {
-        x = bold(lcd, "MIC", &FONT_6X10, x, METER_Y + 2, t.alert) + 4;
+        x = text(lcd, "MIC", &FONT_6X10, x, METER_Y, t.alert) + 4;
     }
-    let lit = if state.live { state.level } else { 0 };
-    for i in 0..S_SEGS {
-        let h = 4 + i as i32 * 6 / 13;
-        let color = if i < lit || (!state.live && i + 1 == state.level) { seg_color(i) } else { t.card_hi };
-        fill(lcd, x + i as i32 * 7, METER_Y + 12 - h, 5, h, color);
-    }
+    bar(lcd, x, METER_Y + 4, 110 - x, state.level, color, t.card_hi);
     let mut line: TextBuf<12> = TextBuf::new();
     match state.dbm {
         Some(_) if state.live && state.over_s9 > 0 => {
@@ -921,5 +877,15 @@ where
         }
         None => {}
     }
-    bold_right(lcd, line.as_str(), &FONT_6X10, CARD_X + CARD_W - 3, METER_Y + 2, if state.live { t.text } else { t.dim });
+    text_right(lcd, line.as_str(), &FONT_6X10, RIGHT, METER_Y, if state.live { t.text } else { t.dim });
+}
+
+/// A thin bar `w` wide, lit in proportion to `level`.
+fn bar<D>(lcd: &mut D, x: i32, y: i32, w: i32, level: u8, on: Rgb565, off: Rgb565)
+where
+    D: DrawTarget<Color = Rgb565>,
+{
+    let lit = w * level as i32 / S_SEGS as i32;
+    fill(lcd, x, y, lit, 2, on);
+    fill(lcd, x + lit, y, w - lit, 2, off);
 }

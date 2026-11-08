@@ -1715,10 +1715,10 @@ fn value_text_for(
         Theme => write_str(
             out,
             match current_value(api, st, item) {
-                1 => "BLUE",
-                2 => "PURPLE",
-                3 => "SUN",
-                _ => "CLASSIC",
+                1 => "NVG",
+                2 => "WHITE",
+                3 => "DAY",
+                _ => "NIGHT",
             },
         ),
         #[cfg(feature = "g_disp")]

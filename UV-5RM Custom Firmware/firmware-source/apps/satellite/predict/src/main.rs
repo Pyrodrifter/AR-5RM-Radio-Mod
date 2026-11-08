@@ -80,6 +80,7 @@ impl Ctx<'_> {
 
 #[no_mangle]
 pub extern "C" fn app_entry(api: &Api, ev: AppEvent) -> AppResult {
+    app_theme::load(api);
     unsafe {
         API_PTR = api as *const Api;
     }

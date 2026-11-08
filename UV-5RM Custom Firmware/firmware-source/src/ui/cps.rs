@@ -1,4 +1,4 @@
-use crate::ui::rounded_font::FONT_9X18;
+use crate::ui::fonts::FONT_9X18;
 use embedded_graphics::mono_font::MonoTextStyle;
 use embedded_graphics::pixelcolor::Rgb565;
 use embedded_graphics::prelude::*;

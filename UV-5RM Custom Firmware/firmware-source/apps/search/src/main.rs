@@ -2,6 +2,7 @@
 #![no_main]
 
 use bf5rh_abi::{Api, AppEvent, AppResult};
+use app_theme::pal;
 
 const KIND_SINGLE: u8 = 2;
 const KIND_LONG: u8 = 3;
@@ -10,11 +11,6 @@ const KEY_EXIT: u8 = 13;
 const KEY_UP: u8 = 14;
 const KEY_DOWN: u8 = 15;
 const KEY_AB: u8 = 17;
-
-const BLACK: u16 = 0x0000;
-const WHITE: u16 = 0xFFFF;
-const GRAY: u16 = 0x8410;
-const GREEN: u16 = 0x07E0;
 
 const F6: u8 = 1; // 6x10
 const F9: u8 = 2; // 9x18
@@ -134,6 +130,7 @@ static mut LAST_SNAP: Option<Snap> = None;
 
 #[no_mangle]
 pub extern "C" fn app_entry(api: &Api, ev: AppEvent) -> AppResult {
+    app_theme::load(api);
     unsafe {
         API_PTR = api as *const Api;
     }
@@ -365,7 +362,7 @@ fn text(api: &Api, x: i16, y: i16, s: &[u8], fg: u16, bg: u16, font: u8) {
 }
 
 fn clear_strip(api: &Api, y: i16, h: i16) {
-    (api.fill_rect)(0, y, SCREEN_W as u16, h as u16, BLACK);
+    (api.fill_rect)(0, y, SCREEN_W as u16, h as u16, pal().bg);
 }
 
 fn draw(api: &Api) -> AppResult {
@@ -397,10 +394,10 @@ fn draw(api: &Api) -> AppResult {
 }
 
 fn full_redraw(api: &Api, snap: &Snap) {
-    (api.fill_rect)(0, 0, SCREEN_W as u16, 128, BLACK);
+    (api.fill_rect)(0, 0, SCREEN_W as u16, 128, pal().bg);
     draw_header(api, snap);
     draw_content(api, snap);
-    text(api, 4, HINT_Y, b"AB BAND  MENU SAVE", GRAY, BLACK, F6);
+    text(api, 4, HINT_Y, b"AB BAND  MENU SAVE", pal().dim, pal().bg, F6);
 }
 
 fn draw_header(api: &Api, snap: &Snap) {
@@ -411,7 +408,7 @@ fn draw_header(api: &Api, snap: &Snap) {
     let label = snap.band.label().as_bytes();
     buf[prefix.len()..prefix.len() + label.len()].copy_from_slice(label);
     let n = prefix.len() + label.len();
-    text(api, 4, TITLE_Y, &buf[..n], WHITE, BLACK, F6);
+    text(api, 4, TITLE_Y, &buf[..n], pal().text, pal().bg, F6);
 }
 
 fn draw_content(api: &Api, snap: &Snap) {
@@ -420,19 +417,19 @@ fn draw_content(api: &Api, snap: &Snap) {
 
     match snap.phase.status() {
         Status::Hunting => {
-            text(api, 4, STATUS_Y, b"HUNTING...", WHITE, BLACK, F6);
+            text(api, 4, STATUS_Y, b"HUNTING...", pal().text, pal().bg, F6);
         }
         Status::Listening => {
             draw_freq(api, snap.found_freq_word);
-            text(api, 4, STATUS_Y, b"LISTEN", WHITE, BLACK, F6);
+            text(api, 4, STATUS_Y, b"LISTEN", pal().text, pal().bg, F6);
         }
         Status::Found => {
             draw_freq(api, snap.found_freq_word);
-            text(api, 4, STATUS_Y, b"FOUND", WHITE, BLACK, F6);
+            text(api, 4, STATUS_Y, b"FOUND", pal().text, pal().bg, F6);
             let mut buf = [0u8; 16];
             let n = (api.subaudio_format)(snap.tone_index, buf.as_mut_ptr(), 16)
                 as usize;
-            text(api, TONE_X, STATUS_Y, &buf[..n], GREEN, BLACK, F6);
+            text(api, TONE_X, STATUS_Y, &buf[..n], pal().ok, pal().bg, F6);
         }
     }
 }
@@ -440,7 +437,7 @@ fn draw_content(api: &Api, snap: &Snap) {
 fn draw_freq(api: &Api, found_freq_word: u32) {
     let mut buf = [0u8; 12];
     let n = (api.fmt_freq)(found_freq_word * 10, buf.as_mut_ptr()) as usize;
-    text(api, 4, FREQ_Y, &buf[..n], WHITE, BLACK, F9);
+    text(api, 4, FREQ_Y, &buf[..n], pal().text, pal().bg, F9);
 }
 
 #[panic_handler]

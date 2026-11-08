@@ -47,18 +47,6 @@ fn paint_image<D>(
     }
 }
 
-/// Repaint part of a menu with the dimmed boot logo.
-pub(crate) fn draw_backdrop<D>(
-    lcd: &mut D,
-    read: &mut dyn FnMut(u32, &mut [u8]),
-    y: i32,
-    h: i32,
-) where
-    D: DrawTarget<Color = Rgb565>,
-{
-    paint_image(lcd, read, BOOT_LOGO_ADDR, 0, y, SCREEN_W, h, 1);
-}
-
 pub(super) fn draw_image<D>(
     lcd: &mut D,
     read: &mut dyn FnMut(u32, &mut [u8]),

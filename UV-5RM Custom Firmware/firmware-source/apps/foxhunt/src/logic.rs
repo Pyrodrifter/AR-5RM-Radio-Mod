@@ -5,21 +5,11 @@
 //! keys the transmitter, so it can't be used for a local signal-strength tone.
 
 use bf5rh_abi::{Api, AppEvent, AppResult};
+use app_theme::pal;
 
 const KIND_SINGLE: u8 = 2;
 const KEY_MENU: u8 = 12;
 const KEY_EXIT: u8 = 13;
-
-const BLACK: u16 = 0x0000;
-const WHITE: u16 = 0xFFFF;
-const GRAY: u16 = 0x8410;
-const GRID: u16 = 0x2124;
-const TITLE_BG: u16 = 0x5800;
-const BAR: u16 = 0xD000;
-const PEAK: u16 = 0xFFFF;
-const YELLOW: u16 = 0xFFE0;
-const GREEN: u16 = 0x07E0;
-const RED: u16 = 0xF800;
 
 const F5: u8 = 0;
 const F6: u8 = 1;
@@ -508,9 +498,9 @@ fn text(api: &Api, x: i16, y: i16, s: &[u8], fg: u16, bg: u16, font: u8) {
 }
 
 fn line(api: &Api, y: i16, h: u16, s: &[u8], fg: u16, font: u8) {
-    (api.fill_rect)(0, y, 4, h, BLACK);
-    let end = (api.draw_text)(4, y, s.as_ptr(), s.len() as u16, fg, BLACK, font);
-    (api.fill_rect)(end as i16, y, SCREEN_W - end, h, BLACK);
+    (api.fill_rect)(0, y, 4, h, pal().bg);
+    let end = (api.draw_text)(4, y, s.as_ptr(), s.len() as u16, fg, pal().bg, font);
+    (api.fill_rect)(end as i16, y, SCREEN_W - end, h, pal().bg);
 }
 
 fn raw_to_x(raw: u16) -> u16 {
@@ -520,18 +510,18 @@ fn raw_to_x(raw: u16) -> u16 {
 
 fn draw_bar(api: &Api, st: &State) {
     let (y, h) = (38i16, 12u16);
-    (api.fill_rect)(0, y, SCREEN_W, 1, GRID);
-    (api.fill_rect)(0, y + h as i16 - 1, SCREEN_W, 1, GRID);
-    (api.fill_rect)(0, y, 1, h, GRID);
-    (api.fill_rect)(SCREEN_W as i16 - 1, y, 1, h, GRID);
+    (api.fill_rect)(0, y, SCREEN_W, 1, pal().card_hi);
+    (api.fill_rect)(0, y + h as i16 - 1, SCREEN_W, 1, pal().card_hi);
+    (api.fill_rect)(0, y, 1, h, pal().card_hi);
+    (api.fill_rect)(SCREEN_W as i16 - 1, y, 1, h, pal().card_hi);
     let inner = SCREEN_W - 2;
     let w = if st.has_reading { raw_to_x(st.level).min(inner) } else { 0 };
-    let color = if st.present { BAR } else { GRAY };
+    let color = if st.present { pal().accent } else { pal().dim };
     (api.fill_rect)(1, y + 1, w, h - 2, color);
-    (api.fill_rect)(1 + w as i16, y + 1, inner - w, h - 2, BLACK);
+    (api.fill_rect)(1 + w as i16, y + 1, inner - w, h - 2, pal().bg);
     if st.has_reading {
         let p = raw_to_x(st.peak).min(inner - 1);
-        (api.fill_rect)(1 + p as i16, y + 1, 1, h - 2, PEAK);
+        (api.fill_rect)(1 + p as i16, y + 1, 1, h - 2, pal().text);
     }
 }
 
@@ -540,28 +530,28 @@ fn draw_level(api: &Api, st: &State) {
     if st.present {
         b.i(api, st.level as i32 - RSSI_DBM_BASE);
         b.s(b" DBM");
-        line(api, 16, 20, b.as_slice(), WHITE, F9);
+        line(api, 16, 20, b.as_slice(), pal().text, F9);
     } else {
-        line(api, 16, 20, b"NO SIGNAL", GRAY, F9);
+        line(api, 16, 20, b"NO SIGNAL", pal().dim, F9);
     }
 }
 
 fn draw_trend(api: &Api, st: &State) {
     let mut b = Buf::new();
-    let mut color = WHITE;
+    let mut color = pal().text;
     if st.level >= STRONG_RAW && st.present {
         b.s(b"TOO STRONG");
-        color = YELLOW;
+        color = pal().warn;
     } else if st.present && st.has_reference {
         let diff = current_level(st) as i32 - st.reference as i32;
         if diff >= TREND_DB {
             b.s(b"CLOSER +");
             b.u(api, diff as u32);
-            color = GREEN;
+            color = pal().ok;
         } else if diff <= -TREND_DB {
             b.s(b"FARTHER -");
             b.u(api, (-diff) as u32);
-            color = RED;
+            color = pal().alert;
         } else {
             b.s(b"SAME");
         }
@@ -571,7 +561,7 @@ fn draw_trend(api: &Api, st: &State) {
         b.s(b"LAST ");
         b.i(api, st.level as i32 - RSSI_DBM_BASE);
         b.s(b" DBM");
-        color = GRAY;
+        color = pal().dim;
     }
     line(api, 52, 20, b.as_slice(), color, F9);
 }
@@ -589,16 +579,16 @@ fn draw_distance(api: &Api, st: &State) {
             b.tenths(api, high);
             b.s(b" MI");
         }
-        line(api, 74, 12, b.as_slice(), YELLOW, F6);
+        line(api, 74, 12, b.as_slice(), pal().warn, F6);
     } else if st.has_reading {
-        line(api, 74, 12, b"MENU: SET DISTANCE", GRAY, F6);
+        line(api, 74, 12, b"MENU: SET DISTANCE", pal().dim, F6);
     } else {
-        line(api, 74, 12, b"WAITING FOR SIGNAL", GRAY, F6);
+        line(api, 74, 12, b"WAITING FOR SIGNAL", pal().dim, F6);
     }
 
     let mut p = Buf::new();
     if st.has_reading {
-        p.s(b"PEAK ");
+        p.s(b"pal().text ");
         p.i(api, st.peak as i32 - RSSI_DBM_BASE);
     }
     if !st.audio {
@@ -607,7 +597,7 @@ fn draw_distance(api: &Api, st: &State) {
         }
         p.s(b"MUTED");
     }
-    line(api, 87, 12, p.as_slice(), GRAY, F6);
+    line(api, 87, 12, p.as_slice(), pal().dim, F6);
 }
 
 fn draw_input(api: &Api, st: &State) {
@@ -623,8 +613,8 @@ fn draw_input(api: &Api, st: &State) {
                 b'_'
             });
         }
-        line(api, 52, 20, b.as_slice(), YELLOW, F9);
-        line(api, 74, 12, b"TYPE FREQUENCY, MHZ", GRAY, F6);
+        line(api, 52, 20, b.as_slice(), pal().warn, F9);
+        line(api, 74, 12, b"TYPE FREQUENCY, MHZ", pal().dim, F6);
     } else {
         // Typed digits fill from the right, with one decimal: 1 0 reads 1.0.
         let mut t: u32 = 0;
@@ -633,11 +623,11 @@ fn draw_input(api: &Api, st: &State) {
         }
         b.tenths(api, t as u64);
         b.s(b" MI");
-        line(api, 52, 20, b.as_slice(), YELLOW, F9);
-        line(api, 74, 12, b"TYPE 1 0 FOR 1.0 MILE", GRAY, F6);
+        line(api, 52, 20, b.as_slice(), pal().warn, F9);
+        line(api, 74, 12, b"TYPE 1 0 FOR 1.0 MILE", pal().dim, F6);
     }
-    (api.fill_rect)(0, 87, SCREEN_W, 12, BLACK);
-    line(api, 118, 9, b"MENU OK  EXIT BACK", GRAY, F5);
+    (api.fill_rect)(0, 87, SCREEN_W, 12, pal().bg);
+    line(api, 118, 9, b"MENU OK  EXIT BACK", pal().dim, F5);
 }
 
 fn draw(api: &Api) -> AppResult {
@@ -646,13 +636,13 @@ fn draw(api: &Api) -> AppResult {
         return AppResult::Continue;
     }
     if st.full {
-        (api.fill_rect)(0, 0, SCREEN_W, SCREEN_H, BLACK);
-        (api.fill_rect)(0, 0, SCREEN_W, 14, TITLE_BG);
-        text(api, 4, 2, b"FOX HUNT", WHITE, TITLE_BG, F6);
+        (api.fill_rect)(0, 0, SCREEN_W, SCREEN_H, pal().bg);
+        (api.fill_rect)(0, 0, SCREEN_W, 14, pal().card);
+        text(api, 4, 2, b"FOX HUNT", pal().text, pal().card, F6);
         let mut f = Buf::new();
         f.freq(api, st.hz);
         let x = SCREEN_W as i16 - f.as_slice().len() as i16 * 6 - 2;
-        text(api, x, 2, f.as_slice(), WHITE, TITLE_BG, F6);
+        text(api, x, 2, f.as_slice(), pal().text, pal().card, F6);
         st.full = false;
     }
 
@@ -664,11 +654,11 @@ fn draw(api: &Api) -> AppResult {
         draw_trend(api, st);
         draw_distance(api, st);
         match st.notice {
-            1 => line(api, 102, 9, b"NEEDS A SIGNAL FIRST", YELLOW, F5),
-            2 => line(api, 102, 9, b"NOT A VALID VALUE", YELLOW, F5),
-            _ => (api.fill_rect)(0, 102, SCREEN_W, 9, BLACK),
+            1 => line(api, 102, 9, b"NEEDS A SIGNAL FIRST", pal().warn, F5),
+            2 => line(api, 102, 9, b"NOT A VALID VALUE", pal().warn, F5),
+            _ => (api.fill_rect)(0, 102, SCREEN_W, 9, pal().bg),
         }
-        line(api, 118, 9, b"1 AUDIO 5 FREQ 0 RESET MENU CAL", GRAY, F5);
+        line(api, 118, 9, b"1 AUDIO 5 FREQ 0 RESET MENU CAL", pal().dim, F5);
     }
     st.dirty = false;
     AppResult::Continue

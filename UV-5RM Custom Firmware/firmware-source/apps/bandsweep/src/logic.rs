@@ -3,6 +3,7 @@
 //! list of exact frequencies, so a 9600-step pass fits the 8 KB app arena.
 
 use bf5rh_abi::{Api, AppEvent, AppResult};
+use app_theme::pal;
 
 const KIND_SINGLE: u8 = 2;
 const KIND_LONG: u8 = 3;
@@ -17,15 +18,6 @@ const KEY_AB: u8 = 17;
 const KEY_SIDE1: u8 = 19;
 
 const F5: u8 = 0;
-
-const BLACK: u16 = 0x0000;
-const WHITE: u16 = 0xFFFF;
-const GRAY: u16 = 0x8410;
-const GRID: u16 = 0x2124;
-const TRACE: u16 = 0xD000;
-const HOLD: u16 = 0x6000;
-const SELECT_BG: u16 = 0x8000;
-const YELLOW: u16 = 0xFFE0;
 
 const COLS: usize = 160;
 const SCREEN_H: u16 = 128;
@@ -739,25 +731,25 @@ fn draw_column(api: &Api, st: &State, x: usize) {
     let peak = raw_to_y(st.hold[x], st.graph_base);
     let xi = x as i16;
     let height = (GRAPH_BOTTOM - GRAPH_TOP + 1) as u16;
-    (api.fill_rect)(xi, GRAPH_TOP, 1, height, BLACK);
+    (api.fill_rect)(xi, GRAPH_TOP, 1, height, pal().bg);
     if peak < top {
-        (api.fill_rect)(xi, peak, 1, (top - peak) as u16, HOLD);
+        (api.fill_rect)(xi, peak, 1, (top - peak) as u16, pal().dim);
     }
     if st.cur[x] > 0 {
-        (api.fill_rect)(xi, top, 1, (GRAPH_BOTTOM - top + 1) as u16, TRACE);
+        (api.fill_rect)(xi, top, 1, (GRAPH_BOTTOM - top + 1) as u16, pal().accent);
     }
 }
 
 fn draw_header(api: &Api, st: &State) {
     let (lo, hi) = st.band_range();
-    (api.fill_rect)(0, HEADER_Y, COLS as u16, 8, BLACK);
+    (api.fill_rect)(0, HEADER_Y, COLS as u16, 8, pal().bg);
     let mut left = Buf::new();
     left.freq(api, lo);
-    text(api, 0, HEADER_Y, left.as_slice(), WHITE, BLACK, F5);
+    text(api, 0, HEADER_Y, left.as_slice(), pal().text, pal().bg, F5);
     let mut right = Buf::new();
     right.freq(api, hi);
     let w = right.as_slice().len() as i16 * 5;
-    text(api, COLS as i16 - w, HEADER_Y, right.as_slice(), WHITE, BLACK, F5);
+    text(api, COLS as i16 - w, HEADER_Y, right.as_slice(), pal().text, pal().bg, F5);
 }
 
 fn draw_list(api: &Api, st: &mut State) {
@@ -770,14 +762,14 @@ fn draw_list(api: &Api, st: &mut State) {
         let y = LIST_Y + slot as i16 * ROW_H;
         let i = st.scroll + slot;
         if i >= st.n_hits {
-            (api.fill_rect)(0, y, COLS as u16, ROW_H as u16, BLACK);
+            (api.fill_rect)(0, y, COLS as u16, ROW_H as u16, pal().bg);
             if slot == 0 {
-                text(api, 1, y, b"NO SIGNALS YET", GRAY, BLACK, F5);
+                text(api, 1, y, b"NO SIGNALS YET", pal().dim, pal().bg, F5);
             }
             continue;
         }
         let h = st.hits[i];
-        let bg = if i == st.selected { SELECT_BG } else { BLACK };
+        let bg = if i == st.selected { pal().card_hi } else { pal().bg };
         let mut b = Buf::new();
         b.freq(api, h.hz);
         b.s(b"  ");
@@ -785,7 +777,7 @@ fn draw_list(api: &Api, st: &mut State) {
         b.s(b"DBM X");
         b.u(api, h.count as u32);
         (api.fill_rect)(0, y, COLS as u16, ROW_H as u16, bg);
-        text(api, 1, y, b.as_slice(), WHITE, bg, F5);
+        text(api, 1, y, b.as_slice(), pal().text, bg, F5);
     }
 }
 
@@ -805,8 +797,8 @@ fn draw_status(api: &Api, st: &State) {
                 });
             }
             a.s(b" MHZ");
-            line(api, STATUS_Y, a.as_slice(), YELLOW, BLACK);
-            line(api, HINT_Y, b"MENU NEXT  EXIT BACK", GRAY, BLACK);
+            line(api, STATUS_Y, a.as_slice(), pal().warn, pal().bg);
+            line(api, HINT_Y, b"MENU NEXT  EXIT BACK", pal().dim, pal().bg);
             return;
         }
         View::Listen => {
@@ -815,8 +807,8 @@ fn draw_status(api: &Api, st: &State) {
             a.ch(b' ');
             a.i(api, (api.read_rssi)() as i32 - RSSI_DBM_BASE);
             a.s(b"DBM");
-            line(api, STATUS_Y, a.as_slice(), YELLOW, BLACK);
-            line(api, HINT_Y, b"MENU BACK TO SWEEP", GRAY, BLACK);
+            line(api, STATUS_Y, a.as_slice(), pal().warn, pal().bg);
+            line(api, HINT_Y, b"MENU BACK TO SWEEP", pal().dim, pal().bg);
             return;
         }
         View::Sweep => {}
@@ -840,14 +832,14 @@ fn draw_status(api: &Api, st: &State) {
         a.u(api, st.pass_tenths % 10);
         a.ch(b'S');
     }
-    line(api, STATUS_Y, a.as_slice(), GRAY, BLACK);
-    line(api, HINT_Y, b"AB BAND 1 STEP 5 RANGE MENU RX", GRAY, BLACK);
+    line(api, STATUS_Y, a.as_slice(), pal().dim, pal().bg);
+    line(api, HINT_Y, b"AB BAND 1 STEP 5 RANGE MENU RX", pal().dim, pal().bg);
 }
 
 fn draw(api: &Api) -> AppResult {
     let st = state();
     if st.full {
-        (api.fill_rect)(0, 0, COLS as u16, SCREEN_H, BLACK);
+        (api.fill_rect)(0, 0, COLS as u16, SCREEN_H, pal().bg);
         draw_header(api, st);
         st.dirty_lo = 0;
         st.dirty_hi = COLS - 1;
@@ -861,8 +853,8 @@ fn draw(api: &Api) -> AppResult {
         }
         st.dirty_lo = COLS;
         st.dirty_hi = 0;
-        (api.fill_rect)(0, CURSOR_Y, COLS as u16, 1, GRID);
-        (api.fill_rect)(st.cursor_col.min(COLS - 2) as i16, CURSOR_Y, 2, 1, WHITE);
+        (api.fill_rect)(0, CURSOR_Y, COLS as u16, 1, pal().card_hi);
+        (api.fill_rect)(st.cursor_col.min(COLS - 2) as i16, CURSOR_Y, 2, 1, pal().text);
     }
     if st.list_dirty {
         draw_list(api, st);

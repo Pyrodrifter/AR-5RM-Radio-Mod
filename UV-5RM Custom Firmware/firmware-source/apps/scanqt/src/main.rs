@@ -2,17 +2,13 @@
 #![no_main]
 
 use bf5rh_abi::{Api, AppEvent, AppResult};
+use app_theme::pal;
 
 const KIND_SINGLE: u8 = 2;
 const KEY_MENU: u8 = 12;
 const KEY_EXIT: u8 = 13;
 const KEY_UP: u8 = 14;
 const KEY_DOWN: u8 = 15;
-
-const BLACK: u16 = 0x0000;
-const WHITE: u16 = 0xFFFF;
-const GRAY: u16 = 0x8410;
-const GREEN: u16 = 0x07E0;
 
 const F6: u8 = 1; // 6x10
 const F9: u8 = 2; // 9x18
@@ -79,6 +75,7 @@ static mut LAST_SNAP: Option<Snap> = None;
 
 #[no_mangle]
 pub extern "C" fn app_entry(api: &Api, ev: AppEvent) -> AppResult {
+    app_theme::load(api);
     unsafe {
         API_PTR = api as *const Api;
     }
@@ -219,7 +216,7 @@ fn text(api: &Api, x: i16, y: i16, s: &[u8], fg: u16, bg: u16, font: u8) {
 }
 
 fn clear_strip(api: &Api, y: i16, h: i16) {
-    (api.fill_rect)(0, y, SCREEN_W as u16, h as u16, BLACK);
+    (api.fill_rect)(0, y, SCREEN_W as u16, h as u16, pal().bg);
 }
 
 fn draw(api: &Api) -> AppResult {
@@ -242,13 +239,13 @@ fn draw(api: &Api) -> AppResult {
 }
 
 fn full_redraw(api: &Api) {
-    (api.fill_rect)(0, 0, SCREEN_W as u16, SCREEN_H as u16, BLACK);
-    text(api, 4, TITLE_Y, b"QT SCAN", WHITE, BLACK, F6);
+    (api.fill_rect)(0, 0, SCREEN_W as u16, SCREEN_H as u16, pal().bg);
+    text(api, 4, TITLE_Y, b"QT SCAN", pal().text, pal().bg, F6);
 
     let freq = (api.get_master_freq)();
     let mut buf = [0u8; 12];
     let n = (api.fmt_freq)(freq, buf.as_mut_ptr()) as usize;
-    text(api, 4, FREQ_Y, &buf[..n], WHITE, BLACK, F9);
+    text(api, 4, FREQ_Y, &buf[..n], pal().text, pal().bg, F9);
 
     let st = unsafe { &STATE };
     draw_status(
@@ -259,7 +256,7 @@ fn full_redraw(api: &Api) {
         },
     );
 
-    text(api, 4, HINT_Y, b"MENU SAVE  EXIT", GRAY, BLACK, F6);
+    text(api, 4, HINT_Y, b"MENU SAVE  EXIT", pal().dim, pal().bg, F6);
 }
 
 fn draw_status(api: &Api, snap: &Snap) {
@@ -268,13 +265,13 @@ fn draw_status(api: &Api, snap: &Snap) {
         Phase::Detecting => b"DETECTING...",
         Phase::Found => b"FOUND",
     };
-    text(api, 4, STATUS_Y, status, WHITE, BLACK, F6);
+    text(api, 4, STATUS_Y, status, pal().text, pal().bg, F6);
 
     if snap.phase == Phase::Found {
         let mut buf = [0u8; 16];
         let n = (api.subaudio_format)(snap.tone_index, buf.as_mut_ptr(), 16)
             as usize;
-        text(api, TONE_X, STATUS_Y, &buf[..n], GREEN, BLACK, F6);
+        text(api, TONE_X, STATUS_Y, &buf[..n], pal().ok, pal().bg, F6);
     }
 }
 

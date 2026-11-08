@@ -18,7 +18,7 @@ mod device {
 }
 
 use bf5rh_abi::{Api, AppEntryFn, AppEvent, AppResult, ListRow, HANDOFF_SIZE};
-use ui::rounded_font::FONT_9X18;
+use ui::fonts::FONT_9X18;
 use embedded_graphics::mono_font::ascii::{FONT_5X8, FONT_6X10};
 use embedded_graphics::mono_font::{MonoFont, MonoTextStyleBuilder};
 use embedded_graphics::pixelcolor::raw::RawU16;
@@ -114,8 +114,8 @@ pub mod ui {
     #[path = "../../../../firmware-source/src/ui/theme.rs"]
     #[allow(unused)]
     pub(crate) mod theme;
-    #[path = "../../../../firmware-source/src/ui/rounded_font.rs"]
-    pub(crate) mod rounded_font;
+    #[path = "../../../../firmware-source/src/ui/fonts.rs"]
+    pub(crate) mod fonts;
 
     // Same as firmware-source/src/ui/mod.rs.
     pub(crate) fn num(w: &mut dyn core::fmt::Write, mut v: u32, width: usize) {
@@ -479,6 +479,7 @@ extern "C" fn api_settings_get(id: u16) -> u32 {
         5 => s.obs_lat as u32,
         6 => s.obs_lon as u32,
         7 => emu().chip_id as u32,
+        8 => s.theme as u32,
         _ => 0,
     }
 }
@@ -1460,6 +1461,14 @@ fn selftest(host: &mut Host, dir: &Path) -> bool {
             }
             let _ = run(host, 300);
             save_bmp(&dir.join(format!("theme{theme}_settings.bmp")), &emu().fb, 4).ok();
+        }
+        host.app = None;
+        host.back_to_launcher();
+        // An app drawing its own screen, to check it follows the theme.
+        host.open(5);
+        if host.app.is_some() {
+            let _ = run(host, 300);
+            save_bmp(&dir.join(format!("theme{theme}_app.bmp")), &emu().fb, 4).ok();
         }
         host.app = None;
         host.back_to_launcher();

@@ -12,6 +12,7 @@ bench = false
 
 [dependencies]
 bf5rh-abi = { path = "../../../abi" }
+app-theme = { path = "../../../app-theme" }
 sgp4mini = { path = "../../../sgp4mini" }
 
 [profile.release]

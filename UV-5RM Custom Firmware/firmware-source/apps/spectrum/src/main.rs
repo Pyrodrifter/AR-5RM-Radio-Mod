@@ -2,6 +2,7 @@
 #![no_main]
 
 use bf5rh_abi::{Api, AppEvent, AppResult};
+use app_theme::pal;
 
 const KIND_SINGLE: u8 = 2;
 const KIND_REPEAT: u8 = 4;
@@ -15,16 +16,6 @@ const KEY_SIDE1: u8 = 19;
 const KEY_SIDE2: u8 = 20;
 
 const F5: u8 = 0; // 5x8
-
-const BLACK: u16 = 0x0000;
-const WHITE: u16 = 0xFFFF;
-const GRAY: u16 = 0x8410;
-const GRID: u16 = 0x2124;
-const TRACE: u16 = 0x07E0; // bright green
-const PEAKLINE: u16 = 0x8400; // dim yellow
-const TRIGLINE: u16 = 0xF800; // red
-const MARKER: u16 = 0xFFE0; // yellow
-const CYAN: u16 = 0x07FF;
 
 const SCREEN_W: usize = 160;
 const HEADER_Y: i16 = 1;
@@ -366,6 +357,7 @@ impl State {
 
 #[no_mangle]
 pub extern "C" fn app_entry(api: &Api, ev: AppEvent) -> AppResult {
+    app_theme::load(api);
     unsafe {
         API_PTR = api as *const Api;
     }
@@ -797,11 +789,11 @@ impl Buf {
 
 fn text(api: &Api, x: i16, y: i16, buf: &Buf, fg: u16) {
     let s = buf.as_slice();
-    (api.draw_text)(x, y, s.as_ptr(), s.len() as u16, fg, BLACK, F5);
+    (api.draw_text)(x, y, s.as_ptr(), s.len() as u16, fg, pal().bg, F5);
 }
 
 fn text_line(api: &Api, y: i16, buf: &Buf, fg: u16) {
-    (api.fill_rect)(0, y, SCREEN_W as u16, 8, BLACK);
+    (api.fill_rect)(0, y, SCREEN_W as u16, 8, pal().bg);
     text(api, 0, y, buf, fg);
 }
 
@@ -840,23 +832,23 @@ fn render_graph(api: &Api, st: &State) {
         for x in 0..SCREEN_W {
             let ty = st.trace_y[x] as i16;
             row[x] = if y == ty {
-                TRACE
+                pal().accent
             } else if y > ty {
                 fill
             } else if y == st.peak_y[x] as i16 {
-                PEAKLINE
+                pal().dim
             } else if y == trig_y {
                 if x % 4 < 2 {
-                    TRIGLINE
+                    pal().alert
                 } else {
-                    BLACK
+                    pal().bg
                 }
             } else if x as i32 == marker_x {
-                MARKER
+                pal().warn
             } else if grid_row || x % 32 == 0 {
-                GRID
+                pal().card_hi
             } else {
-                BLACK
+                pal().bg
             };
         }
         (api.blit)(0, y, SCREEN_W as u16, 1, row.as_ptr());
@@ -887,7 +879,7 @@ fn render_waterfall(api: &Api, st: &State) {
                 row[x] = WF_PALETTE[idx as usize];
             }
         } else {
-            row.fill(BLACK);
+            row.fill(pal().bg);
         }
         for _ in 0..rh {
             (api.blit)(0, y, SCREEN_W as u16, 1, row.as_ptr());
@@ -915,13 +907,13 @@ fn draw(api: &Api) -> AppResult {
     }
 
     if st.full_redraw {
-        (api.fill_rect)(0, 0, SCREEN_W as u16, 128, BLACK);
+        (api.fill_rect)(0, 0, SCREEN_W as u16, 128, pal().bg);
         st.full_redraw = false;
     }
 
     recompute_trace(st);
     render_graph(api, st);
-    (api.fill_rect)(0, GRAPH_BOTTOM + 1, SCREEN_W as u16, 1, GRID);
+    (api.fill_rect)(0, GRAPH_BOTTOM + 1, SCREEN_W as u16, 1, pal().card_hi);
     render_waterfall(api, st);
     draw_header(api, st);
     draw_status(api, st);
@@ -932,16 +924,16 @@ fn draw(api: &Api) -> AppResult {
 }
 
 fn draw_header(api: &Api, st: &State) {
-    (api.fill_rect)(0, HEADER_Y, SCREEN_W as u16, 8, BLACK);
+    (api.fill_rect)(0, HEADER_Y, SCREEN_W as u16, 8, pal().bg);
 
     let mut left = Buf::new();
     left.freq(api, st.window_start_hz);
-    text(api, 0, HEADER_Y, &left, WHITE);
+    text(api, 0, HEADER_Y, &left, pal().text);
 
     let mut right = Buf::new();
     right.freq(api, st.window_start_hz + st.span_hz());
     let w = right.as_slice().len() as i16 * 5;
-    text(api, SCREEN_W as i16 - w, HEADER_Y, &right, WHITE);
+    text(api, SCREEN_W as i16 - w, HEADER_Y, &right, pal().text);
 }
 
 fn draw_status(api: &Api, st: &State) {
@@ -959,26 +951,26 @@ fn draw_status(api: &Api, st: &State) {
             });
         }
         line1.s(b" MHz");
-        text_line(api, LINE1_Y, &line1, MARKER);
+        text_line(api, LINE1_Y, &line1, pal().warn);
     } else if st.listening {
         line1.s(b"RX ");
         line1.freq(api, st.freq_at(st.listen_bin));
         line1.ch(b' ');
         line1.i(api, rssi_to_dbm(st.listen_rssi));
         line1.s(b"dBm");
-        text_line(api, LINE1_Y, &line1, TRACE);
+        text_line(api, LINE1_Y, &line1, pal().accent);
     } else if st.peak_valid {
         line1.s(b"P ");
         line1.freq(api, st.freq_at(st.peak_bin));
         line1.ch(b' ');
         line1.i(api, rssi_to_dbm(st.peak_rssi));
         line1.s(b"dBm");
-        text_line(api, LINE1_Y, &line1, CYAN);
+        text_line(api, LINE1_Y, &line1, pal().accent);
     } else {
         line1.s(b"PAN ");
         line1.u(api, st.pan_step_hz / 1000);
         line1.ch(b'k');
-        text_line(api, LINE1_Y, &line1, GRAY);
+        text_line(api, LINE1_Y, &line1, pal().dim);
     }
 
     let mut line2 = Buf::new();
@@ -1012,7 +1004,7 @@ fn draw_status(api: &Api, st: &State) {
     if st.listen_inhibit {
         line2.ch(b'!');
     }
-    text_line(api, LINE2_Y, &line2, GRAY);
+    text_line(api, LINE2_Y, &line2, pal().dim);
 }
 
 #[panic_handler]
