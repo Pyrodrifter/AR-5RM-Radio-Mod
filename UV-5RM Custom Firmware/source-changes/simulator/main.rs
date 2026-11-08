@@ -22,8 +22,12 @@ mod foxhunt;
 mod qtscan2;
 #[path = "../apps_new/search2/src/logic.rs"]
 mod search2;
-#[path = "../apps_new/textapp/src/logic.rs"]
+#[path = "../../firmware-source/apps/textapp/src/logic.rs"]
 mod textapp;
+#[path = "../../firmware-source/apps/radiowatch/src/logic.rs"]
+mod radiowatch;
+#[path = "../../firmware-source/apps/satrx/src/logic.rs"]
+mod satrx;
 
 mod flash_map {
     pub mod addr {
@@ -103,6 +107,7 @@ struct Signal {
 
 struct Sim {
     now: u32,
+    utc_origin: Option<(u32, u32)>,
     fb: Vec<u16>,
     tuned: u32,
     wide: bool,
@@ -142,6 +147,7 @@ fn reset(master: u32) {
     unsafe {
         SIM = Some(Sim {
             now: 1000,
+            utc_origin: None,
             fb: vec![0; W * H],
             tuned: master,
             wide: true,
@@ -468,9 +474,13 @@ extern "C" fn set_tx_enabled(on: bool) {
     sim().tx_enabled = on;
 }
 extern "C" fn utc_get() -> u32 {
-    0
+    let s = sim();
+    s.utc_origin.map_or(0, |(secs, tick)| secs + s.now.wrapping_sub(tick) / 10_000)
 }
-extern "C" fn utc_set(_: u32) {}
+extern "C" fn utc_set(secs: u32) {
+    let s = sim();
+    s.utc_origin = Some((secs, s.now));
+}
 extern "C" fn get_master_wide() -> bool {
     sim().master_wide
 }
@@ -2236,6 +2246,144 @@ fn test_text() {
     check(chip().regs[0x58] == 0 && !sim().transmitting, "with the modem off");
     app(&API, AppEvent::Leave);
     check(chip().regs[0x58] == 0, "a second clean-up is harmless");
+
+    println!("TEXT: CPS drafts");
+    text_open();
+    hold(app, 10);
+    check(textapp::debug_notice().contains("CPS"), "empty flash tells the user where to add drafts");
+    let slot = 0x14_C000 + 7 * 0x8000;
+    nor()[slot..slot + 4].copy_from_slice(b"OVL1");
+    nor()[slot + 12..slot + 17].copy_from_slice(b"TEXT\0");
+    let drafts = slot + 0x7E00;
+    nor()[drafts..drafts + 5].copy_from_slice(b"TXT1\x02");
+    let first = drafts + 8;
+    nor()[first..first + 3].copy_from_slice(b"\x02OK");
+    let second = first + 51;
+    nor()[second..second + 10].copy_from_slice(b"\x09ON MY WAY");
+    press(app, 2);
+    hold(app, 10);
+    press(app, 15);
+    app(&API, AppEvent::Draw);
+    press(app, 13);
+    check(textapp::debug_comp() == "A" && chip().aired.is_empty(), "preview and cancel preserve typed text without transmitting");
+    hold(app, 10);
+    press(app, 15);
+    press(app, 12);
+    check(textapp::debug_comp() == "ON MY WAY" && chip().aired.is_empty(), "choosing a draft only loads it into the composer");
+    press(app, 12);
+    check(chip().aired.len() == 1 && textapp::debug_pending().0, "sending a draft uses the existing acknowledgement flow");
+}
+
+fn test_radio_watch() {
+    println!("Radio Watch: named lists and activity recall");
+    let app: Entry = radiowatch::entry;
+    reset(OUT);
+    nor_clear();
+    let slot = 0x14_C000 + 4 * 0x8000;
+    nor()[slot..slot + 4].copy_from_slice(b"OVL1");
+    nor()[slot + 12..slot + 24].copy_from_slice(b"RADIO WATCH\0");
+    let mut cfg = [0xffu8; 512];
+    cfg[..5].copy_from_slice(b"RW01\x02");
+    cfg[8..13].copy_from_slice(b"Local");
+    cfg[20] = 3;
+    cfg[22..28].copy_from_slice(&[1, 0, 232, 3, 2, 0]);
+    cfg[86..93].copy_from_slice(b"Airband");
+    cfg[98] = 1;
+    cfg[100..102].copy_from_slice(&[3, 0]);
+    let mut crc = 0u16;
+    for &b in &cfg[..510] {
+        crc ^= u16::from(b) << 8;
+        for _ in 0..8 {
+            crc = (crc << 1) ^ if crc & 0x8000 != 0 { 0x1021 } else { 0 };
+        }
+    }
+    cfg[510..].copy_from_slice(&crc.to_be_bytes());
+    nor()[slot + 0x7E00..slot + 0x8000].copy_from_slice(&cfg);
+    let channel = |bcd: [u8; 4], name: &[u8]| {
+        let mut row = [0u8; 32];
+        row[..4].copy_from_slice(&bcd);
+        row[20..20 + name.len()].copy_from_slice(name);
+        row
+    };
+    sim().chans.insert(999, channel([0x00, 0x20, 0x65, 0x14], b"LOCAL"));
+    sim().chans.insert(1, channel([0x00, 0x00, 0x60, 0x14], b"QUIET"));
+    sim().chans.insert(2, channel([0x00, 0x00, 0x23, 0x13], b"ATIS"));
+    add(146_520_000, 120, -1, |_| true);
+    app(&API, AppEvent::Enter);
+    app(&API, AppEvent::Draw);
+    shot("watch_1_lists");
+    press(app, 12);
+    check(sim().tuned == 146_520_000, "scan skips an empty channel and reaches channel 1000");
+    run(app, 2);
+    check(sim().tuned == 146_520_000, "stays on an active channel");
+    shot("watch_2_scan");
+    sim().signals.clear();
+    run(app, 1);
+    press(app, 11);
+    shot("watch_3_activity");
+    press(app, 12);
+    check(sim().tuned == 146_520_000 && sim().holds_rx, "recalls a completed hit for listening");
+    press(app, 13);
+    press(app, 13);
+    press(app, 15);
+    press(app, 12);
+    check(sim().tuned == 132_300_000 && sim().modulation == 1, "switches lists and applies airband AM");
+    check(sim().ptt_calls == 0 && sim().tx_enable_calls == 0, "scanner and recall never enable TX");
+}
+
+fn test_satellite_rx() {
+    println!("Satellite RX: UTC clock, scheduled receive and Doppler");
+    let app: Entry = satrx::entry;
+    reset(OUT);
+    nor_clear();
+    let slot = 0x14_C000 + 5 * 0x8000;
+    nor()[slot..slot + 4].copy_from_slice(b"OVL1");
+    nor()[slot + 12..slot + 25].copy_from_slice(b"SATELLITE RX\0");
+    let now = sgp4mini::days_from_civil(2026, 11, 8) as u32 * 86_400 + 4 * 3600;
+    let mut plan = [0xffu8; 4096];
+    plan[..6].copy_from_slice(b"SRX1\x01\x01");
+    plan[8..20].fill(0);
+    plan[8..11].copy_from_slice(b"ISS");
+    plan[20..24].copy_from_slice(&437_800_000u32.to_le_bytes());
+    plan[32..36].copy_from_slice(&(now + 5).to_le_bytes());
+    plan[36..40].copy_from_slice(&(now + 30).to_le_bytes());
+    plan[40..42].copy_from_slice(&45u16.to_le_bytes());
+    for i in 0..41 {
+        let at = 44 + i * 6;
+        let az = (3590 + 2 * i as u16) % 3600;
+        let shift = 3000 - 150 * i as i16;
+        plan[at..at + 2].copy_from_slice(&az.to_le_bytes());
+        plan[at + 2..at + 4].copy_from_slice(&300i16.to_le_bytes());
+        plan[at + 4..at + 6].copy_from_slice(&shift.to_le_bytes());
+    }
+    let mut crc = 0u16;
+    for &b in &plan[..4094] {
+        crc ^= u16::from(b) << 8;
+        for _ in 0..8 {
+            crc = (crc << 1) ^ if crc & 0x8000 != 0 { 0x1021 } else { 0 };
+        }
+    }
+    plan[4094..].copy_from_slice(&crc.to_be_bytes());
+    nor()[slot + 0x7000..slot + 0x8000].copy_from_slice(&plan);
+    app(&API, AppEvent::Enter);
+    press(app, 10);
+    for digit in b"261108040000" {
+        press(app, digit - b'0');
+    }
+    press(app, 12);
+    check(utc_get() == now, "accepts the UTC date and time");
+    shot("sat_1_passes");
+    press(app, 12);
+    run(app, 4);
+    check(!sim().holds_rx, "waits for the pass before opening receive");
+    run(app, 3);
+    check(sim().holds_rx && sim().tuned > 437_800_000, "starts receive above the nominal downlink on approach");
+    shot("sat_2_tracking");
+    run(app, 15);
+    check(sim().tuned < 437_800_000 && sim().retunes > 0, "retunes below the nominal downlink as the satellite recedes");
+    run(app, 10);
+    check(!sim().holds_rx, "mutes after the pass ends");
+    check(sim().ptt_calls == 0 && sim().tx_enable_calls == 0, "Satellite RX never enables TX");
 }
 
 fn main() {
@@ -2244,6 +2392,8 @@ fn main() {
     test_fox();
     test_search_qt();
     test_text();
+    test_radio_watch();
+    test_satellite_rx();
     test_menus();
     check(unsafe { TONE_ON_CALLS } == 0, "no app called the transmitting tone function");
     unsafe {

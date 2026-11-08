@@ -196,6 +196,15 @@ const CHECK_AT: usize = 4 + CHARS;
 const MAGIC: u8 = 0xB5;
 const MAX_LEN: usize = 2 * CHARS; // two packets on the air, two lines on screen
 
+// CPS keeps drafts in the last 512 bytes of the TEXT slot, outside its code.
+const SLOT_BASE: u32 = 0x14_C000;
+const SLOT_SIZE: u32 = 0x8000;
+const SLOT_COUNT: u32 = 9;
+const DRAFT_OFFSET: u32 = SLOT_SIZE - 512;
+const DRAFT_HEADER: u32 = 8;
+const DRAFT_RECORD: usize = 1 + MAX_LEN;
+const DRAFT_MAX: u8 = 8;
+
 const TAP_100US: u32 = 10_000;
 const NOTICE_100US: u32 = 25_000;
 /// How long to stay with a packet once its sync arrives, in 2 ms steps.
@@ -283,6 +292,9 @@ struct State {
     saved: [u16; SAVED_REGS.len()],
     comp: [u8; MAX_LEN],
     comp_len: u8,
+    drafts_addr: u32,
+    drafts_count: u8,
+    draft_index: u8,
     tap_key: u8,
     tap_index: u8,
     tap_left: u32,
@@ -356,6 +368,9 @@ const ZEROED: State = State {
     saved: [0; SAVED_REGS.len()],
     comp: [0; MAX_LEN],
     comp_len: 0,
+    drafts_addr: 0,
+    drafts_count: 0,
+    draft_index: 0,
     tap_key: 0,
     tap_index: 0,
     tap_left: 0,
@@ -1004,14 +1019,79 @@ fn type_digit(s: &mut State, digit: u8) {
     s.redraw_comp = true;
 }
 
+fn open_drafts(api: &Api, s: &mut State) {
+    for slot in 0..SLOT_COUNT {
+        let base = SLOT_BASE + slot * SLOT_SIZE;
+        let mut header = [0; 17];
+        if !(api.nor_read)(base, header.as_mut_ptr(), header.len() as u32)
+            || &header[..4] != b"OVL1"
+            || &header[12..] != b"TEXT\0"
+        {
+            continue;
+        }
+        if (api.nor_read)(base + DRAFT_OFFSET, header.as_mut_ptr(), DRAFT_HEADER)
+            && &header[..4] == b"TXT1"
+            && (1..=DRAFT_MAX).contains(&header[4])
+        {
+            s.drafts_addr = base + DRAFT_OFFSET + DRAFT_HEADER;
+            s.drafts_count = header[4];
+            s.draft_index = 0;
+            s.redraw_comp = true;
+            s.redraw_hint = true;
+            return;
+        }
+        break;
+    }
+    set_notice(s, b"UPLOAD DRAFTS FROM CPS");
+}
+
+fn read_draft(api: &Api, s: &State, record: &mut [u8; DRAFT_RECORD]) -> usize {
+    let addr = s.drafts_addr + u32::from(s.draft_index) * DRAFT_RECORD as u32;
+    if !(api.nor_read)(addr, record.as_mut_ptr(), DRAFT_RECORD as u32) {
+        return 0;
+    }
+    let len = usize::from(record[0]);
+    if len > MAX_LEN || !record[1..1 + len].iter().all(|b| (b' '..=b'~').contains(b)) {
+        return 0;
+    }
+    len
+}
+
 fn key(api: &Api, id: u8, kind: u8) -> AppResult {
     let s = st();
+    if s.drafts_count != 0 {
+        if kind == KIND_SINGLE {
+            match id {
+                KEY_UP => s.draft_index = s.draft_index.saturating_sub(1),
+                KEY_DOWN => s.draft_index = (s.draft_index + 1).min(s.drafts_count - 1),
+                KEY_MENU => {
+                    let mut draft = [0; DRAFT_RECORD];
+                    let len = read_draft(api, s, &mut draft);
+                    if len != 0 {
+                        s.comp[..len].copy_from_slice(&draft[1..1 + len]);
+                        s.comp_len = len as u8;
+                        s.tap_key = NO_KEY;
+                        s.tap_left = 0;
+                    }
+                    s.drafts_count = 0;
+                }
+                KEY_EXIT => s.drafts_count = 0,
+                _ => return AppResult::Continue,
+            }
+            s.redraw_comp = true;
+            s.redraw_hint = true;
+        }
+        return AppResult::Continue;
+    }
     if kind == KIND_LONG {
         if id == KEY_EXIT {
             modem_off(s);
             return AppResult::Exit;
         }
-        if id == KEY_POUND {
+        if id == KEY_STAR {
+            s.erase_armed = false;
+            open_drafts(api, s);
+        } else if id == KEY_POUND {
             if s.erase_armed {
                 log_erase(api, s);
                 set_notice(s, b"MESSAGES ERASED");
@@ -1045,7 +1125,7 @@ fn key(api: &Api, id: u8, kind: u8) -> AppResult {
         KEY_STAR => {
             let mut b = Line::new();
             b.push(b"PING ");
-            b.num(s.pings as u32 + 1);
+            b.num(api, s.pings as u32 + 1);
             if start_send(api, s, b.as_slice()) {
                 s.pings = s.pings.wrapping_add(1);
             }
@@ -1104,21 +1184,10 @@ impl Line {
             }
         }
     }
-    fn num(&mut self, mut v: u32) {
+    fn num(&mut self, api: &Api, v: u32) {
         let mut d = [0u8; 10];
-        let mut n = 0;
-        loop {
-            d[n] = b'0' + (v % 10) as u8;
-            n += 1;
-            v /= 10;
-            if v == 0 {
-                break;
-            }
-        }
-        while n > 0 {
-            n -= 1;
-            self.push(&d[n..n + 1]);
-        }
+        let n = (api.fmt_u32)(v, d.as_mut_ptr()) as usize;
+        self.push(&d[..n]);
     }
     fn as_slice(&self) -> &[u8] {
         &self.buf[..self.len]
@@ -1179,31 +1248,35 @@ fn draw_msgs(api: &Api, s: &State) {
             STATUS_DELIVERED => (b'+', WHITE),
             _ => (b'!', AMBER),
         };
-        let mut row = [0u8; COLS];
-        row[0] = mark;
-        let mut col = 1;
+        // The last header byte is no longer needed in this local copy. Use it
+        // to put the status marker immediately before the message bytes.
+        rec[REC_HEAD - 1] = mark;
         let len = (rec[3] as usize).min(MAX_LEN);
-        for &c in &rec[REC_HEAD..REC_HEAD + len] {
-            if col == COLS {
-                text(api, 2, y, &row, color, BLACK, F6);
-                y += 10;
-                col = 0;
-            }
-            row[col] = c;
-            col += 1;
+        for row in rec[REC_HEAD - 1..REC_HEAD + len].chunks(COLS) {
+            text(api, 2, y, row, color, BLACK, F6);
+            y += 10;
         }
-        text(api, 2, y, &row[..col], color, BLACK, F6);
-        y += 10;
     }
 }
 
 fn draw_comp(api: &Api, s: &State) {
     (api.fill_rect)(0, COMP_Y, SCREEN_W, 21, BLACK);
     (api.fill_rect)(0, COMP_Y, SCREEN_W, 1, HEADER);
-    let n = s.comp_len as usize;
-    for (row, chunk) in s.comp[..n].chunks(COLS).enumerate() {
+    let mut draft = [0; DRAFT_RECORD];
+    let composing = s.drafts_count == 0;
+    let message = if composing {
+        &s.comp[..s.comp_len as usize]
+    } else {
+        let len = read_draft(api, s, &mut draft);
+        &draft[1..1 + len]
+    };
+    for (row, chunk) in message.chunks(COLS).enumerate() {
         text(api, 2, COMP_Y + 2 + row as i16 * 10, chunk, WHITE, BLACK, F6);
     }
+    if !composing {
+        return;
+    }
+    let n = message.len();
     let at = |i: usize| (2 + (i % COLS) as i16 * 6, COMP_Y + 2 + (i / COLS) as i16 * 10);
     if s.tap_key != NO_KEY && n > 0 {
         let (x, y) = at(n - 1);
@@ -1217,18 +1290,20 @@ fn draw_comp(api: &Api, s: &State) {
 
 fn draw_hint(api: &Api, s: &State) {
     (api.fill_rect)(0, HINT_Y, SCREEN_W, 9, BLACK);
-    if let Some(n) = s.notice {
+    if s.drafts_count != 0 {
+        text(api, 2, HINT_Y, b"UP/DN DRAFT  MENU LOAD  EXIT", AMBER, BLACK, F5);
+    } else if let Some(n) = s.notice {
         text(api, 2, HINT_Y, n, AMBER, BLACK, F5);
     } else if s.pending {
         let mut l = Line::new();
         l.push(b"TRY ");
-        l.num(s.tries as u32);
+        l.num(api, s.tries as u32);
         l.push(b" OF ");
-        l.num(MAX_TRIES as u32);
+        l.num(api, MAX_TRIES as u32);
         l.push(b"  EXIT STOPS");
         text(api, 2, HINT_Y, l.as_slice(), AMBER, BLACK, F5);
     } else {
-        text(api, 2, HINT_Y, b"MENU SEND  EXIT DEL  *PING", GRAY, BLACK, F5);
+        text(api, 2, HINT_Y, b"MENU SEND  *PING  HOLD * DRAFTS", GRAY, BLACK, F5);
     }
 }
 

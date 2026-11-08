@@ -76,6 +76,11 @@ dialog h2 { margin: 0 0 10px; font-size: 17px; }
 #appearanceStatus { min-height: 1.4em; }
 #appearanceStatus.err { color: var(--warn); }
 #appearanceStatus.ok { color: var(--ok); }
+#textDrafts, #watchLists { display: block; width: 100%; min-height: 12em; resize: vertical; box-sizing: border-box; }
+#satDlg { width: min(720px, 94vw); max-width: none; }
+#satTle { display: block; width: 100%; resize: vertical; box-sizing: border-box; }
+#satPreview { white-space: pre-wrap; max-height: 12em; overflow: auto; }
+#satDlg a { color: var(--ink); }
 </style>
 </head>
 <body>
@@ -87,6 +92,9 @@ dialog h2 { margin: 0 0 10px; font-size: 17px; }
   <button id="saveCsv">Save CSV</button>
   <button id="appearanceBtn">Screens &amp; themes</button>
   <button id="startupToneBtn">Startup tones</button>
+  <button id="draftsBtn">Text drafts</button>
+  <button id="watchBtn">Radio Watch</button>
+  <button id="satBtn">Satellite RX</button>
 </header>
 
 <main>
@@ -109,6 +117,60 @@ dialog h2 { margin: 0 0 10px; font-size: 17px; }
   <button id="useRadio" class="hidden">Use radio's channels</button>
   <button id="uploadBtn" class="primary">Upload to radio</button>
 </div>
+
+<dialog id="satDlg" aria-labelledby="satTitle">
+  <h2 id="satTitle">Satellite RX</h2>
+  <p>Calculate up to 12 passes over the next 48 hours with a peak elevation of at least 10°. Enter your listening location and the FM downlink you want to monitor.</p>
+  <div class="grid">
+    <label>Satellite label <input id="satName" maxlength="12" placeholder="ISS"></label>
+    <label>FM downlink MHz <input id="satFreq" type="number" step="0.00001" placeholder="Enter downlink"></label>
+    <label>Latitude <input id="satLat" type="number" step="any" min="-90" max="90"></label>
+    <label>Longitude <input id="satLon" type="number" step="any" min="-180" max="180"></label>
+    <label>Altitude in meters <input id="satAlt" type="number" value="0" step="any"></label>
+    <label><input id="satNarrow" type="checkbox"> Narrow FM</label>
+  </div>
+  <label for="satTle">Current orbital elements (TLE)</label>
+  <textarea id="satTle" rows="3" spellcheck="false" placeholder="Paste both TLE lines. An optional satellite name line is fine."></textarea>
+  <p class="muted"><a href="https://celestrak.org/NORAD/elements/gp.php?CATNR=25544&amp;FORMAT=TLE" target="_blank" rel="noopener">Get the ISS TLE from CelesTrak</a> and <a href="https://www.ariss.org/current-status-of-iss-stations.html" target="_blank" rel="noopener">check the ISS radio status</a>. A pass tells you when the satellite is in view.</p>
+  <p class="muted">The first upload backs up and replaces Band Sweep. Set the radio’s UTC clock with * before tracking.</p>
+  <pre id="satPreview"></pre>
+  <p id="satStatus" role="status"></p>
+  <div class="actions">
+    <button id="satCalculate">Calculate passes</button>
+    <button id="satWrite" class="primary">Upload and verify</button>
+    <button id="satClose">Close</button>
+  </div>
+</dialog>
+
+<dialog id="watchDlg" aria-labelledby="watchTitle">
+  <h2 id="watchTitle">Radio Watch scan lists</h2>
+  <p>Enter up to six named lists with up to 32 saved channels each. Use the channel numbers from the CPS table.</p>
+  <label for="watchLists">One list per line</label>
+  <textarea id="watchLists" rows="6" spellcheck="false" placeholder="Marine: 1, 2, 5-9&#10;Airband: 12, 17&#10;Local: 21-25"></textarea>
+  <p class="muted">The first upload backs up and replaces Spectrum. Later uploads update the Radio Watch lists.</p>
+  <p class="muted">On the radio, open RADIO WATCH, choose a list, and press MENU. Press # for Recent Activity, then MENU on a hit to listen.</p>
+  <p id="watchStatus" role="status"></p>
+  <div class="actions">
+    <button id="watchRead">Read from radio</button>
+    <button id="watchWrite" class="primary">Upload and verify</button>
+    <button id="watchClose">Close</button>
+  </div>
+</dialog>
+
+<dialog id="draftsDlg" aria-labelledby="draftsTitle">
+  <h2 id="draftsTitle">TEXT drafts</h2>
+  <p>Enter one message per line. Save up to eight drafts of 50 plain keyboard characters each.</p>
+  <label for="textDrafts">Messages</label>
+  <textarea id="textDrafts" rows="8" spellcheck="false" placeholder="OK&#10;ON MY WAY&#10;CALL ME"></textarea>
+  <p class="muted">Read from the radio to edit its current list. Upload replaces the list, updates TEXT if needed, and downloads a backup before writing.</p>
+  <p class="muted">On the radio, open TEXT and hold *. Use Up/Down to preview drafts, MENU to load one, and MENU again when ready to send.</p>
+  <p id="draftsStatus" role="status"></p>
+  <div class="actions">
+    <button id="draftsRead">Read from radio</button>
+    <button id="draftsWrite" class="primary">Upload and verify</button>
+    <button id="draftsClose">Close</button>
+  </div>
+</dialog>
 
 <dialog id="appearanceDlg" aria-labelledby="appearanceTitle">
   <h2 id="appearanceTitle">Screens, themes &amp; startup tones</h2>
@@ -147,6 +209,22 @@ dialog h2 { margin: 0 0 10px; font-size: 17px; }
         <option value="ocean">Ocean bell</option>
         <option value="racer">Racer</option>
         <option value="powerup">Power up</option>
+        <option value="mission">Mission Impossible (excerpt)</option>
+        <option value="mario">Mario (excerpt)</option>
+        <option value="starwars">Star Wars</option>
+        <option value="badapple1">Bad Apple — track 1 (excerpt)</option>
+        <option value="badapple2">Bad Apple — track 2 (excerpt)</option>
+        <option value="takeonme">Take On Me (excerpt)</option>
+        <option value="songofth">Song of Time</option>
+        <option value="axelf">Axel F (excerpt)</option>
+        <option value="pacman">Pac-Man</option>
+        <option value="barbiegirl">Barbie Girl</option>
+        <option value="mammamia">Mamma Mia</option>
+        <option value="harrypot">Harry Potter</option>
+        <option value="calltopo">Call to Post</option>
+        <option value="sonic">Sonic (excerpt)</option>
+        <option value="tetris">Tetris</option>
+        <option value="aroundworld">Around the World (excerpt)</option>
       </select></label>
       <button id="tuneLoadPreset" type="button" disabled>Load tune</button>
       <label>Import MIDI or RTTTL <input id="tuneFile" type="file" accept=".mid,.midi,.rtttl,.txt,audio/midi,text/plain" disabled></label>
@@ -211,6 +289,39 @@ dialog h2 { margin: 0 0 10px; font-size: 17px; }
 </dialog>
 
 <script>
+/*
+MIT License
+
+Copyright (C) 2013 Shashwat Kandadai, UCSC Jack Baskin School of Engineering
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+*/
+/*!
+ * satellite-js v5.0.0
+ * (c) 2013 Shashwat Kandadai and UCSC
+ * https://github.com/shashwatak/satellite-js
+ * License: MIT
+ */
+
+!function(o,t){"object"==typeof exports&&"undefined"!=typeof module?module.exports=t():"function"==typeof define&&define.amd?define(t):(o="undefined"!=typeof globalThis?globalThis:o||self).satellite=t()}(this,(function(){"use strict";var o=Math.PI,t=2*o,e=o/180,s=180/o,a=1440,n=398600.8,d=6378.135,r=60/Math.sqrt(650942.9922085947),i=d*r/60,c=1/r,h=.001082616,m=-253881e-11,l=-165597e-11,p=m/h,x=2/3;function g(o,t){for(var e=[31,o%4==0?29:28,31,30,31,30,31,31,30,31,30,31],s=Math.floor(t),a=1,n=0;s>n+e[a-1]&&a<12;)n+=e[a-1],a+=1;var d=a,r=s-n,i=24*(t-s),c=Math.floor(i);i=60*(i-c);var h=Math.floor(i);return{mon:d,day:r,hr:c,minute:h,sec:60*(i-h)}}function M(o,t,e,s,a,n){var d=arguments.length>6&&void 0!==arguments[6]?arguments[6]:0;return 367*o-Math.floor(7*(o+Math.floor((t+9)/12))*.25)+Math.floor(275*t/9)+e+1721013.5+((d/6e4+n/60+a)/60+s)/24}function f(o,t,e,s,a,n,d){if(o instanceof Date){var r=o;return M(r.getUTCFullYear(),r.getUTCMonth()+1,r.getUTCDate(),r.getUTCHours(),r.getUTCMinutes(),r.getUTCSeconds(),r.getUTCMilliseconds())}return M(o,t,e,s,a,n,d)}function u(e,s){var a,n,d,r,i,c,h,m,l,p,x,g,M,f,u,z,v,y,b=e.e3,q=e.ee2,w=e.peo,T=e.pgho,j=e.pho,E=e.pinco,F=e.plo,A=e.se2,C=e.se3,L=e.sgh2,S=e.sgh3,U=e.sgh4,D=e.sh2,I=e.sh3,R=e.si2,_=e.si3,k=e.sl2,O=e.sl3,P=e.sl4,Z=e.t,G=e.xgh2,H=e.xgh3,Y=e.xgh4,$=e.xh2,B=e.xh3,J=e.xi2,K=e.xi3,N=e.xl2,Q=e.xl3,V=e.xl4,W=e.zmol,X=e.zmos,oo=s.init,to=s.opsmode,eo=s.ep,so=s.inclp,ao=s.nodep,no=s.argpp,ro=s.mp;y=X+119459e-10*Z,"y"===oo&&(y=X),v=y+.0335*Math.sin(y);var io=A*(h=.5*(f=Math.sin(v))*f-.25)+C*(m=-.5*f*Math.cos(v)),co=R*h+_*m,ho=k*h+O*m+P*f,mo=L*h+S*m+U*f,lo=D*h+I*m;return y=W+.00015835218*Z,"y"===oo&&(y=W),v=y+.1098*Math.sin(y),l=io+(q*(h=.5*(f=Math.sin(v))*f-.25)+b*(m=-.5*f*Math.cos(v))),g=co+(J*h+K*m),M=ho+(N*h+Q*m+V*f),p=mo+(G*h+H*m+Y*f),x=lo+($*h+B*m),"n"===oo&&(M-=F,p-=T,x-=j,so+=g-=E,eo+=l-=w,r=Math.sin(so),d=Math.cos(so),so>=.2?(no+=p-=d*(x/=r),ao+=x,ro+=M):(a=r*(c=Math.sin(ao)),n=r*(i=Math.cos(ao)),a+=x*i+g*d*c,n+=-x*c+g*d*i,(ao%=t)<0&&"a"===to&&(ao+=t),u=ro+no+d*ao,u+=M+p-g*ao*r,z=ao,(ao=Math.atan2(a,n))<0&&"a"===to&&(ao+=t),Math.abs(z-ao)>o&&(ao<z?ao+=t:ao-=t),no=u-(ro+=M)-d*ao)),{ep:eo,inclp:so,nodep:ao,argpp:no,mp:ro}}function z(o){var s=(o-2451545)/36525,a=-62e-7*s*s*s+.093104*s*s+3164400184.812866*s+67310.54841;return(a=a*e/240%t)<0&&(a+=t),a}function v(){return(arguments.length<=0?void 0:arguments[0])instanceof Date||arguments.length>1?z(f.apply(void 0,arguments)):z.apply(void 0,arguments)}function y(e,s){var a,n,c,m,l,g,M,f,z,v,y,b,q,w,T,j,E,F,A,C,L,S,U,D,I,R;e.t=s,e.error=0;var _=e.mo+e.mdot*e.t,k=e.argpo+e.argpdot*e.t,O=e.nodeo+e.nodedot*e.t;f=k,C=_;var P=e.t*e.t;if(S=O+e.nodecf*P,j=1-e.cc1*e.t,E=e.bstar*e.cc4*e.t,F=e.t2cof*P,1!==e.isimp){g=e.omgcof*e.t;var Z=1+e.eta*Math.cos(_);C=_+(T=g+e.xmcof*(Z*Z*Z-e.delmo)),f=k-T,b=(y=P*e.t)*e.t,j=j-e.d2*P-e.d3*y-e.d4*b,E+=e.bstar*e.cc5*(Math.sin(C)-e.sinmao),F=F+e.t3cof*y+b*(e.t4cof+e.t*e.t5cof)}L=e.no;var G=e.ecco;if(A=e.inclo,"d"===e.method){q=e.t;var H=function(o){var e,s,a,n,d,r,i,c,h=o.irez,m=o.d2201,l=o.d2211,p=o.d3210,x=o.d3222,g=o.d4410,M=o.d4422,f=o.d5220,u=o.d5232,z=o.d5421,v=o.d5433,y=o.dedt,b=o.del1,q=o.del2,w=o.del3,T=o.didt,j=o.dmdt,E=o.dnodt,F=o.domdt,A=o.argpo,C=o.argpdot,L=o.t,S=o.tc,U=o.gsto,D=o.xfact,I=o.xlamo,R=o.no,_=o.atime,k=o.em,O=o.argpm,P=o.inclm,Z=o.xli,G=o.mm,H=o.xni,Y=o.nodem,$=o.nm,B=.13130908,J=2.8843198,K=.37448087,N=5.7686396,Q=.95240898,V=1.8014998,W=1.050833,X=4.4108898,oo=259200,to=0,eo=0,so=(U+.0043752690880113*S)%t;if(k+=y*L,P+=T*L,O+=F*L,Y+=E*L,G+=j*L,0!==h){(0===_||L*_<=0||Math.abs(L)<Math.abs(_))&&(_=0,H=R,Z=I),e=L>0?720:-720;for(var ao=381;381===ao;)2!==h?(i=b*Math.sin(Z-B)+q*Math.sin(2*(Z-J))+w*Math.sin(3*(Z-K)),d=H+D,r=b*Math.cos(Z-B)+2*q*Math.cos(2*(Z-J))+3*w*Math.cos(3*(Z-K)),r*=d):(a=(c=A+C*_)+c,s=Z+Z,i=m*Math.sin(a+Z-N)+l*Math.sin(Z-N)+p*Math.sin(c+Z-Q)+x*Math.sin(-c+Z-Q)+g*Math.sin(a+s-V)+M*Math.sin(s-V)+f*Math.sin(c+Z-W)+u*Math.sin(-c+Z-W)+z*Math.sin(c+s-X)+v*Math.sin(-c+s-X),d=H+D,r=m*Math.cos(a+Z-N)+l*Math.cos(Z-N)+p*Math.cos(c+Z-Q)+x*Math.cos(-c+Z-Q)+f*Math.cos(c+Z-W)+u*Math.cos(-c+Z-W)+2*(g*Math.cos(a+s-V)+M*Math.cos(s-V)+z*Math.cos(c+s-X)+v*Math.cos(-c+s-X)),r*=d),Math.abs(L-_)>=720?ao=381:(eo=L-_,ao=0),381===ao&&(Z+=d*e+i*oo,H+=i*e+r*oo,_+=e);$=H+i*eo+r*eo*eo*.5,n=Z+d*eo+i*eo*eo*.5,1!==h?(G=n-2*Y+2*so,to=$-R):(G=n-Y-O+so,to=$-R),$=R+to}return{atime:_,em:k,argpm:O,inclm:P,xli:Z,mm:G,xni:H,nodem:Y,dndt:to,nm:$}}({irez:e.irez,d2201:e.d2201,d2211:e.d2211,d3210:e.d3210,d3222:e.d3222,d4410:e.d4410,d4422:e.d4422,d5220:e.d5220,d5232:e.d5232,d5421:e.d5421,d5433:e.d5433,dedt:e.dedt,del1:e.del1,del2:e.del2,del3:e.del3,didt:e.didt,dmdt:e.dmdt,dnodt:e.dnodt,domdt:e.domdt,argpo:e.argpo,argpdot:e.argpdot,t:e.t,tc:q,gsto:e.gsto,xfact:e.xfact,xlamo:e.xlamo,no:e.no,atime:e.atime,em:G,argpm:f,inclm:A,xli:e.xli,mm:C,xni:e.xni,nodem:S,nm:L});G=H.em,f=H.argpm,A=H.inclm,C=H.mm,S=H.nodem,L=H.nm}if(L<=0)return e.error=2,[!1,!1];var Y=Math.pow(r/L,x)*j*j;if(L=r/Math.pow(Y,1.5),(G-=E)>=1||G<-.001)return e.error=1,[!1,!1];G<1e-6&&(G=1e-6),D=(C+=e.no*F)+f+S;var $=G;if(U=A,z=f%=t,R=S%=t,I=C=((D%=t)-f-S)%t,m=Math.sin(A),c=Math.cos(A),"d"===e.method){var B=u(e,{inclo:e.inclo,init:"n",ep:$,inclp:U,nodep:R,argpp:z,mp:I,opsmode:e.operationmode});if($=B.ep,R=B.nodep,z=B.argpp,I=B.mp,(U=B.inclp)<0&&(U=-U,R+=o,z-=o),$<0||$>1)return e.error=3,[!1,!1]}"d"===e.method&&(m=Math.sin(U),c=Math.cos(U),e.aycof=-.5*p*m,Math.abs(c+1)>15e-13?e.xlcof=-.25*p*m*(3+5*c)/(1+c):e.xlcof=-.25*p*m*(3+5*c)/15e-13);var J=$*Math.cos(z);T=1/(Y*(1-$*$));var K=$*Math.sin(z)+T*e.aycof,N=(I+z+R+T*e.xlcof*J-R)%t;M=N,w=9999.9;for(var Q=1;Math.abs(w)>=1e-12&&Q<=10;)n=Math.sin(M),w=(N-K*(a=Math.cos(M))+J*n-M)/(w=1-a*J-n*K),Math.abs(w)>=.95&&(w=w>0?.95:-.95),M+=w,Q+=1;var V=J*a+K*n,W=J*n-K*a,X=J*J+K*K,oo=Y*(1-X);if(oo<0)return e.error=4,[!1,!1];var to=Y*(1-V),eo=Math.sqrt(Y)*W/to,so=Math.sqrt(oo)/to,ao=Math.sqrt(1-X),no=Y/to*(n-K-J*(T=W/(1+ao))),ro=Y/to*(a-J+K*T);v=Math.atan2(no,ro);var io=(ro+ro)*no,co=1-2*no*no,ho=.5*h*(T=1/oo),mo=ho*T;"d"===e.method&&(l=c*c,e.con41=3*l-1,e.x1mth2=1-l,e.x7thm1=7*l-1);var lo=to*(1-1.5*mo*ao*e.con41)+.5*ho*e.x1mth2*co;if(lo<1)return e.error=6,{position:!1,velocity:!1};v-=.25*mo*e.x7thm1*io;var po=R+1.5*mo*c*io,xo=U+1.5*mo*c*m*co,go=eo-L*ho*e.x1mth2*io/r,Mo=so+L*ho*(e.x1mth2*co+1.5*e.con41)/r,fo=Math.sin(v),uo=Math.cos(v),zo=Math.sin(po),vo=Math.cos(po),yo=Math.sin(xo),bo=Math.cos(xo),qo=-zo*bo,wo=vo*bo,To=qo*fo+vo*uo,jo=wo*fo+zo*uo,Eo=yo*fo;return{position:{x:lo*To*d,y:lo*jo*d,z:lo*Eo*d},velocity:{x:(go*To+Mo*(qo*uo-vo*fo))*i,y:(go*jo+Mo*(wo*uo-zo*fo))*i,z:(go*Eo+Mo*(yo*uo))*i}}}function b(e,s){var a,n,i,m,g,M,f,z,b,q,w,T,j,E,F,A,C,L,S,U,D,I,R,_,k,O,P,Z,G,H,Y,$,B,J,K,N,Q,V,W,X,oo,to,eo,so,ao,no,ro,io,co,ho,mo,lo,po=s.opsmode,xo=s.satn,go=s.epoch,Mo=s.xbstar,fo=s.xecco,uo=s.xargpo,zo=s.xinclo,vo=s.xmo,yo=s.xno,bo=s.xnodeo;e.isimp=0,e.method="n",e.aycof=0,e.con41=0,e.cc1=0,e.cc4=0,e.cc5=0,e.d2=0,e.d3=0,e.d4=0,e.delmo=0,e.eta=0,e.argpdot=0,e.omgcof=0,e.sinmao=0,e.t=0,e.t2cof=0,e.t3cof=0,e.t4cof=0,e.t5cof=0,e.x1mth2=0,e.x7thm1=0,e.mdot=0,e.nodedot=0,e.xlcof=0,e.xmcof=0,e.nodecf=0,e.irez=0,e.d2201=0,e.d2211=0,e.d3210=0,e.d3222=0,e.d4410=0,e.d4422=0,e.d5220=0,e.d5232=0,e.d5421=0,e.d5433=0,e.dedt=0,e.del1=0,e.del2=0,e.del3=0,e.didt=0,e.dmdt=0,e.dnodt=0,e.domdt=0,e.e3=0,e.ee2=0,e.peo=0,e.pgho=0,e.pho=0,e.pinco=0,e.plo=0,e.se2=0,e.se3=0,e.sgh2=0,e.sgh3=0,e.sgh4=0,e.sh2=0,e.sh3=0,e.si2=0,e.si3=0,e.sl2=0,e.sl3=0,e.sl4=0,e.gsto=0,e.xfact=0,e.xgh2=0,e.xgh3=0,e.xgh4=0,e.xh2=0,e.xh3=0,e.xi2=0,e.xi3=0,e.xl2=0,e.xl3=0,e.xl4=0,e.xlamo=0,e.zmol=0,e.zmos=0,e.atime=0,e.xli=0,e.xni=0,e.bstar=Mo,e.ecco=fo,e.argpo=uo,e.inclo=zo,e.mo=vo,e.no=yo,e.nodeo=bo,e.operationmode=po;e.init="y",e.t=0;var qo=function(o){var e=o.ecco,s=o.epoch,a=o.inclo,n=o.opsmode,d=o.no,i=e*e,c=1-i,m=Math.sqrt(c),l=Math.cos(a),p=l*l,g=Math.pow(r/d,x),M=.75*h*(3*p-1)/(m*c),f=M/(g*g),u=g*(1-f*f-f*(1/3+134*f*f/81));d/=1+(f=M/(u*u));var z,y=Math.pow(r/d,x),b=Math.sin(a),q=y*c,w=1-5*p,T=-w-p-p,j=1/y,E=q*q,F=y*(1-e);if("a"===n){var A=s-7305,C=Math.floor(A+1e-8),L=.017202791694070362;(z=(1.7321343856509375+L*C+(L+t)*(A-C)+A*A*5075514194322695e-30)%t)<0&&(z+=t)}else z=v(s+2433281.5);return{no:d,method:"n",ainv:j,ao:y,con41:T,con42:w,cosio:l,cosio2:p,eccsq:i,omeosq:c,posq:E,rp:F,rteosq:m,sinio:b,gsto:z}}({satn:xo,ecco:e.ecco,epoch:go,inclo:e.inclo,no:e.no,method:e.method,opsmode:e.operationmode}),wo=qo.ao,To=qo.con42,jo=qo.cosio,Eo=qo.cosio2,Fo=qo.eccsq,Ao=qo.omeosq,Co=qo.posq,Lo=qo.rp,So=qo.rteosq,Uo=qo.sinio;if(e.no=qo.no,e.con41=qo.con41,e.gsto=qo.gsto,e.a=Math.pow(e.no*c,-2/3),e.alta=e.a*(1+e.ecco)-1,e.altp=e.a*(1-e.ecco)-1,e.error=0,Ao>=0||e.no>=0){if(e.isimp=0,Lo<1.034492841559484&&(e.isimp=1),_=1.0122292801892716,L=1.880279159015271e-9,(F=(Lo-1)*d)<156){_=F-78,F<98&&(_=20);var Do=(120-_)/d;L=Do*Do*Do*Do,_=_/d+1}A=1/Co,to=1/(wo-_),e.eta=wo*e.ecco*to,T=e.eta*e.eta,w=e.ecco*e.eta,C=Math.abs(1-T),m=(f=(M=L*Math.pow(to,4))/Math.pow(C,3.5))*e.no*(wo*(1+1.5*T+w*(4+T))+.375*h*to/C*e.con41*(8+3*T*(8+T))),e.cc1=e.bstar*m,g=0,e.ecco>1e-4&&(g=-2*M*to*p*e.no*Uo/e.ecco),e.x1mth2=1-Eo,e.cc4=2*e.no*f*wo*Ao*(e.eta*(2+.5*T)+e.ecco*(.5+2*T)-h*to/(wo*C)*(-3*e.con41*(1-2*w+T*(1.5-.5*w))+.75*e.x1mth2*(2*T-w*(1+T))*Math.cos(2*e.argpo))),e.cc5=2*f*wo*Ao*(1+2.75*(T+w)+w*T),z=Eo*Eo,X=.5*(W=1.5*h*A*e.no)*h*A,oo=-.46875*l*A*A*e.no,e.mdot=e.no+.5*W*So*e.con41+.0625*X*So*(13-78*Eo+137*z),e.argpdot=-.5*W*To+.0625*X*(7-114*Eo+395*z)+oo*(3-36*Eo+49*z),so=-W*jo,e.nodedot=so+(.5*X*(4-19*Eo)+2*oo*(3-7*Eo))*jo,eo=e.argpdot+e.nodedot,e.omgcof=e.bstar*g*Math.cos(e.argpo),e.xmcof=0,e.ecco>1e-4&&(e.xmcof=-x*M*e.bstar/w),e.nodecf=3.5*Ao*so*e.cc1,e.t2cof=1.5*e.cc1,Math.abs(jo+1)>15e-13?e.xlcof=-.25*p*Uo*(3+5*jo)/(1+jo):e.xlcof=-.25*p*Uo*(3+5*jo)/15e-13,e.aycof=-.5*p*Uo;var Io=1+e.eta*Math.cos(e.mo);if(e.delmo=Io*Io*Io,e.sinmao=Math.sin(e.mo),e.x7thm1=7*Eo-1,2*o/e.no>=225){e.method="d",e.isimp=1,0,j=e.inclo;var Ro=function(o){var e,s,a,n,d,r,i,c,h,m,l,p,x,g,M,f,u,z,v,y,b,q,w,T,j,E,F,A,C,L,S,U,D,I,R,_,k,O,P,Z,G,H,Y,$,B,J,K,N,Q,V,W,X,oo,to,eo,so,ao,no,ro,io,co,ho,mo,lo=o.epoch,po=o.ep,xo=o.argpp,go=o.tc,Mo=o.inclp,fo=o.nodep,uo=.01675,zo=.0549,vo=o.np,yo=po,bo=Math.sin(fo),qo=Math.cos(fo),wo=Math.sin(xo),To=Math.cos(xo),jo=Math.sin(Mo),Eo=Math.cos(Mo),Fo=yo*yo,Ao=1-Fo,Co=Math.sqrt(Ao),Lo=lo+18261.5+go/1440,So=(4.523602-.00092422029*Lo)%t,Uo=Math.sin(So),Do=Math.cos(So),Io=.91375164-.03568096*Do,Ro=Math.sqrt(1-Io*Io),_o=.089683511*Uo/Ro,ko=Math.sqrt(1-_o*_o),Oo=5.8351514+.001944368*Lo,Po=.39785416*Uo/Ro,Zo=ko*Do+.91744867*_o*Uo;Po=Math.atan2(Po,Zo),Po+=Oo-So;var Go=Math.cos(Po),Ho=Math.sin(Po);y=.1945905,b=-.98088458,T=.91744867,j=.39785416,q=qo,w=bo,l=29864797e-13;for(var Yo=1/vo,$o=0;$o<2;)eo=-6*(e=y*q+b*T*w)*(d=-jo*(i=-y*w+b*T*q)+Eo*(c=b*j))+Fo*(-24*(p=e*To+(s=Eo*i+jo*c)*wo)*(z=d*To)-6*(g=-e*wo+s*To)*(f=d*wo)),so=-6*(e*(r=-jo*(h=b*w+y*T*q)+Eo*(m=y*j))+(a=-b*q+y*T*w)*d)+Fo*(-24*((x=a*To+(n=Eo*h+jo*m)*wo)*z+p*(v=r*To))+-6*(g*(u=r*wo)+(M=-a*wo+n*To)*f)),ao=-6*a*r+Fo*(-24*x*v-6*M*u),no=6*s*d+Fo*(24*p*f-6*g*z),ro=6*(n*d+s*r)+Fo*(24*(x*f+p*u)-6*(M*z+g*v)),io=6*n*r+Fo*(24*x*u-6*M*v),X=(X=3*(e*e+s*s)+(co=12*p*p-3*g*g)*Fo)+X+Ao*co,oo=(oo=6*(e*a+s*n)+(ho=24*p*x-6*g*M)*Fo)+oo+Ao*ho,to=(to=3*(a*a+n*n)+(mo=12*x*x-3*M*M)*Fo)+to+Ao*mo,J=-.5*(K=l*Yo)/Co,B=-15*yo*(N=K*Co),Q=p*g+x*M,V=x*g+p*M,W=x*M-p*g,1===($o+=1)&&(E=B,F=J,A=K,C=N,L=Q,S=V,U=W,D=X,I=oo,R=to,_=eo,k=so,O=ao,P=no,Z=ro,G=io,H=co,Y=ho,$=mo,y=Go,b=Ho,T=Io,j=Ro,q=ko*qo+_o*bo,w=bo*ko-qo*_o,l=4.7968065e-7);return{snodm:bo,cnodm:qo,sinim:jo,cosim:Eo,sinomm:wo,cosomm:To,day:Lo,e3:2*B*W,ee2:2*B*V,em:yo,emsq:Fo,gam:Oo,peo:0,pgho:0,pho:0,pinco:0,plo:0,rtemsq:Co,se2:2*E*S,se3:2*E*U,sgh2:2*C*Y,sgh3:2*C*($-H),sgh4:-18*C*uo,sh2:-2*F*Z,sh3:-2*F*(G-P),si2:2*F*k,si3:2*F*(O-_),sl2:-2*A*I,sl3:-2*A*(R-D),sl4:-2*A*(-21-9*Fo)*uo,s1:B,s2:J,s3:K,s4:N,s5:Q,s6:V,s7:W,ss1:E,ss2:F,ss3:A,ss4:C,ss5:L,ss6:S,ss7:U,sz1:D,sz2:I,sz3:R,sz11:_,sz12:k,sz13:O,sz21:P,sz22:Z,sz23:G,sz31:H,sz32:Y,sz33:$,xgh2:2*N*ho,xgh3:2*N*(mo-co),xgh4:-18*N*zo,xh2:-2*J*ro,xh3:-2*J*(io-no),xi2:2*J*so,xi3:2*J*(ao-eo),xl2:-2*K*oo,xl3:-2*K*(to-X),xl4:-2*K*(-21-9*Fo)*zo,nm:vo,z1:X,z2:oo,z3:to,z11:eo,z12:so,z13:ao,z21:no,z22:ro,z23:io,z31:co,z32:ho,z33:mo,zmol:(.2299715*Lo-Oo+4.7199672)%t,zmos:(6.2565837+.017201977*Lo)%t}}({epoch:go,ep:e.ecco,argpp:e.argpo,tc:0,inclp:e.inclo,nodep:e.nodeo,np:e.no,e3:e.e3,ee2:e.ee2,peo:e.peo,pgho:e.pgho,pho:e.pho,pinco:e.pinco,plo:e.plo,se2:e.se2,se3:e.se3,sgh2:e.sgh2,sgh3:e.sgh3,sgh4:e.sgh4,sh2:e.sh2,sh3:e.sh3,si2:e.si2,si3:e.si3,sl2:e.sl2,sl3:e.sl3,sl4:e.sl4,xgh2:e.xgh2,xgh3:e.xgh3,xgh4:e.xgh4,xh2:e.xh2,xh3:e.xh3,xi2:e.xi2,xi3:e.xi3,xl2:e.xl2,xl3:e.xl3,xl4:e.xl4,zmol:e.zmol,zmos:e.zmos});e.e3=Ro.e3,e.ee2=Ro.ee2,e.peo=Ro.peo,e.pgho=Ro.pgho,e.pho=Ro.pho,e.pinco=Ro.pinco,e.plo=Ro.plo,e.se2=Ro.se2,e.se3=Ro.se3,e.sgh2=Ro.sgh2,e.sgh3=Ro.sgh3,e.sgh4=Ro.sgh4,e.sh2=Ro.sh2,e.sh3=Ro.sh3,e.si2=Ro.si2,e.si3=Ro.si3,e.sl2=Ro.sl2,e.sl3=Ro.sl3,e.sl4=Ro.sl4,n=Ro.sinim,a=Ro.cosim,b=Ro.em,q=Ro.emsq,S=Ro.s1,U=Ro.s2,D=Ro.s3,I=Ro.s4,R=Ro.s5,k=Ro.ss1,O=Ro.ss2,P=Ro.ss3,Z=Ro.ss4,G=Ro.ss5,H=Ro.sz1,Y=Ro.sz3,$=Ro.sz11,B=Ro.sz13,J=Ro.sz21,K=Ro.sz23,N=Ro.sz31,Q=Ro.sz33,e.xgh2=Ro.xgh2,e.xgh3=Ro.xgh3,e.xgh4=Ro.xgh4,e.xh2=Ro.xh2,e.xh3=Ro.xh3,e.xi2=Ro.xi2,e.xi3=Ro.xi3,e.xl2=Ro.xl2,e.xl3=Ro.xl3,e.xl4=Ro.xl4,e.zmol=Ro.zmol,e.zmos=Ro.zmos,E=Ro.nm,ao=Ro.z1,no=Ro.z3,ro=Ro.z11,io=Ro.z13,co=Ro.z21,ho=Ro.z23,mo=Ro.z31,lo=Ro.z33;var _o=u(e,{inclo:j,init:e.init,ep:e.ecco,inclp:e.inclo,nodep:e.nodeo,argpp:e.argpo,mp:e.mo,opsmode:e.operationmode});e.ecco=_o.ep,e.inclo=_o.inclp,e.nodeo=_o.nodep,e.argpo=_o.argpp,e.mo=_o.mp,0,0,0;var ko=function(e){var s,a,n,d,i,c,h,m,l,p,g,M,f,u,z,v,y,b=e.cosim,q=e.argpo,w=e.s1,T=e.s2,j=e.s3,E=e.s4,F=e.s5,A=e.sinim,C=e.ss1,L=e.ss2,S=e.ss3,U=e.ss4,D=e.ss5,I=e.sz1,R=e.sz3,_=e.sz11,k=e.sz13,O=e.sz21,P=e.sz23,Z=e.sz31,G=e.sz33,H=e.t,Y=e.tc,$=e.gsto,B=e.mo,J=e.mdot,K=e.no,N=e.nodeo,Q=e.nodedot,V=e.xpidot,W=e.z1,X=e.z3,oo=e.z11,to=e.z13,eo=e.z21,so=e.z23,ao=e.z31,no=e.z33,ro=e.ecco,io=e.eccsq,co=e.emsq,ho=e.em,mo=e.argpm,lo=e.inclm,po=e.mm,xo=e.nm,go=e.nodem,Mo=e.irez,fo=e.atime,uo=e.d2201,zo=e.d2211,vo=e.d3210,yo=e.d3222,bo=e.d4410,qo=e.d4422,wo=e.d5220,To=e.d5232,jo=e.d5421,Eo=e.d5433,Fo=e.dedt,Ao=e.didt,Co=e.dmdt,Lo=e.dnodt,So=e.domdt,Uo=e.del1,Do=e.del2,Io=e.del3,Ro=e.xfact,_o=e.xlamo,ko=e.xli,Oo=e.xni,Po=.0043752690880113,Zo=.00015835218,Go=119459e-10;Mo=0,xo<.0052359877&&xo>.0034906585&&(Mo=1),xo>=.00826&&xo<=.00924&&ho>=.5&&(Mo=2);var Ho=-Go*L*(O+P);(lo<.052359877||lo>o-.052359877)&&(Ho=0),0!==A&&(Ho/=A);var Yo=-Zo*T*(eo+so);(lo<.052359877||lo>o-.052359877)&&(Yo=0),So=U*Go*(Z+G-6)-b*Ho+E*Zo*(ao+no-6),Lo=Ho,0!==A&&(So-=b/A*Yo,Lo+=Yo/A);var $o=($+Y*Po)%t;if(ho+=(Fo=C*Go*D+w*Zo*F)*H,lo+=(Ao=L*Go*(_+k)+T*Zo*(oo+to))*H,mo+=So*H,go+=Lo*H,po+=(Co=-Go*S*(I+R-14-6*co)-Zo*j*(W+X-14-6*co))*H,0!==Mo){if(z=Math.pow(xo/r,x),2===Mo){var Bo=ho,Jo=co;y=(ho=ro)*(co=io),ho<=.65?(n=3.616-13.247*ho+16.29*co,d=117.39*ho-19.302-228.419*co+156.591*y,i=109.7927*ho-18.9068-214.6334*co+146.5816*y,c=242.694*ho-41.122-471.094*co+313.953*y,h=841.88*ho-146.407-1629.014*co+1083.435*y,m=3017.977*ho-532.114-5740.032*co+3708.276*y):(n=331.819*ho-72.099-508.738*co+266.724*y,d=1582.851*ho-346.844-2415.925*co+1246.113*y,i=1554.908*ho-342.585-2366.899*co+1215.972*y,c=4758.686*ho-1052.797-7193.992*co+3651.957*y,h=16178.11*ho-3581.69-24462.77*co+12422.52*y,m=ho>.715?29936.92*ho-5149.66-54087.36*co+31324.56*y:1464.74-4664.75*ho+3763.64*co),ho<.7?(g=4988.61*ho-919.2277-9064.77*co+5542.21*y,l=4568.6173*ho-822.71072-8491.4146*co+5337.524*y,p=4690.25*ho-853.666-8624.77*co+5341.4*y):(g=161616.52*ho-37995.78-229838.2*co+109377.94*y,l=218913.95*ho-51752.104-309468.16*co+146349.42*y,p=170470.89*ho-40023.88-242699.48*co+115605.82*y),uo=(f=17891679e-13*(u=xo*xo*3*(z*z)))*(s=.75*(1+2*b+(v=b*b)))*(-.306-.44*(ho-.64)),zo=f*(1.5*(M=A*A))*n,vo=(f=3.7393792e-7*(u*=z))*(1.875*A*(1-2*b-3*v))*d,yo=f*(-1.875*A*(1+2*b-3*v))*i,bo=(f=2*(u*=z)*7.3636953e-9)*(35*M*s)*c,qo=f*(39.375*M*M)*h,wo=(f=1.1428639e-7*(u*=z))*(9.84375*A*(M*(1-2*b-5*v)+.33333333*(4*b-2+6*v)))*m,To=f*(A*(4.92187512*M*(-2-4*b+10*v)+6.56250012*(1+2*b-3*v)))*p,jo=(f=2*u*2.1765803e-9)*(29.53125*A*(2-8*b+v*(8*b-12+10*v)))*l,Eo=f*(29.53125*A*(-2-8*b+v*(12+8*b-10*v)))*g,_o=(B+N+N-($o+$o))%t,Ro=J+Co+2*(Q+Lo-Po)-K,ho=Bo,co=Jo}1===Mo&&(a=1+b,Do=2*(Uo=3*xo*xo*z*z)*(s=.75*(1+b)*(1+b))*(1+co*(.8125*co-2.5))*17891679e-13,Io=3*Uo*(a*=1.875*a*a)*(1+co*(6.60937*co-6))*2.2123015e-7*z,Uo=Uo*(.9375*A*A*(1+3*b)-.75*(1+b))*(d=1+2*co)*21460748e-13*z,_o=(B+N+q-$o)%t,Ro=J+V+Co+So+Lo-(K+Po)),ko=_o,Oo=K,fo=0,xo=K+0}return{em:ho,argpm:mo,inclm:lo,mm:po,nm:xo,nodem:go,irez:Mo,atime:fo,d2201:uo,d2211:zo,d3210:vo,d3222:yo,d4410:bo,d4422:qo,d5220:wo,d5232:To,d5421:jo,d5433:Eo,dedt:Fo,didt:Ao,dmdt:Co,dndt:0,dnodt:Lo,domdt:So,del1:Uo,del2:Do,del3:Io,xfact:Ro,xlamo:_o,xli:ko,xni:Oo}}({cosim:a,emsq:q,argpo:e.argpo,s1:S,s2:U,s3:D,s4:I,s5:R,sinim:n,ss1:k,ss2:O,ss3:P,ss4:Z,ss5:G,sz1:H,sz3:Y,sz11:$,sz13:B,sz21:J,sz23:K,sz31:N,sz33:Q,t:e.t,tc:0,gsto:e.gsto,mo:e.mo,mdot:e.mdot,no:e.no,nodeo:e.nodeo,nodedot:e.nodedot,xpidot:eo,z1:ao,z3:no,z11:ro,z13:io,z21:co,z23:ho,z31:mo,z33:lo,ecco:e.ecco,eccsq:Fo,em:b,argpm:0,inclm:j,mm:0,nm:E,nodem:0,irez:e.irez,atime:e.atime,d2201:e.d2201,d2211:e.d2211,d3210:e.d3210,d3222:e.d3222,d4410:e.d4410,d4422:e.d4422,d5220:e.d5220,d5232:e.d5232,d5421:e.d5421,d5433:e.d5433,dedt:e.dedt,didt:e.didt,dmdt:e.dmdt,dnodt:e.dnodt,domdt:e.domdt,del1:e.del1,del2:e.del2,del3:e.del3,xfact:e.xfact,xlamo:e.xlamo,xli:e.xli,xni:e.xni});e.irez=ko.irez,e.atime=ko.atime,e.d2201=ko.d2201,e.d2211=ko.d2211,e.d3210=ko.d3210,e.d3222=ko.d3222,e.d4410=ko.d4410,e.d4422=ko.d4422,e.d5220=ko.d5220,e.d5232=ko.d5232,e.d5421=ko.d5421,e.d5433=ko.d5433,e.dedt=ko.dedt,e.didt=ko.didt,e.dmdt=ko.dmdt,e.dnodt=ko.dnodt,e.domdt=ko.domdt,e.del1=ko.del1,e.del2=ko.del2,e.del3=ko.del3,e.xfact=ko.xfact,e.xlamo=ko.xlamo,e.xli=ko.xli,e.xni=ko.xni}1!==e.isimp&&(i=e.cc1*e.cc1,e.d2=4*wo*to*i,V=e.d2*to*e.cc1/3,e.d3=(17*wo+_)*V,e.d4=.5*V*wo*to*(221*wo+31*_)*e.cc1,e.t3cof=e.d2+2*i,e.t4cof=.25*(3*e.d3+e.cc1*(12*e.d2+10*i)),e.t5cof=.2*(3*e.d4+12*e.cc1*e.d3+6*e.d2*e.d2+15*i*(2*e.d2+i)))}y(e,0),e.init="n"}function q(o){return function(o){if(Array.isArray(o))return w(o)}(o)||function(o){if("undefined"!=typeof Symbol&&null!=o[Symbol.iterator]||null!=o["@@iterator"])return Array.from(o)}(o)||function(o,t){if(!o)return;if("string"==typeof o)return w(o,t);var e=Object.prototype.toString.call(o).slice(8,-1);"Object"===e&&o.constructor&&(e=o.constructor.name);if("Map"===e||"Set"===e)return Array.from(o);if("Arguments"===e||/^(?:Ui|I)nt(?:8|16|32)(?:Clamped)?Array$/.test(e))return w(o,t)}(o)||function(){throw new TypeError("Invalid attempt to spread non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method.")}()}function w(o,t){(null==t||t>o.length)&&(t=o.length);for(var e=0,s=new Array(t);e<t;e++)s[e]=o[e];return s}function T(o){return o*s}function j(o){return o*e}function E(o){var t=o.longitude,e=o.latitude,s=o.height,a=6378.137,n=(a-6356.7523142)/a,d=2*n-n*n,r=a/Math.sqrt(1-d*(Math.sin(e)*Math.sin(e)));return{x:(r+s)*Math.cos(e)*Math.cos(t),y:(r+s)*Math.cos(e)*Math.sin(t),z:(r*(1-d)+s)*Math.sin(e)}}var F={constants:Object.freeze({__proto__:null,deg2rad:e,earthRadius:d,j2:h,j3:m,j3oj2:p,j4:l,minutesPerDay:a,mu:n,pi:o,rad2deg:s,tumin:c,twoPi:t,vkmpersec:i,x2o3:x,xke:r}),propagate:function(){for(var o=arguments.length,t=new Array(o),e=0;e<o;e++)t[e]=arguments[e];var s=t[0],n=Array.prototype.slice.call(t,1),d=f.apply(void 0,q(n)),r=(d-s.jdsatepoch)*a;return y(s,r)},sgp4:y,twoline2satrec:function(t,s){var a=1440/(2*o),n=0,d={error:0};d.satnum=t.substring(2,7),d.epochyr=parseInt(t.substring(18,20),10),d.epochdays=parseFloat(t.substring(20,32)),d.ndot=parseFloat(t.substring(33,43)),d.nddot=parseFloat(".".concat(parseInt(t.substring(44,50),10),"E").concat(t.substring(50,52))),d.bstar=parseFloat("".concat(t.substring(53,54),".").concat(parseInt(t.substring(54,59),10),"E").concat(t.substring(59,61))),d.inclo=parseFloat(s.substring(8,16)),d.nodeo=parseFloat(s.substring(17,25)),d.ecco=parseFloat(".".concat(s.substring(26,33))),d.argpo=parseFloat(s.substring(34,42)),d.mo=parseFloat(s.substring(43,51)),d.no=parseFloat(s.substring(52,63)),d.no/=a,d.inclo*=e,d.nodeo*=e,d.argpo*=e,d.mo*=e;var r=g(n=d.epochyr<57?d.epochyr+2e3:d.epochyr+1900,d.epochdays),i=r.mon,c=r.day,h=r.hr,m=r.minute,l=r.sec;return d.jdsatepoch=f(n,i,c,h,m,l),b(d,{opsmode:"i",satn:d.satnum,epoch:d.jdsatepoch-2433281.5,xbstar:d.bstar,xecco:d.ecco,xargpo:d.argpo,xinclo:d.inclo,xmo:d.mo,xno:d.no,xnodeo:d.nodeo}),d},gstime:v,jday:f,invjday:function(o,t){var e=o-2415019.5,s=e/365.25,a=1900+Math.floor(s),n=Math.floor(.25*(a-1901)),d=e-(365*(a-1900)+n)+1e-11;d<1&&(d=e-(365*((a-=1)-1900)+(n=Math.floor(.25*(a-1901)))));var r=g(a,d),i=r.mon,c=r.day,h=r.hr,m=r.minute,l=r.sec-864e-9;return t?[a,i,c,h,m,Math.floor(l)]:new Date(Date.UTC(a,i-1,c,h,m,Math.floor(l)))},dopplerFactor:function(o,t,e){var s=7292115e-11,a={x:t.x-o.x,y:t.y-o.y,z:t.z-o.z};a.w=Math.sqrt(Math.pow(a.x,2)+Math.pow(a.y,2)+Math.pow(a.z,2));var n=e.x+s*o.y,d=e.y-s*o.x,r=e.z,i=(a.x*n+a.y*d+a.z*r)/a.w;return 1+i/299792.458*(i>=0?1:-1)},radiansToDegrees:T,degreesToRadians:j,degreesLat:function(t){if(t<-o/2||t>o/2)throw new RangeError("Latitude radians must be in range [-pi/2; pi/2].");return T(t)},degreesLong:function(t){if(t<-o||t>o)throw new RangeError("Longitude radians must be in range [-pi; pi].");return T(t)},radiansLat:function(o){if(o<-90||o>90)throw new RangeError("Latitude degrees must be in range [-90; 90].");return j(o)},radiansLong:function(o){if(o<-180||o>180)throw new RangeError("Longitude degrees must be in range [-180; 180].");return j(o)},geodeticToEcf:E,eciToGeodetic:function(e,s){for(var a=6378.137,n=Math.sqrt(e.x*e.x+e.y*e.y),d=(a-6356.7523142)/a,r=2*d-d*d,i=Math.atan2(e.y,e.x)-s;i<-o;)i+=t;for(;i>o;)i-=t;for(var c,h=0,m=Math.atan2(e.z,Math.sqrt(e.x*e.x+e.y*e.y));h<20;)c=1/Math.sqrt(1-r*(Math.sin(m)*Math.sin(m))),m=Math.atan2(e.z+a*c*r*Math.sin(m),n),h+=1;return{longitude:i,latitude:m,height:n/Math.cos(m)-a*c}},eciToEcf:function(o,t){return{x:o.x*Math.cos(t)+o.y*Math.sin(t),y:o.x*-Math.sin(t)+o.y*Math.cos(t),z:o.z}},ecfToEci:function(o,t){return{x:o.x*Math.cos(t)-o.y*Math.sin(t),y:o.x*Math.sin(t)+o.y*Math.cos(t),z:o.z}},ecfToLookAngles:function(t,e){var s,a,n,d,r,i,c=function(o,t){var e=o.longitude,s=o.latitude,a=E(o),n=t.x-a.x,d=t.y-a.y,r=t.z-a.z;return{topS:Math.sin(s)*Math.cos(e)*n+Math.sin(s)*Math.sin(e)*d-Math.cos(s)*r,topE:-Math.sin(e)*n+Math.cos(e)*d,topZ:Math.cos(s)*Math.cos(e)*n+Math.cos(s)*Math.sin(e)*d+Math.sin(s)*r}}(t,e);return a=(s=c).topS,n=s.topE,d=s.topZ,r=Math.sqrt(a*a+n*n+d*d),i=Math.asin(d/r),{azimuth:Math.atan2(-n,a)+o,elevation:i,rangeSat:r}}};return F}));
+
 const BUILTIN_CSV = "";
 const SECTIONS = [];
 const DCS_CODES = ["023", "025", "026", "031", "032", "036", "043", "047", "051", "053", "054", "065", "071", "072", "073", "074", "114", "115", "116", "122", "125", "131", "132", "134", "143", "145", "152", "155", "156", "162", "165", "172", "174", "205", "212", "223", "225", "226", "243", "244", "245", "246", "251", "252", "255", "261", "263", "265", "266", "271", "274", "306", "311", "315", "325", "331", "332", "343", "346", "351", "356", "364", "365", "371", "411", "412", "413", "423", "431", "432", "445", "446", "452", "454", "455", "462", "464", "465", "466", "503", "506", "516", "523", "526", "532", "546", "565", "606", "612", "624", "627", "631", "632", "645", "654", "662", "664", "703", "712", "723", "731", "732", "734", "743", "754"];
@@ -571,7 +682,7 @@ function setNotice(msg, kind) { const n = $("notice"); n.textContent = msg; n.cl
 function setDirty(v) { dirty = v; $("source").textContent = sourceName + (dirty ? " (unsaved changes)" : ""); }
 function setBusy(v) {
   busy = v;
-  for (const id of ["readBtn", "uploadBtn", "useRadio", "saveCsv", "addCh", "appearanceBtn", "startupToneBtn"]) {
+  for (const id of ["readBtn", "uploadBtn", "useRadio", "saveCsv", "addCh", "appearanceBtn", "startupToneBtn", "draftsBtn", "watchBtn", "satBtn"]) {
     $(id).disabled = v || (!("serial" in navigator) && ["readBtn", "uploadBtn"].includes(id));
   }
   $("prog").classList.toggle("hidden", !v);
@@ -913,13 +1024,31 @@ const ART_COMMANDS = { startup: [0x4C, 0x6C], background: [0x42, 0x62] };
 const SETTINGS_ADDR = 0x9000, SETTINGS_BYTES = 168, BOOT_THEME_BYTE = 30;
 const BOOT_SOUND_BYTE = 31, TUNE_OFFSET = 72, TUNE_BYTES = 96;
 const TUNE_FREQ = [110,120,120,130,140,150,160,160,170,190,200,210,220,230,250,260,280,290,310,330,350,370,390,420,440,470,490,520,550,590,620,660,700,740,780,830,880,930,990,1050,1110,1170,1240,1320,1400];
-// Original short RTTTL melodies, compatible with the radio's 48-entry limit.
+// Short RTTTL melodies, compatible with the radio's 48-entry limit.
 const TUNE_PRESETS = {
   launch: "Launch:d=8,o=5,b=150:c,e,g,4c6",
   arcade: "Arcade:d=8,o=5,b=170:e,g,a,16p,g,4c6",
   ocean: "Ocean:d=8,o=5,b=100:g,16p,e,16p,c,4g",
   racer: "Racer:d=16,o=5,b=160:c,e,g,c6,8g,4c6",
-  powerup: "PowerUp:d=16,o=5,b=150:c,d,e,g,a,b,4c6"
+  powerup: "PowerUp:d=16,o=5,b=150:c,d,e,g,a,b,4c6",
+  // User-supplied melody, shortened and transposed down one octave.
+  mission: "mission_imp:d=16,o=5,b=95:32d,32d#,32d,32d#,32d,32d#,32d,32d#,32d,32d,32d#,32e,32f,32f#,32g,g,8p,g,8p,a#,p,c6,p,g,8p,g,8p,f,p,f#,p,g,8p,g,8p,a#,p,c6,p,g,8p,g,8p,f,p,f#",
+  mario: "mario:d=4,o=4,b=100:16e5,16e5,32p,8e5,16c5,8e5,8g5,8p,8g4,8p,8c5,16p,8g4,16p,8e4,16p,8a4,8b4,16a#4,8a4,16g4.,16e5,16g5,8a5,16f5,8g5,8e5,16c5,16d5,8b4,16p,8c5,16p,8g4,16p,8e4,16p,8a4,8b4,16a#4,8a4,16g4.,16e5,16g5,8a5,16f5,8g5,8e5",
+  starwars: "star_wars:d=16,o=5,b=100:4e,4e,4e,8c,p,g,4e,8c,p,g,4e,4p,4b,4b,4b,8c6,p,g,4d#,8c,p,g,4e,8p",
+  badapple1: "Track1:d=4,o=5,b=147:16d#4,16d#4,16a#4,16a#4,16d#4,16d#4,16a#4,16a#4,16d#4,16d#4,16a#4,16a#4,16d#4,16d#4,16a#4,16a#4,16d#4,16d#4,16a#4,16a#4,16d#4,16d#4,16a#4,16a#4,16d#4,16d#4,16a#4,16a#4,16d#4,16d#4,16a#4,16a#4,16b4,16b4,16f#4,16f#4,16b4,16b4,16f#4,16f#4,16b4,16b4,16f#4,16f#4,16b4,16b4,16f#4,16f#4",
+  badapple2: "Track2:d=4,o=5,b=147:16d#,16d#,16f,16f,16f#,16f#,16g#,16g#,16a#,8p,16a#,16d#6,16d#6,16c#6,16c#6,16a#,8p,16a#,16d#,8p,16d#,16a#,16a#,16g#,16g#,16f#,16f#,16f,16f,16d#,16d#,16f,16f,16f#,16f#,16g#,16g#,16a#,8p,16a#,16g#,16g#,16f#,16f#,16f,16f,16d#,16d#",
+  // Supplied melodies; excerpts and octave shifts fit the radio.
+  takeonme: "TakeOnMe:d=4,o=4,b=160:8f#5,8f#5,8f#5,8d5,8p,8b,8p,8e5,8p,8e5,8p,8e5,8g#5,8g#5,8a5,8b5,8a5,8a5,8a5,8e5,8p,8d5,8p,8f#5,8p,8f#5,8p,8f#5,8e5,4e5",
+  songofth: "SongOfTh:d=4,o=6,b=140:8f5,8a5,b5,8f5,8a5,b5,8f5,8a5,8b5,8e,d,8b5,8c,8b5,8g5,2e5,8p,8d5,8e5,8g5,2e5,8p,8d5,8e5,f5,8g5,8a5,b5,8c,8b5,e5,8p,8d5,8c5,8f5,8e5,8g5,8f5,8a5,8g5,16a#5,16a5,16a5,16g5,2a5",
+  axelf: "Axel-F:d=4,o=4,b=125:g,8a#.,16g,16p,16g,8c5,8g,8f,g,8d.5,16g,16p,16g,8d#5,8d5,8a#,8g,8d5,8g5,16g,16f,16p,16f,8d,8a#,4g",
+  pacman: "Pacman:d=32,o=5,b=112:b.4,b.,f#.,d#.,b.,f#.,16p,16d#,c.,c.6,g.,e.,c.6,g.,16p,16e,b.4,b.,f#.,d#.,b.,f#.,16p,1d#.,1e.,1f.,1f.,1f#.,1g.,1g.,1g#.,1a.,b.",
+  barbiegirl: "BarbieGi:d=4,o=5,b=125:8g#,8e,8g#,8c#6,a,p,8f#,8d#,8f#,8b,g#,8f#,8e,p,8e,8c#,f#,c#,p,8f#,8e,g#,f#",
+  mammamia: "Abba - Mamma Mia:d=4,o=4,b=40:32f5,32d#5,32f5,8d#5,32d#5,32d#5,32f5,32g5,32f5,16d#.5,32p,16f5,8d#5,16g#5,32g#5,32g#5,32g#5,16g5,16d#.5,32p,8a#5,32a#5,32a#5,16a#5,16f5,16g5,8g#5,16g5,16g5,32g5,16g5,16d5,16d#5,8f5,16f5,8d#5,16g#5,32g#5,32g#5,32g#5,32g5,32d#5,32f5,16d#5",
+  harrypot: "HarryPot:d=8,o=5,b=100:b4,e.,16g,f#,4e,b,4a.,4f#.,e.,16g,f#,4d,f,2b4,p,b4,e.,16g,f#,4e,b,4d6,c#6,4c6,g#,c.6,16b,a#,4a#4,g,2e",
+  calltopo: "CallToPo:d=16,o=5,b=140:8c,8f,8a,8c6,c6,c6,c6,p,8a,a,a,8a,8f,8a,8f,4c.,c,f,a,8c6,c6,c6,8c6,8a,a,a,8a,8c,8c,8c,4f.",
+  sonic: "SonicThe:d=4,o=4,b=125:16c6,32p,8a5,32p,16c6,32p,8b5,32p,16c6,32p,8b5,32p,g5,p,16a5,32p,16e6,32p,8d6,32p,16c6,32p,8b5,32p,4c6",
+  tetris: "Tetris:d=4,o=4,b=80:8f5,16c5,16c#5,16d#5,32f5,32d#5,16c#5,16c5,8a#,16a#,16c#5,8f5,16d#5,16c#5,8c.5,16c#5,8d#5,8f5,8c#5,8a#,a#,8d#5,16f#5,8a#5,16g#5,16f#5,8f.5,16c#5,8f5,16d#5,16c#5,8c5,16c5,16c#5,8d#5,8f5,8c#5,8a#,8a#",
+  aroundworld: "ATC - Around The World:d=4,o=5,b=140:8e6,8a,8c6,8e6,8b,8e,8g,8b,8c6,8f,8a,8c6,8d6,8g,8b,4d6"
 };
 const THEME_NAMES = ["Default", "Blue", "Purple", "Sun"];
 let appearance = null, appearanceBusy = false;
@@ -1392,7 +1521,509 @@ function writeAppearance() {
   });
 }
 
+/* ---------- reusable TEXT drafts ---------- */
+const BUNDLED_TEXT = "T1ZMMekWxt4BAAAAVEVYVAAAAAAAAAAAAAAAAGwAAAD+HQAAJAEAAJULAAAonPmCAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAKrER+AE7APgBO1Ie+dFwR4C1b0ZCeMmyikKEvwAggL2CeAN4ACAbsZFCOL8BIIC9kUKYvwEggL0ESABoALn+54C1b0bQ+IQQACCIR9AfACDftQavBEYAIAtGrfgMAM3pAQABqRBGmEcCRgsoBNIBqSBGAPAG+N+9EUYAIAoiAfBW/NC1Aq9SsYNqKCsE0gx4xFSDagEzg2IBMQE68+fQvYFqKSk4v3BHgLVvRgAgKCIB8D388LUDr034BI0DRhFIDUYzIgFskPgCARD7AhApRphHgLGV+ACAuPEyDwvYbhwJTURGTLEW+AEbKEb/95D/ATwAKPbRT/AACEBGXfgEi/C9AL/UHwAgqB0AINC1Aq8ITFkgTPIIAaBHWSAIIaBHAiAAIaBHWSBB8ggBIka96NBAEEepDAAg8LUDry3pwAsqToFGlvgdASixASAqSQHwDPwTIEPgBvHMAIhGEUYURgDwBP1CRiNGAfDO+5b4/wCG+A4BATCG+P8ASEaG+A1BAPCE+cCyOLEBKCPRASAZSQHw6/sYICLg2fgAAAElhvgPUYb4HVGARwAhIkaxZQMjMWIB8Or78GSW+A4BQUYAkEhGAPA/+Lb4kAABOMCypviYAAfgASAGSQHwx/sXIAAlxukIEChGvegMC/C91B8AIAweACD0HQAgIx4AILC1Aq8PTQRGcCDgIahHciBB8iYhqEdYIEDyATGoR1ogQ/JyAahHWyBF8mxxqEdcIEXyJWGoRyECXSAqRr3osEAQRwC/qQwAIPC1A68t6QAPkbA8TBVG1/gIsJpGiEaBRrT4kCCQBhzR2fhMEGhGAPCd+534AACnKArRnfgDADIon7+0+ZIAQCHQ+lHwpPiSALT4kABP9PgRAeuAENn4VBCIR25GPCEwHf8iAfA6/KcgBCGN+AAAMEYGIo34A1CN+AKwjfgBoADwXPy0+JQgAiMn+B4sp/EeAgHwGPuqHTBGBiEA8E78QkYrRgHwD/u0+JAAT/T4Edn4UDBAIgHrgBAxRphHASCE+BMBACCk+JYAtPiUAAEwpPiUALT4kAABMMCypPiQALT4kgABMICysPWAfyi/T/SAcKT4kgARsL3oAA/wvdQfACCAtW9GXyAA8GX7CUmR+AYhHyoF2IhUHyoev4sYAApYcB4qKL8eIpAcgfgGAYC9AL/UHwAggLVvRgFGWiAAIotcATIdKhhE+tGAvdTU8LUDr034BI2CsB1ODUYBRgAgB/gXLBxGtviYIIb4HQGn8RYAAPD4+tf4CIAX+BYMpygN0Rf4EwwyKAnYF/gVDAMoAr+W+A4BF/gUHIFCDdABIEbyqBGG+BUBsWXG6QhIhvgTAQKwXfgEi/C9tviYAAEiBEkB64AQp/EXAahH5+fUHwAgAQAfAIC1b0YiIP/37f5eIEDyASEA8Fb7PyBD8gIBAPBR+wRIACGA+BoRveiAQP/3Y74Av9QfACCAtW9GASEaIlH6gPGx+/LwAPsSEQApGL8BMIC90LUCr6UhACIdIyAqCdCEXExAhFRMsgEyA+rUFITqQQHz59C98LUDry3pAA+TsAZGL0gAJJD4DbEDrUAsBdAoGSAhAfB5+iA09+cZILv78PIC+xCwAAYYvwEyASoRRpi/ASEDKkDSzekBYQOuT+pBGAAhT/AACbjxAA8n0BxLAfEZCpP4/gBwcAKYk/gOIUDqCRDwcAPxzACycFpG2kU4v1JGAPAY+w1GBDEERgQgMkYgIwDwA/siRitGAfDx+ajxIAgJ8QEJIDZRRtTnCEkBIIH4FQEDqd3pAQIA8Av4wLITsL3oAA/wvQAgAiIB8Ov51B8AIPC1A68t6QAPl7Df+KiRBkYNRjFqkEbZ+CgAiEeZ+BcBASEh6gAAMWuIR3FrACCIR9b4yKABINBHdGoBIKBH1vjEAIBHwAcD0QAgoEcBJqjgQCDN6QNKAPAx+kD2/3ECkCDqAQQrIADwKfoBkE/0lmGZ+BgBACgYv0DyFFEhREAgAPB8+isgBSEA8Hj6ICD/9wf+BetIENb4BJDf+ByBT/AACs3pBWAHrAaYhUJl0A+uKUYgIjBG//f1/LUgjfg8ADBG//er/kXyVVGN+FkAMEat+FoQ//ca/yBGMUYgIv/34fxZIEzy+AHAR1kg+CHARwIgACEAJsBHPyBP9ABBwEcUILrxAA8Ivx4gyEcgLgXQoVtfIADwMvoCNvfnWSBA9vgBAPAr+grxAQogNU/wAAu79ZZ/EtAFIMhHDCAA8L75wAcI0AIgAfB6+QIgAPC2+QCyACgE1AvxAQvp50/0lntZIPghAPAK+gIgACECJgDwBfq79ZZ/l9MA4AAmZCDIRwKZQCAA8Pr5AZkrIADw9vkDmQAgiEcEmQAgiEcFmND4JKEAINBH//eJ/jBGF7C96AAP8L3UHwAgqQwAIPC1A68t6QAPl7CDTINGACAgIoT4GgECriFGMEb/92T8MEb/95X+nfgIALUoQPDtgJ34JVACrjBG//cS/sCyhUJA8OOAnfgLAIizEPAPCQDw3IC58QIPnL9P6hAaykWA8NSAlPgcAZ34CYCd+ApQASgEv5T4CwFARTjQlPgbAQEoBL+U+AkBQEVE0AEgMiGE+BsBACCE+AcBBPGaAIT4ClGE+AmBhPgIkQHw7vg24JT4HQEAKADwqYCU+P4AnfgMEIFCQPCigJT4DgGd+A0QgUJA8JuA2+kTAQkiUUsAkgEi//fK/QIghPgFAY7glPgMAahCwtEK8QEASEVA8IaAASCE+BFRhPgeAdv4AACE+BCBgEd34JT4CgGoQrbRGSEyHRr7AUEAIJoxoGQZKAzQE1yj8SAGXy4eRii/PyYAKwi/HkYOVAEw8OcBIJT4BxGU+AghAPoK8AhDhPgHAQLwBwFP8P8yAvoB8UhAwEMABkzRzfgEgA3xKAgAJjIhQEaE+BthAfDp+DIuB9CgGZD4mgAgsQj4BgABNvXnMiZP8AEItPgJAYT4HIExRqT4CwEKqADwR/kCRgtGlPgKARFGAJAaRlhGACP/97H8RvKoEBNJoGULIMTpCBABmIT4EAGq6wkAwEOE+BFRxbLb+AAAhPgVgYT4BYGE+B6BgEdC8hBxFfsBAAD2xBBgZf/38/sXsL3oAA/wvQC/1B8AIKgeACDMHgAg8LUDr034BL0WTJT4FgEBKBzRACU/IAAhhPgWUQDwvvhZIE/0QEEA8Ln4D04KLRDQBOtFAAEtgI0BRm/z3yEYvwFGcF0A8Kr4ATXv5134BLvwvQIgACFd+AS7vejwQADwnbgAv9QfACBgHwAg3LUErwRGACCt+AQAC0YAkJCyT/T4EQYiAeuAEGlGmEcAmCBgvfgEAKCA3L3wtQOvLekACw1OX/qA+IAlBCRP8AgJfbEwRhXqCA9A+BBPGL8wRsD4AJAA8GP4NGAA8GD4bQju573oAAvwvQC/GAAASPC1A68t6YAPJ0kERk/0AFCJRghhAPBM+GTwfwD/987/IkxP8AQIxPgcgADwQfhP8JBAokYBaE/wAAsQJSHwwAEBYCBoASFh84cQIGAA8DD4bbHK+AyA2vgEYADwKfjG88AAyvgcgEDqSwsBPe7nT/CQQAEiAWhi84cRAWDa+AAAIPDAAMr4AABP9ABQyfgAAADwDvgIIMr4HAAEIMr4HABYRr3oCA/wvRgIAEgMAABIgLVvRiggELEAvwE4++eAvfC1A69N+ASNDU5P9ABYDEYFRsb4EID/9+v/BfB/AAlNqEegsgAKqEcgRqhHxvgAgP/33v8ESAQhMVBd+ASL8L0YCABIpQsAIBD4//+BQgXTmUKfvwJECRoQRnBHgLVvRhpGAPD4/opCBNMzKj6/CERRGnBHgLVvRghGEUYyIgDw6v4zKTi/cEeAtW9GACAyIgDw4f6AtW9GAkYAIDIjveiAQP/307+AtW9GA0YIRhFGGkZAI73ogED/98i/8LUDry3pAA+dsING3/jUDIpG3LIBYNGyD/IIAsPzByDf6BHwBQByAWwABQFpAN/4uIz/IIj4AwEBIIj4EgHa+IwAgEfI+CgA2vjYAIBH2vjIEAAkiPgYAQAgiEfa+CwQACCIR9j4KADa+BwQiEfY+CgA2vggEIhHmPgYAdr4qBCIR9r4OBAAIIhH2vg0EAAgiEfa+IAQACDa+KxQiEfAsqhH2vi0AIBH2vggEQAgiEfa+CQRACCIR9r41BABIIhH2vgAAIBHwQjf+KRciPj/EAEMgeoQIcj4UABIQIj4/gAKLADwRYEoXQjrRAb/98r+sIUBNPTn//dX/nXh0Ebf+Oir2vhEAFixwBo4vwAgyvhEAJ+/ASCK+BQB/yCK+AMB2vhYAHCxwRpP8AAAOL8BRsr4WBCfv4r4GQHK+CAAASCK+BUBmvgbAWix2vhIAOdJwBgov0/w/zDK+EgAiEIkvwAgivgbAdj4KABERs34ELCAR0coA9kgaIBHyvhQANT4BJAAJU/wAAu19Xp/APBAggwgATX/93b+wAcN0Zr4GgEAKADwNYJf6gtAAPAsggIgyEer8QEL5+cCIADwJP4CIP/3YP4ERoAHAtSa+BphC+AAIAEmivgGAVBGICGK+BphAPB8/k/0r3vgBAzV8AcK0P/33vqa+AYBICgC00BG//fB/E/0r3ugBL7VmvgaAQEoBtGa+AYBICgF0v/3yfr45//3qvmw50BG//es/Kzn3/i4ms3pA6uZ+BIBACgA8NuA2vgIgAAmACAAIaAigCMAlsBHT/TARQAgACGgIgwjAJXARw2sAPDD/d/4gBogRgUi//c9+dn4KAAMls3pCmba+FwgCqmQRwJGDSiA8B2FDawKqSBG//cr+Zn4FwHf+FAq3/hQGgAoGL8RRk/wBAIgRhi/BSL/9xv5IEb/9yf5AkYLRgEgT/b/cdr4EEDN6QAVASECkAQgoEff+BwqSPIQRQIgDSEYI83pAFYClqBH3/gMKgIgFSEZI83pAFYClqBHe0jJ+BIBfeDf+NyZmfgBEQApAPApgQIoZtGk8QwAAyhi2N/oEPAEACEAQwNLAw2sMyEgRgDw0v3a+EwAIUb/9+/4iLEFRgnxXgApRv/3RP5iHCtGAPAO/f8gifgAUYn4AwEAIMn4RAAAIIn4AQEw4wEgiPgWAf/3hfra+ExADa4AJU/wAAqosv8oJtgwRiFGKkb/9z/9ATWd+DQApyjy0Z34NwAzKO7SuPiSAAEwqPiSAL34OACg6wkBCbIBKU/wAAG4vwEhGuoBDwK/6bKo+JAQgUZP8AEK1eca8AEAGL8J8QEAqPiUAAAli/gAUB2wvegAD/C9mfgTAQEoQPDbgNr4CIAAJAAgHiGgIjwjAJTAR7n4kgAAKADwuoC5+JAAufiWQNr4TBAgGsBDwrINqAaR//fv/J34NwD/9z36BUYJlCZGATS5+JIAobKBQg/SufiQAIAb/jDCsg2oBpn/99n8nfg3AP/3J/oFRAct6NPa+BCwDagJmQUwBZBP8B4KT/ABCAAgwAdA8JCAtbKpQgDyjIC5+JBADahAIQDwHv0wGw2pwEMGm1/6gPlAIk/qiRDf+DRIAPX4EJhHCZgAIqhCT/AAACi/ASI4vwEgNhqd+DUAlPgdEQiWB5JRsQMoE9ABKAnQwLkL4AC/gBoGAAABAQEosQEoD9ErIE/2/3kO4E/0/Gk8IArgtPiYAIFFA9E+IEjyEEkC4CEgT/YgWY34OQCd+DcAMigovzIgBZ1GHJ6xACA0RhouzfgAkM3pAQgovxokD/qK8QIgKkYjRthHNhslRArxCgrq59/4iJcJmd3pBwaO5wAlAigA8LaBAyh/9DqvCiwA8IqCCywA8HOCDSx/9DGv//cO/AElLOff+GwnASBI8hBB2vgQUM3pABQeIQKQBCAPI6hH3ekDqwAgifgTAZn4FAEAKADwRoHa+AhAACBhIaAiFSMAkKBHT/TAQGEhAJAAIKAiASOgRw2tMyEoRgDwefyZ+AEBB5AAKADwp4Da+EwAKUb+95D/bhyBRqbgACCK+BoB/ve0/5r4BQEBKEbQ3fgQsAAoRtHY+ABA2vhQUKBHQBug8txVmvgeAQAoAPAugdr4VGCgR4AbsPH/P3/3z6618f8/QPPzgQAlGiGK+B5RDaygHQDw1fu6+BABIUat+DgAASKa+P4AASaN+DUAQEat+DZQjfg0UP/3ofnAsgAoP/SurkbyqBDf+JwWyvhYABcgivgVYcrpCBCh5t/4eEYCJQLg3/iERgElACDf+IBmivgFAXAgT/Q8QbBHMCAAIbBHMCBA8gIxsEdHIEbyQDGwR0ggS/aiAbBHwkbY+ESAASDAR+ZIbQDmToNGZbE0+AILAPsL8LD79vFxIP/3HfxuIMhHAj3x5wAgACXAR3EgAPB0+3AgAPBx+9r4tACAR9r4IBEAIIhH2vgkEQAgiEf/96P43fgQsFLmmfgAEQnxXgD/9zv8BkaJRtr4EBBP8AELCZFP8GMICZxP8AAKzfggkLnxAA8Z0E/2/3BNRgCQACDN6QELCuuKALnxGg8ovxolCOtAADJGAbICICtGoEep6wUJLkQK8QEK4ufd6QOr3/g8lQeYAChI0QiYOLOZ+AMB/ygj0AiaCfFeAFUeKUb/9+77AkYBIAtGApBP9CBBT/b/dBogzekAQbX78PRjJgT7EFAE64QBAiQG60EBCbIA60AABOtAAAmcALKgRwiYMigb0gAhSPIQQs3pACEBIAiaYyECkE/25nAZKoi/bSEaKii/AkQC60IAAiIJnAEjAutAAN/4xCQAsqBHACCJ+BQBmfgVAQAlACg/9Mmt2vgIQAAgdyGgIgkjAJWgR5n4AQFQsQAgT/YgUQDwtfra+BBAHCPf+IgkjuDZ+CAgACpY0Nr4EEC5+CQwgOCa+B0BACg/9KSt2vhMYKBHgBs/9Z6ttfH/Pwjc2vhMUKBHQBtM8lAxQBo/9ZKtmvgPAQcoQPIPgdjpEwENIt/4VDQAkhzhCiyJ+BlRe9Lf+GAkA/APAZn4AAGZ+ANRUvgxMKVCQPDvgAAoAPDsgALrwQFJaAoGAPDhgZn4BFHKsgE17bK1+/L2BvsSUon4BCGRQkDy1YFBHjMogPDUgUlEmFyB+F4AHOGZ+B0BACgA8IaADawA8FD63/jAEyBG3/i8YwQisEfa+FhQIEaZ+A8hKUb+96j93/ioEyBGBCKwRyBGKUYIIv73nv3f+JgTIEYMIrBHIEb+97792vgQQAJGC0YAIE/2IFEA8CD6oEcAJYn4FVEe5Zn5AgEBIcD6UfCJ+AIBCuBIHpn4AhHAsgExybKIQji/AUaJ+AIRQPIBEKn4FAEF5aTxCgAHKD/2Aq3f6BDwCQAIABUB/AA0AUMBCAAKAfbkDawA8Pb5z0kgRgUi/vdx/bn4XADa+FgQQhwgRv73UP0gRv73df0A8NH5ACg/9N+sufhcAAEwqfhcANjk2vhUUKBHQBtH8jBRQBoAJbDx/z/Iv4r4HlHK5AAgSPIQQQDwwvna+BBAHyOpSpznmfgZAQAoVtDa+FRQT/T4FLT1+h9d0CBGqEcE9YBU9+f8wA8AoIYBALFIifgZUQ2s2vhMYATxDAiCRrX1kC8A8JOAIEYRIQDwFfoF9aYQIUYRIrBHWLENmFBFCNGY+AQA2PgAEKNKwLJRQAhDW9AF9QBF4ucyKDzRASCaSQDwafkMIHbgATCK+A8BQEb+9wD/wLIAKADwxYABKNjpEwEdvxciAJKFSxgiBL8AkoRLAiL+93D+ZORG8qgRASDJ+FgQGSGJSon4FQHJ6QghifgZAVfkASAAJYn4EwEA8Dr5DyCCSan4llDJ+JBQyekIEP/3SLwAITEoifgEEQDyvIBIRBl4gPheEJn4AAEBMIn4AAEBIIn4A0GJ+BQBQvIQcMn4RAD/9y28dEgNqQgiLBggRrBHyLENmHFJiEIV0Z34OIBvSEFG/vdm/HCxQPIBEAAlqfgUAQTxCACJ+AJRifgBgcn4QAD/9w28ASBmSQDw8fgWIMnpCBD/9wO8mfgdAQAoVtDa6RMBFiJSSwCSAiL+9wH+//f2uwEgifgSAZn4FwGA8AEAifgXAf/367uZ+ABBACxP0A2tCfFeATIiKEb+9yH8/yAAJon4AwEoRiFGyfhEYP/3xPkA8MP4CLGJ+ABhASCJ+BQB//fLu7n4lgC5+JIQATCCsopCPr8BIYn4ExGp+JYA//e9u7n4lgAAKD/0uKsBIQE4ifgTEan4lgD/97C7oEcA8LP4yvhMAP/3qLuZ+AABACg/9HOs/yEBOIn4AxEBIYn4FBHJ+ERQifgAAf/3l7sBICFJAPB7+BQgROcRRgAgDCIA8GT4APBq+BBGAPBj+AhGMiEA8F/40B8AINQfACCrHQAg2B0AINAdACAsHwAgRB8AIL8fACB3HwAgox8AIHgfACDUHQAgUwIAIMwdACCXHwAgyB0AIAweACD0HQAgah8AIN0dACBeHwAgqQwAIBYfACARHwAg/R4AIEweACCcHgAg1R4AIO4eACBPVkwxVEVYVAA+FQBUWFQxsx4AILYeACBgHwAg0LUCrwxGmUIBvxFGIka96NBA/vdxuyBGGUYA8BD4gLVvRv73hfuAtW9G//f4/4C1b0b/9/T/gLVvRv/38P+AtW9G//fs/4n4FQFG8qgQyfhYAHBHAkYLRhFGUEYaRv7357uG+BUBRvKoELBlcEfN6QAQdyECkAIgcEcsISBGAPBzuAFGb/MfMQhERPJoIQhEcEcAIf/3nLiwtQKvECk/00JCAvADBUIZkEIg0qXxAQyNsQAjhkYO+AE7AS0H0ENwAi0av4NwAPEDDgDxAg688QMPBNIL4IZGvPEDDwfTrvEEAAAjQPgEPwQdlEL60UkbIfADABBEgkIQ0gAjQvgEO4JCC9JC+AQ7gkI8v0L4BDuCQgPSQvgEO4JC79MB8AMBQhiQQh/SSx4R8AMEDNBP8AAMAUYB+AHLASwK0AIsgPgBwAPRgRwE4AFGAuAAIYFwwRwDKzi/sL0IHwAhQPgEHwMdk0L60bC9gLVvRgQpBdMLH9pDEvAMDwLRGuACRiTgT/AADAJGQvgEyxPwDA8I0APwDALA+ATABCoF0Qg5CDAG4BlGEEYE4AAiDDmCYAwwAkYMKwnTACMCRhA5wukAM8LpAjMQMgMp99hQGIJCIdKh8QEMEfADAwzQT/AADhFGAfgB6wErCtACK4L4AeAD0ZEcBOARRgLgACGRcNEcvPEDDzi/gL0EOQAiQfgELwsdg0L60YC9gLVvRgQpDdNf+oL8T/ABMwz7A/yh8QQOb+oOAxPwDA8C0RjgA0Yi4ANGHvAMD0P4BMsI0A7wDAPA+ATABCsF0Qg5CDAG4HFGGEYE4MD4CMAMOQwwA0a+8QwPCNMDRhA5w+kAzMPpAswQMwMp99hYGINCINKh8QEMEfADDg3QGUa+8QEPAfgBKwjQWnC+8QIPGr+acNkcmRwA4BlGvPEDDzi/gL0EOQH4BC8LHYNCynCKcEpw99GAvQAAACB+VEVYVCBHSEk0VFVWOEpLTDVBQkMyREVGM01OTzZwAygFIE9GICBMT1dUUlkgIEhJR0hDQU4nVCBSRVBMWTogVFggQkxPQ0tFRFRYIEJMT0NLRUQ6IFNFRSBTRVRUSU5HU1RYIEZBSUxFRDogTk8gRE9ORSBGTEFHV0FJVDogU1RJTEwgU0VORElORyAwLiw/IS0vMVBRUlM3V1hZWjkAAAA2HgAgAgAAADgeACAHAAAAvB0AIAQAAADAHQAgBAAAALAdACAEAAAAuB0AIAQAAADEHQAgBAAAAD8eACAFAAAAtB0AIAQAAABEHgAgBQAAAE1FU1NBR0UgRlVMTE5FVyBNRVNTQUdFAAEIVVBMT0FEIERSQUZUUyBGUk9NIENQU0RFTElWRVJFREhPTEQgIyBBR0FJTiBUTyBFUkFTRSBBTExNRVNTQUdFUyBFUkFTRURUWVBFIEEgTUVTU0FHRSBGSVJTVFBJTkcgU1RPUFBFRDogTk9UIENPTkZJUk1FRDEuLD8gMkFCQyAzREVGIDRHSEkgNUpLTDZNTk8gN1BRUlMgOFRVViA5V1hZWiAwU1AAKAVYWVpbXF1ecHIrTk9UIENPTkZJUk1FRF9NRU5VIFNFTkQgICpQSU5HICBIT0xEICogRFJBRlRTICBFWElUIFNUT1BTVVAvRE4gRFJBRlQgIE1FTlUgTE9BRCAgRVhJVE5PIE1FU1NBR0VTIFlFVA==";
+const SLOT_BASE = 0x14C000, SLOT_BYTES = 0x8000, SLOT_COUNT = 9;
+const FLASH_READ = 0x44, APP_ERASE = 0x41, APP_WRITE = 0x61;
+const FLASH_BLOCK = 64, APP_BLOCK = 512;
+const DRAFTS_OFFSET = SLOT_BYTES - APP_BLOCK, DRAFT_HEADER = 8, DRAFT_RECORD = 51;
+const DRAFT_MAX = 8, DRAFT_MAGIC = Uint8Array.of(84, 88, 84, 49); // TXT1
+let draftsBusy = false;
+
+function encodeDrafts(input) {
+  const lines = input.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+  if (lines.length > DRAFT_MAX) throw new Error("Enter up to eight drafts.");
+  const bytes = new Uint8Array(APP_BLOCK).fill(255);
+  bytes.set(DRAFT_MAGIC);
+  bytes[4] = lines.length;
+  for (const [i, line] of lines.entries()) {
+    if (!/^[\x20-\x7E]{1,50}$/.test(line)) throw new Error(`Draft ${i + 1} must use 1–50 plain keyboard characters.`);
+    const at = DRAFT_HEADER + i * DRAFT_RECORD;
+    bytes[at] = line.length;
+    bytes.set(new TextEncoder().encode(line), at + 1);
+  }
+  new DataView(bytes.buffer).setUint16(APP_BLOCK - 2, crc16(bytes.subarray(0, APP_BLOCK - 2)));
+  return bytes;
+}
+
+function decodeDrafts(bytes) {
+  if (!sameBytes(bytes.subarray(0, 4), DRAFT_MAGIC)) return null;
+  const check = bytes[APP_BLOCK - 2] << 8 | bytes[APP_BLOCK - 1];
+  if (bytes.length !== APP_BLOCK || bytes[4] > DRAFT_MAX || check !== crc16(bytes.subarray(0, APP_BLOCK - 2))) {
+    throw new Error("The radio’s draft block is damaged.");
+  }
+  const lines = [];
+  for (let i = 0; i < bytes[4]; i++) {
+    const at = DRAFT_HEADER + i * DRAFT_RECORD, len = bytes[at];
+    const line = String.fromCharCode(...bytes.subarray(at + 1, at + 1 + len));
+    if (len < 1 || len > 50 || !/^[\x20-\x7E]+$/.test(line)) throw new Error("The radio contains an invalid draft.");
+    lines.push(line);
+  }
+  return lines;
+}
+
+function appSlotName(bytes) {
+  if (String.fromCharCode(...bytes.subarray(0, 4)) !== "OVL1") return "";
+  return String.fromCharCode(...bytes.subarray(12, 28)).split("\0", 1)[0];
+}
+
+function appImageEnd(bytes, name) {
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const offset = view.getUint32(28, true), length = view.getUint32(32, true);
+  if (appSlotName(bytes) !== name || bytes[8] !== 1 || offset !== 108 || !length || offset + length > DRAFTS_OFFSET) {
+    throw new Error(`The installed ${name} package layout is unsupported.`);
+  }
+  return offset + length;
+}
+
+async function readFlash(link, address, size) {
+  const bytes = new Uint8Array(size);
+  for (let at = 0; at < size; at += FLASH_BLOCK) {
+    const reply = await link.send(FLASH_READ, (address + at) / FLASH_BLOCK);
+    if (reply.data.length !== FLASH_BLOCK) throw new Error("The radio sent an unexpected flash reply.");
+    bytes.set(reply.data, at);
+  }
+  return bytes;
+}
+
+async function findAppSlot(link, target, replacement) {
+  const found = [];
+  for (let slot = 0; slot < SLOT_COUNT; slot++) {
+    const address = SLOT_BASE + slot * SLOT_BYTES;
+    const header = await readFlash(link, address, FLASH_BLOCK);
+    const name = appSlotName(header);
+    if (name === target || name === replacement) found.push({ slot, address, header, name });
+  }
+  const installed = found.filter(app => app.name === target);
+  const choices = installed.length ? installed : found;
+  if (choices.length > 1) throw new Error(`More than one ${choices[0].name} slot was found.`);
+  if (!choices.length) {
+    throw new Error(replacement ? `Install ${target} or ${replacement} first.` : `This radio does not have ${target} installed.`);
+  }
+  appImageEnd(choices[0].header, choices[0].name);
+  return choices[0];
+}
+
+async function writeDrafts(link, drafts, status) {
+  const app = await findAppSlot(link, "TEXT");
+  const { address, header } = app;
+  const current = await readFlash(link, address, SLOT_BYTES);
+  if (!sameBytes(header, current.subarray(0, FLASH_BLOCK))) throw new Error("The TEXT slot changed during the read.");
+  const previous = current.subarray(DRAFTS_OFFSET);
+  const next = current.slice();
+  if (decodeDrafts(previous) === null) {
+    const bundled = Uint8Array.from(atob(BUNDLED_TEXT), char => char.charCodeAt(0));
+    const end = appImageEnd(bundled, "TEXT");
+    if (end !== bundled.length || !sameBytes(bundled.subarray(4, 8), header.subarray(4, 8))) {
+      throw new Error("This TEXT app uses a different firmware version. The CPS can’t update it.");
+    }
+    if (previous.some(byte => byte !== 255)) throw new Error("The TEXT slot already uses the draft storage area.");
+    next.fill(255, 0, Math.max(appImageEnd(header, "TEXT"), end));
+    next.set(bundled);
+  }
+  next.set(drafts, DRAFTS_OFFSET);
+  if (sameBytes(current, next)) return false;
+  await rewriteAppSlot(link, app, current, next, status);
+  return true;
+}
+
+async function rewriteAppSlot(link, { slot, address, name }, current, next, status) {
+  const backup = `${name.replaceAll(" ", "-")}-slot-${slot}-backup.app`;
+  saveFile(backup, current, "application/octet-stream");
+  status(`Writing the ${name} slot. Leave the programming cable connected.`);
+  try {
+    await link.send(APP_ERASE, slot, undefined, 20000);
+    // Commit the package header last so an interrupted write won't launch.
+    for (let at = APP_BLOCK; at < SLOT_BYTES; at += APP_BLOCK) {
+      const block = next.subarray(at, at + APP_BLOCK);
+      if (block.some(byte => byte !== 255)) await link.send(APP_WRITE, at, block);
+    }
+    await link.send(APP_WRITE, 0, next.subarray(0, APP_BLOCK));
+    status("Reading back the app slot to verify.");
+    if (!sameBytes(next, await readFlash(link, address, SLOT_BYTES))) throw new Error("App read-back differs.");
+  } catch (error) {
+    throw new Error(`${describeError(error)} To roll back, restore ${backup} to slot ${slot}.`);
+  }
+}
+
+function refreshDraftControls() {
+  const serial = "serial" in navigator;
+  $("draftsRead").disabled = draftsBusy || !serial;
+  $("draftsWrite").disabled = draftsBusy || !serial || BUNDLED_TEXT.startsWith("__");
+  $("draftsClose").disabled = draftsBusy;
+  $("textDrafts").disabled = draftsBusy;
+}
+
+async function runDraftAction(write) {
+  if (draftsBusy || busy || appearanceBusy) return;
+  const status = message => { $("draftsStatus").textContent = message; };
+  draftsBusy = true;
+  refreshDraftControls();
+  try {
+    const drafts = write ? encodeDrafts($("textDrafts").value) : null;
+    status("Connecting and checking the TEXT app…");
+    await withLink(async link => {
+      if (drafts) {
+        const changed = await writeDrafts(link, drafts, status);
+        status(changed ? `${drafts[4]} drafts verified. The radio is restarting.` : "These drafts already match the radio.");
+      } else {
+        const { address } = await findAppSlot(link, "TEXT");
+        const lines = decodeDrafts(await readFlash(link, address + DRAFTS_OFFSET, APP_BLOCK));
+        $("textDrafts").value = (lines || []).join("\n");
+        status(lines ? `Read ${lines.length} drafts.` : "No drafts on this radio yet.");
+      }
+      await link.end();
+    });
+  } catch (error) {
+    status(describeError(error));
+  } finally {
+    draftsBusy = false;
+    refreshDraftControls();
+  }
+}
+
+/* ---------- Radio Watch scan lists ---------- */
+const BUNDLED_WATCH = "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AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEBAA==";
+const WATCH_APP = "RADIO WATCH", WATCH_REPLACES = "SPECTRUM";
+const WATCH_MAGIC = Uint8Array.of(82, 87, 48, 49); // RW01
+const WATCH_MAX_LISTS = 6, WATCH_MAX_MEMBERS = 32, WATCH_NAME = 12;
+const WATCH_HEADER = 8, WATCH_RECORD = 78;
+let watchBusy = false;
+
+function encodeWatch(input) {
+  const lines = input.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+  if (!lines.length || lines.length > WATCH_MAX_LISTS) throw new Error("Enter one to six scan lists.");
+  const bytes = new Uint8Array(APP_BLOCK).fill(255);
+  const view = new DataView(bytes.buffer);
+  bytes.set(WATCH_MAGIC);
+  bytes[4] = lines.length;
+  const names = new Set();
+  for (const [i, line] of lines.entries()) {
+    const colon = line.indexOf(":");
+    const name = line.slice(0, colon).trim();
+    if (colon < 1 || !/^[\x20-\x7E]{1,12}$/.test(name)) throw new Error("List names need 1–12 keyboard characters followed by a colon.");
+    if (names.has(name.toUpperCase())) throw new Error("Use a different name for each list.");
+    names.add(name.toUpperCase());
+    const channels = new Set();
+    for (const token of line.slice(colon + 1).split(",")) {
+      const match = token.trim().match(/^(\d{1,4})(?:\s*-\s*(\d{1,4}))?$/);
+      if (!match) throw new Error("Use channel numbers or ranges separated by commas.");
+      const start = Number(match[1]), end = Number(match[2] || match[1]);
+      if (start < 1 || end < start || end > MAX_CHANNELS) throw new Error("Channel numbers must be in ascending ranges within 1–1000.");
+      for (let channel = start; channel <= end; channel++) {
+        channels.add(channel);
+        if (channels.size > WATCH_MAX_MEMBERS) throw new Error("Each scan list can contain up to 32 channels.");
+      }
+    }
+    const at = WATCH_HEADER + i * WATCH_RECORD;
+    bytes.set(new TextEncoder().encode(name), at);
+    bytes[at + WATCH_NAME] = channels.size;
+    let cursor = at + 14;
+    for (const channel of channels) {
+      view.setUint16(cursor, channel, true);
+      cursor += 2;
+    }
+  }
+  view.setUint16(APP_BLOCK - 2, crc16(bytes.subarray(0, APP_BLOCK - 2)));
+  return bytes;
+}
+
+function decodeWatch(bytes) {
+  if (!sameBytes(bytes.subarray(0, 4), WATCH_MAGIC)) return null;
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  if (bytes.length !== APP_BLOCK || bytes[4] < 1 || bytes[4] > WATCH_MAX_LISTS
+      || view.getUint16(APP_BLOCK - 2) !== crc16(bytes.subarray(0, APP_BLOCK - 2))) {
+    throw new Error("The radio’s scan list data is damaged.");
+  }
+  const lists = [];
+  for (let i = 0; i < bytes[4]; i++) {
+    const at = WATCH_HEADER + i * WATCH_RECORD, count = bytes[at + WATCH_NAME];
+    const name = String.fromCharCode(...bytes.subarray(at, at + WATCH_NAME)).split("\xff", 1)[0];
+    if (count < 1 || count > WATCH_MAX_MEMBERS || !/^[\x20-\x7E]+$/.test(name)) throw new Error("Invalid scan list on the radio.");
+    const channels = [];
+    for (let n = 0; n < count; n++) {
+      const channel = view.getUint16(at + 14 + 2 * n, true);
+      if (channel < 1 || channel > MAX_CHANNELS) throw new Error("Invalid channel number in a scan list.");
+      channels.push(channel);
+    }
+    lists.push({ name, channels });
+  }
+  return lists;
+}
+
+async function writeWatch(link, config, status) {
+  const app = await findAppSlot(link, WATCH_APP, WATCH_REPLACES);
+  const { address, header, name } = app;
+  const current = await readFlash(link, address, SLOT_BYTES);
+  if (!sameBytes(header, current.subarray(0, FLASH_BLOCK))) throw new Error("The app slot changed during the read.");
+  const lists = decodeWatch(config);
+  const channels = new Set(lists.flatMap(list => list.channels));
+  status("Checking saved channels…");
+  for (const channel of channels) {
+    const reply = await link.send(CMD_READ, (channel - 1) * REC);
+    if (reply.data.length !== REC) throw new Error("Unexpected channel reply from the radio.");
+    if (isBlank(reply.data, 0)) throw new Error("Channel " + channel + " is empty on the radio. Upload the channel or remove it from the list.");
+  }
+
+  let next = current.slice();
+  if (name === WATCH_REPLACES) {
+    const bundled = Uint8Array.from(atob(BUNDLED_WATCH), char => char.charCodeAt(0));
+    if (appImageEnd(bundled, WATCH_APP) !== bundled.length
+        || !sameBytes(bundled.subarray(4, 8), header.subarray(4, 8))) {
+      throw new Error("This radio uses a different app interface. The CPS can’t install Radio Watch.");
+    }
+    next = new Uint8Array(SLOT_BYTES).fill(255);
+    next.set(bundled);
+  }
+  next.set(config, DRAFTS_OFFSET);
+  if (sameBytes(current, next)) return false;
+  await rewriteAppSlot(link, app, current, next, status);
+  return true;
+}
+
+function refreshWatchControls() {
+  const serial = "serial" in navigator;
+  $("watchRead").disabled = watchBusy || !serial;
+  $("watchWrite").disabled = watchBusy || !serial || BUNDLED_WATCH.startsWith("__");
+  $("watchClose").disabled = watchBusy;
+  $("watchLists").disabled = watchBusy;
+}
+
+async function runWatchAction(write) {
+  if (watchBusy || busy || appearanceBusy || draftsBusy) return;
+  const status = message => { $("watchStatus").textContent = message; };
+  watchBusy = true;
+  refreshWatchControls();
+  try {
+    const config = write ? encodeWatch($("watchLists").value) : null;
+    status("Connecting and checking the app slot…");
+    await withLink(async link => {
+      if (config) {
+        const changed = await writeWatch(link, config, status);
+        status(changed ? "Radio Watch and its lists verified. The radio is restarting." : "These lists already match the radio.");
+      } else {
+        const app = await findAppSlot(link, WATCH_APP, WATCH_REPLACES);
+        const lists = app.name === WATCH_APP
+          ? decodeWatch(await readFlash(link, app.address + DRAFTS_OFFSET, APP_BLOCK))
+          : null;
+        $("watchLists").value = (lists || []).map(list => list.name + ": " + list.channels.join(", ")).join("\n");
+        status(lists ? "Read " + lists.length + " scan lists." : "No Radio Watch lists on this radio yet.");
+      }
+      await link.end();
+    });
+  } catch (error) {
+    status(describeError(error));
+  } finally {
+    watchBusy = false;
+    refreshWatchControls();
+  }
+}
+
+/* ---------- Satellite RX pass planning ---------- */
+const BUNDLED_SAT_RX = "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";
+const SAT_RX = "SATELLITE RX", SAT_REPLACES = "BAND SWEEP";
+const SAT_PLAN_BYTES = 4096, SAT_OFFSET = SLOT_BYTES - SAT_PLAN_BYTES;
+const SAT_PLAN_HEADER = 32, SAT_PASS_BYTES = 260, SAT_POINTS = 41, SAT_MAX_PASSES = 12;
+const SECONDS_2000 = Date.UTC(2000, 0, 1) / 1000;
+const RAD = Math.PI / 180;
+let satBusy = false;
+
+function satrecFromTle(tle) {
+  const lines = tle.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+  const [a, b] = lines.slice(-2);
+  const valid = (line, prefix) => {
+    if (!line || line.length !== 69 || !line.startsWith(prefix) || !/\d/.test(line[68])) return false;
+    let checksum = 0;
+    for (const ch of line.slice(0, 68)) checksum += ch === "-" ? 1 : Number(ch) || 0;
+    return checksum % 10 === Number(line[68]);
+  };
+  if (!valid(a, "1 ") || !valid(b, "2 ") || a.slice(2, 7) !== b.slice(2, 7)) {
+    throw new Error("Paste two matching TLE lines with valid checksums.");
+  }
+  const orbit = satellite.twoline2satrec(a, b);
+  if (!Number.isFinite(orbit.jdsatepoch) || !(orbit.no > 0) || 2 * Math.PI / orbit.no > 225) {
+    throw new Error("Enter orbital elements for a low-Earth-orbit satellite.");
+  }
+  return orbit;
+}
+
+function predictSatellite(options, now = Math.floor(Date.now() / 1000) - SECONDS_2000) {
+  const { name, hz, lat, lon, alt, wide, tle } = options;
+  if (!/^[\x20-\x7E]{1,12}$/.test(name)) throw new Error("Enter a satellite label of up to 12 keyboard characters.");
+  if (!Number.isInteger(hz) || !((hz >= 136000000 && hz <= 174000000) || (hz >= 400000000 && hz <= 520000000))) {
+    throw new Error("Enter an FM downlink in 136–174 or 400–520 MHz.");
+  }
+  if (!Number.isFinite(lat) || !Number.isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) {
+    throw new Error("Enter the latitude and longitude of your listening location.");
+  }
+  if (!Number.isFinite(alt) || alt < -500 || alt > 9000) throw new Error("Check the altitude in meters.");
+  const orbit = satrecFromTle(tle);
+  const epoch = (orbit.jdsatepoch - 2440587.5) * 86400 - SECONDS_2000;
+  if (epoch > now + 86400 || now - epoch > 14 * 86400) throw new Error("These orbital elements are stale or future-dated. Get a fresh TLE and check the PC clock.");
+  const observer = { latitude: lat * RAD, longitude: lon * RAD, height: alt / 1000 };
+  const look = t => {
+    const date = new Date((t + SECONDS_2000) * 1000);
+    const result = satellite.propagate(orbit, date);
+    if (!result || !result.position) throw new Error("Could not propagate this orbit. Try a fresh TLE.");
+    const angles = satellite.ecfToLookAngles(observer, satellite.eciToEcf(result.position, satellite.gstime(date)));
+    if (![angles.azimuth, angles.elevation, angles.rangeSat].every(Number.isFinite)) throw new Error("The TLE produced invalid pointing angles.");
+    return angles;
+  };
+  const crossing = (lo, hi, rising) => {
+    while (hi - lo > 1) {
+      const mid = Math.floor((lo + hi) / 2);
+      if ((look(mid).elevation >= 0) === rising) hi = mid;
+      else lo = mid;
+    }
+    return hi;
+  };
+  const passes = [];
+  const horizon = now + 48 * 3600;
+  let previous = look(now).elevation;
+  let rise = previous >= 0 ? now : null, peak = previous;
+  for (let t = now + 20; t <= horizon && passes.length < SAT_MAX_PASSES; t += 20) {
+    const elevation = look(t).elevation;
+    if (rise === null && elevation >= 0) {
+      rise = crossing(t - 20, t, true);
+      peak = elevation;
+    }
+    if (rise !== null) {
+      peak = Math.max(peak, elevation);
+      if (elevation < 0 && previous >= 0) {
+        const end = crossing(t - 20, t, false);
+        if (peak >= 10 * RAD && end > rise && end - rise <= 3600) {
+          const points = [];
+          for (let i = 0; i < SAT_POINTS; i++) {
+            const at = rise + (end - rise) * i / (SAT_POINTS - 1);
+            const angle = look(at);
+            const rate = (look(at + 1).rangeSat - look(at - 1).rangeSat) / 2;
+            const shift = Math.round(-hz * rate / 299792.458);
+            if (Math.abs(shift) > 32767) throw new Error("The computed Doppler correction is out of range.");
+            points.push([Math.round(angle.azimuth / RAD * 10) % 3600, Math.round(angle.elevation / RAD * 10), shift]);
+          }
+          passes.push({ start: rise, end, peak: Math.round(peak / RAD), points });
+        }
+        rise = null;
+      }
+    }
+    previous = elevation;
+  }
+  if (!passes.length) throw new Error("No pass above 10° was found in the next 48 hours for this location.");
+
+  const bytes = new Uint8Array(SAT_PLAN_BYTES).fill(255);
+  const view = new DataView(bytes.buffer);
+  bytes.set([83, 82, 88, 49, passes.length, Number(wide)]); // SRX1
+  bytes.fill(0, 8, 20);
+  bytes.set(new TextEncoder().encode(name), 8);
+  view.setUint32(20, hz, true);
+  for (const [i, pass] of passes.entries()) {
+    const offset = SAT_PLAN_HEADER + i * SAT_PASS_BYTES;
+    view.setUint32(offset, pass.start, true);
+    view.setUint32(offset + 4, pass.end, true);
+    view.setUint16(offset + 8, pass.peak, true);
+    for (const [n, [az, el, shift]] of pass.points.entries()) {
+      const at = offset + 12 + 6 * n;
+      view.setUint16(at, az, true);
+      view.setInt16(at + 2, el, true);
+      view.setInt16(at + 4, shift, true);
+    }
+  }
+  view.setUint16(SAT_PLAN_BYTES - 2, crc16(bytes.subarray(0, SAT_PLAN_BYTES - 2)));
+  return { bytes, passes };
+}
+
+function satOptions() {
+  const input = id => $(id).value.trim();
+  const value = id => input(id) ? Number(input(id)) : NaN;
+  return {
+    name: input("satName"), hz: Math.round(value("satFreq") * 1e6),
+    lat: value("satLat"), lon: value("satLon"), alt: input("satAlt") ? value("satAlt") : 0,
+    wide: !$("satNarrow").checked, tle: input("satTle"),
+  };
+}
+
+async function writeSatPlan(link, plan, status) {
+  const app = await findAppSlot(link, SAT_RX, SAT_REPLACES);
+  const { address, header, name } = app;
+  const current = await readFlash(link, address, SLOT_BYTES);
+  if (!sameBytes(header, current.subarray(0, FLASH_BLOCK))) throw new Error("The app slot changed during the read.");
+  let next = current.slice();
+  if (name === SAT_REPLACES) {
+    const bundled = Uint8Array.from(atob(BUNDLED_SAT_RX), ch => ch.charCodeAt(0));
+    if (appImageEnd(bundled, SAT_RX) !== bundled.length || bundled.length > SAT_OFFSET
+        || !sameBytes(bundled.subarray(4, 8), header.subarray(4, 8))) {
+      throw new Error("This radio uses a different app interface. The CPS can’t install Satellite RX.");
+    }
+    next = new Uint8Array(SLOT_BYTES).fill(255);
+    next.set(bundled);
+  } else if (appImageEnd(header, SAT_RX) > SAT_OFFSET) {
+    throw new Error("The installed Satellite RX app uses the pass-plan area.");
+  }
+  next.set(plan, SAT_OFFSET);
+  if (sameBytes(current, next)) return false;
+  await rewriteAppSlot(link, app, current, next, status);
+  return true;
+}
+
+function refreshSatControls() {
+  $("satCalculate").disabled = satBusy;
+  $("satWrite").disabled = satBusy || !("serial" in navigator) || BUNDLED_SAT_RX.startsWith("__");
+  $("satClose").disabled = satBusy;
+  for (const id of ["satName", "satFreq", "satLat", "satLon", "satAlt", "satNarrow", "satTle"]) $(id).disabled = satBusy;
+}
+
+async function runSatAction(write) {
+  if (satBusy || busy || appearanceBusy || draftsBusy || watchBusy) return;
+  const status = message => { $("satStatus").textContent = message; };
+  satBusy = true;
+  refreshSatControls();
+  try {
+    const plan = predictSatellite(satOptions());
+    $("satPreview").textContent = plan.passes.map(p => {
+      const utc = new Date((p.start + SECONDS_2000) * 1000).toISOString().slice(0, 16).replace("T", " ");
+      return utc + " UTC   Peak " + p.peak + "°";
+    }).join("\n");
+    status(plan.passes.length + " passes calculated. Times are UTC.");
+    if (write) {
+      await withLink(async link => {
+        const changed = await writeSatPlan(link, plan.bytes, status);
+        status(changed ? "Satellite RX verified. The radio is restarting." : "The pass plan already matches.");
+        await link.end();
+      });
+    }
+  } catch (error) {
+    status(describeError(error));
+  } finally {
+    satBusy = false;
+    refreshSatControls();
+  }
+}
+
 /* ---------- wiring ---------- */
+$("satBtn").addEventListener("click", () => {
+  refreshSatControls();
+  $("satDlg").showModal();
+});
+$("satCalculate").addEventListener("click", () => runSatAction(false));
+$("satWrite").addEventListener("click", () => runSatAction(true));
+$("satClose").addEventListener("click", () => $("satDlg").close());
+$("satDlg").addEventListener("cancel", event => { if (satBusy) event.preventDefault(); });
+$("watchBtn").addEventListener("click", () => {
+  refreshWatchControls();
+  $("watchDlg").showModal();
+});
+$("watchRead").addEventListener("click", () => runWatchAction(false));
+$("watchWrite").addEventListener("click", () => runWatchAction(true));
+$("watchClose").addEventListener("click", () => $("watchDlg").close());
+$("watchDlg").addEventListener("cancel", event => { if (watchBusy) event.preventDefault(); });
+$("draftsBtn").addEventListener("click", () => {
+  refreshDraftControls();
+  $("draftsDlg").showModal();
+});
+$("draftsRead").addEventListener("click", () => runDraftAction(false));
+$("draftsWrite").addEventListener("click", () => runDraftAction(true));
+$("draftsClose").addEventListener("click", () => $("draftsDlg").close());
+$("draftsDlg").addEventListener("cancel", event => { if (draftsBusy) event.preventDefault(); });
 $("search").addEventListener("input", render);
 $("onlyChanged").addEventListener("change", render);
 $("addCh").addEventListener("click", () => openEditor(null));
@@ -1549,7 +2180,7 @@ document.querySelector(".filebtn").addEventListener("keydown", e => {
   if (e.key === "Enter" || e.key === " ") { e.preventDefault(); $("fileIn").click(); }
 });
 window.addEventListener("beforeunload", e => {
-  if (dirty || busy || appearanceBusy || Object.keys(pendingArt).length || pendingBackgroundClear || $("radioTheme").value !== "" || tuneDirty || $("bootSound").value !== "") {
+  if (dirty || busy || appearanceBusy || draftsBusy || watchBusy || satBusy || Object.keys(pendingArt).length || pendingBackgroundClear || $("radioTheme").value !== "" || tuneDirty || $("bootSound").value !== "") {
     e.preventDefault();
     e.returnValue = "";
   }

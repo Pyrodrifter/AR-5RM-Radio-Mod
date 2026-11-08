@@ -72,9 +72,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "sgp4mini"
+version = "0.1.0"
+
+[[package]]
 name = "sim"
 version = "0.1.0"
 dependencies = [
  "bf5rh-abi",
  "embedded-graphics",
+ "sgp4mini",
 ]

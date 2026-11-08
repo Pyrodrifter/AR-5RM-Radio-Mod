@@ -6,6 +6,7 @@ use bf5rh_abi::{Api, AppEvent, AppResult};
 const KIND_SINGLE: u8 = 2;
 const KIND_LONG: u8 = 3;
 const KIND_REPEAT: u8 = 4;
+const KEY_POUND: u8 = 11;
 const KEY_MENU: u8 = 12;
 const KEY_EXIT: u8 = 13;
 const KEY_UP: u8 = 14;
@@ -22,10 +23,21 @@ const CHANNEL_COUNT: usize = 30;
 const CHANNEL_EMPTY: u16 = 0xFFFF;
 
 const SEEK_TIMEOUT_100US: u32 = 30_000;
+const SCAN_TUNE_SETTLE_100US: u32 = 3_000;
+const SCAN_SEEK_TIMEOUT_100US: u32 = 100_000;
+const SCAN_SEEK_GRACE_100US: u32 = 2_000;
+const NOTICE_DURATION_100US: u32 = 40_000;
+const METER_WINDOW_100US: u32 = 3_000;
+const METER_HYSTERESIS: u8 = 2;
+const METER_THRESHOLDS: [u8; 10] = [8, 14, 20, 27, 35, 44, 54, 65, 78, 92];
 
 const BLACK: u16 = 0x0000;
 const WHITE: u16 = 0xFFFF;
-const TITLE_BG: u16 = 0x5800;
+const TITLE_BG: u16 = 0x1033;
+const CYAN: u16 = 0x4EFD;
+const GRAY: u16 = 0xBDF7;
+const PANEL: u16 = 0x08A5;
+const TRACK: u16 = 0x29CA;
 
 const F6: u8 = 1; // 6x10
 const F9: u8 = 2; // 9x18
@@ -36,21 +48,17 @@ const SCREEN_W: i16 = 160;
 const SCREEN_H: i16 = 128;
 const RIGHT_MARGIN: i16 = 4;
 
-const HEADER_CLEAR_Y: i16 = 4;
-const HEADER_CLEAR_H: i16 = 12;
-const HEADER_TOP: i16 = 5;
-const FREQ_CLEAR_Y: i16 = 44;
-const FREQ_CLEAR_H: i16 = 22;
-const FREQ_TOP: i16 = 47; // 9x18 baseline 60
-const STATUS_CLEAR_Y: i16 = 84;
-const STATUS_CLEAR_H: i16 = 14;
-const STATUS_TOP: i16 = 87; // 6x10 baseline 96
-const HINT_TOP: i16 = 111; // 6x10 baseline 120
-
-const TITLE_HEIGHT: i16 = 14;
-const ROW_HEIGHT: i16 = 14;
-const LIST_TOP: i16 = 14;
-const VISIBLE_ROWS: usize = 8;
+const HEADER_HEIGHT: i16 = 22;
+const FREQ_CLEAR_Y: i16 = 26;
+const FREQ_CLEAR_H: i16 = 46;
+const FREQ_TOP: i16 = 29;
+const STATUS_CLEAR_Y: i16 = 73;
+const STATUS_CLEAR_H: i16 = 16;
+const STATUS_TOP: i16 = 76;
+const FOOTER_Y: i16 = 91;
+const PICKER_FOOTER_Y: i16 = 110;
+const ROW_HEIGHT: i16 = 22;
+const VISIBLE_ROWS: usize = 4;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Mode {
@@ -63,6 +71,56 @@ enum Phase {
     Tuning,
     Seeking { remaining_100us: u32 },
     SavePicker { selected: u8 },
+    AutoScan { last: u16, remaining_100us: u32, preparing: bool },
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Notice {
+    None,
+    ScanDone { added: u8, stopped: bool },
+    PresetsFull,
+    NoPresets,
+    Saved(u8),
+    SaveFailed,
+}
+
+struct SignalMeter {
+    weighted_sum: u32,
+    elapsed_100us: u32,
+    level: u8,
+}
+
+impl SignalMeter {
+    const EMPTY: Self = Self {
+        weighted_sum: 0,
+        elapsed_100us: 0,
+        level: 0,
+    };
+
+    fn update(&mut self, rssi: u8, dt_100us: u32) {
+        let elapsed = dt_100us.min(METER_WINDOW_100US - self.elapsed_100us);
+        self.weighted_sum += u32::from(rssi.min(127)) * elapsed;
+        self.elapsed_100us += elapsed;
+        if self.elapsed_100us < METER_WINDOW_100US {
+            return;
+        }
+
+        // Average over a fixed interval and require a margin on either side of
+        // each threshold so a reading near a boundary doesn't blink a bar.
+        let average = (self.weighted_sum / METER_WINDOW_100US) as u8;
+        let mut level = self.level as usize;
+        while level < METER_THRESHOLDS.len()
+            && average >= METER_THRESHOLDS[level] + METER_HYSTERESIS
+        {
+            level += 1;
+        }
+        while level > 0 && average < METER_THRESHOLDS[level - 1] - METER_HYSTERESIS {
+            level -= 1;
+        }
+        self.level = level as u8;
+        self.weighted_sum = 0;
+        self.elapsed_100us = 0;
+    }
 }
 
 struct State {
@@ -70,7 +128,10 @@ struct State {
     deci_mhz: u16,
     channel_index: u8,
     phase: Phase,
-    rssi: u8,
+    meter: SignalMeter,
+    scan_added: u8,
+    notice: Notice,
+    notice_remaining_100us: u32,
     channels: [u16; CHANNEL_COUNT],
     input: [u8; FREQ_INPUT_DIGITS],
     input_len: usize,
@@ -83,7 +144,10 @@ static mut STATE: State = State {
     deci_mhz: FM_DEFAULT_DECI_MHZ,
     channel_index: 0,
     phase: Phase::Tuning,
-    rssi: 0,
+    meter: SignalMeter::EMPTY,
+    scan_added: 0,
+    notice: Notice::None,
+    notice_remaining_100us: 0,
     channels: EMPTY_CHANNELS,
     input: [0u8; FREQ_INPUT_DIGITS],
     input_len: 0,
@@ -105,9 +169,16 @@ struct Snap {
     input_len: usize,
     input_digits: [u8; FREQ_INPUT_DIGITS],
     deci_mhz: u16,
-    seeking: bool,
-    rssi: u8,
+    status: Status,
     picker_selected: u8,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Status {
+    Signal(u8),
+    Seeking,
+    Scanning(u8),
+    Notice(Notice),
 }
 
 static mut LAST_SNAP: Option<Snap> = None;
@@ -144,7 +215,10 @@ fn enter(api: &Api) -> AppResult {
             deci_mhz: FM_DEFAULT_DECI_MHZ,
             channel_index: 0,
             phase: Phase::Tuning,
-            rssi: 0,
+            meter: SignalMeter::EMPTY,
+            scan_added: 0,
+            notice: Notice::None,
+            notice_remaining_100us: 0,
             channels: ch,
             input: [0u8; FREQ_INPUT_DIGITS],
             input_len: 0,
@@ -164,12 +238,20 @@ fn exit(api: &Api) {
 fn tune(api: &Api, deci_mhz: u16) {
     unsafe {
         STATE.deci_mhz = deci_mhz;
+        STATE.meter = SignalMeter::EMPTY;
     }
     (api.fm_tune_khz)(deci_mhz as u32 * 100);
 }
 
 fn channels() -> [u16; CHANNEL_COUNT] {
     unsafe { STATE.channels }
+}
+
+fn show_notice(notice: Notice) {
+    unsafe {
+        STATE.notice = notice;
+        STATE.notice_remaining_100us = NOTICE_DURATION_100US;
+    }
 }
 
 fn input_value() -> u16 {
@@ -260,6 +342,33 @@ fn start_seek(api: &Api, up: bool) {
     }
 }
 
+// Preserve existing presets and fill empty slots during one band pass.
+fn start_auto_scan(api: &Api) {
+    if !channels().contains(&CHANNEL_EMPTY) {
+        show_notice(Notice::PresetsFull);
+        return;
+    }
+    unsafe {
+        STATE.input_len = 0;
+        STATE.mode = Mode::Vfo;
+        STATE.scan_added = 0;
+    }
+    tune(api, FREQ_LO_DECI_MHZ);
+    (api.set_speaker)(false);
+    unsafe { STATE.phase = Phase::AutoScan { last: FREQ_LO_DECI_MHZ, remaining_100us: SCAN_TUNE_SETTLE_100US, preparing: true }; }
+}
+fn finish_auto_scan(api: &Api, stopped: bool) {
+    let ch = channels();
+    let added = unsafe { STATE.scan_added };
+    let saved = added == 0 || (api.fm_channels_save)(ch.as_ptr().cast(), (CHANNEL_COUNT * 2) as u16);
+    tune(api, unsafe { STATE.deci_mhz });
+    unsafe {
+        STATE.phase = Phase::Tuning;
+    }
+    show_notice(if saved { Notice::ScanDone { added, stopped } } else { Notice::SaveFailed });
+    (api.set_speaker)(true);
+}
+
 fn toggle_mode(api: &Api) {
     let mode = unsafe { STATE.mode };
     match mode {
@@ -274,7 +383,7 @@ fn toggle_mode(api: &Api) {
                     tune(api, channels()[idx as usize]);
                 }
                 None => {
-                    // TODO: play beep
+                    show_notice(Notice::NoPresets);
                 }
             }
         }
@@ -375,14 +484,17 @@ fn dispatch_save_picker(api: &Api, id: u8, kind: u8) {
         (KIND_SINGLE, KEY_MENU) => {
             let mut ch = channels();
             ch[selected as usize] = unsafe { STATE.deci_mhz };
-            (api.fm_channels_save)(
+            let saved = (api.fm_channels_save)(
                 ch.as_ptr() as *const u8,
                 (CHANNEL_COUNT * 2) as u16,
             );
             unsafe {
-                STATE.channels = ch;
+                if saved {
+                    STATE.channels = ch;
+                }
                 STATE.phase = Phase::Tuning;
             }
+            show_notice(if saved { Notice::Saved(selected + 1) } else { Notice::SaveFailed });
         }
         (KIND_SINGLE, KEY_EXIT) | (KIND_LONG, KEY_EXIT) => unsafe {
             STATE.phase = Phase::Tuning;
@@ -398,6 +510,12 @@ fn key(api: &Api, id: u8, kind: u8) -> AppResult {
             dispatch_save_picker(api, id, kind);
             AppResult::Continue
         }
+        Phase::AutoScan { .. } => {
+            if (kind == KIND_SINGLE || kind == KIND_LONG) && id == KEY_EXIT {
+                finish_auto_scan(api, true);
+            }
+            AppResult::Continue
+        }
         _ => {
             if (kind == KIND_SINGLE || kind == KIND_LONG) && id == KEY_EXIT {
                 if unsafe { STATE.input_len } > 0 {
@@ -411,6 +529,9 @@ fn key(api: &Api, id: u8, kind: u8) -> AppResult {
                 return AppResult::Continue;
             }
             if phase == Phase::Tuning {
+                if matches!(kind, KIND_SINGLE | KIND_LONG | KIND_REPEAT) {
+                    unsafe { STATE.notice = Notice::None; }
+                }
                 if kind == KIND_SINGLE && id <= 9 {
                     handle_digit(api, id);
                 } else {
@@ -425,6 +546,7 @@ fn key(api: &Api, id: u8, kind: u8) -> AppResult {
                         (KIND_LONG, KEY_UP) => start_seek(api, true),
                         (KIND_LONG, KEY_DOWN) => start_seek(api, false),
                         (KIND_SINGLE, KEY_MENU) => open_save_picker(),
+                        (KIND_LONG, KEY_POUND) => start_auto_scan(api),
                         _ => {}
                     }
                 }
@@ -439,9 +561,58 @@ fn key(api: &Api, id: u8, kind: u8) -> AppResult {
 
 fn tick(api: &Api, dt_100us: u32) -> AppResult {
     let status = (api.fm_status)();
-    let rssi = (status >> 8) as u8;
     unsafe {
-        STATE.rssi = rssi;
+        if STATE.phase == Phase::Tuning {
+            (*core::ptr::addr_of_mut!(STATE.meter)).update((status >> 8) as u8, dt_100us);
+        }
+        STATE.notice_remaining_100us = STATE.notice_remaining_100us.saturating_sub(dt_100us);
+        if STATE.notice_remaining_100us == 0 {
+            STATE.notice = Notice::None;
+        }
+    }
+    if let Phase::AutoScan { last, remaining_100us, preparing } = unsafe { STATE.phase } {
+        let remaining = remaining_100us.saturating_sub(dt_100us);
+        if preparing {
+            if remaining == 0 {
+                (api.fm_seek)(true);
+                unsafe { STATE.phase = Phase::AutoScan { last, remaining_100us: SCAN_SEEK_TIMEOUT_100US, preparing: false }; }
+            } else {
+                unsafe { STATE.phase = Phase::AutoScan { last, remaining_100us: remaining, preparing: true }; }
+            }
+        } else if remaining == 0 {
+            finish_auto_scan(api, false);
+        } else if remaining <= SCAN_SEEK_TIMEOUT_100US - SCAN_SEEK_GRACE_100US && status & 1 != 0 {
+            if status & 2 != 0 {
+                finish_auto_scan(api, false);
+            } else {
+                let found = ((api.fm_tuned_freq_khz)() / 100) as u16;
+                if found <= last || found > FREQ_HI_DECI_MHZ {
+                    finish_auto_scan(api, false);
+                } else {
+                    unsafe { STATE.deci_mhz = found; }
+                    let mut ch = channels();
+                    if !ch.contains(&found) {
+                        if let Some(slot) = ch.iter().position(|&f| f == CHANNEL_EMPTY) {
+                            ch[slot] = found;
+                            unsafe {
+                                STATE.channels = ch;
+                                STATE.scan_added += 1;
+                            }
+                        }
+                    }
+                    if ch.iter().all(|&f| f != CHANNEL_EMPTY) {
+                        finish_auto_scan(api, false);
+                    } else {
+                        // Retuning clears the previous seek; wait for tuning to settle.
+                        tune(api, found);
+                        unsafe { STATE.phase = Phase::AutoScan { last: found, remaining_100us: SCAN_TUNE_SETTLE_100US, preparing: true }; }
+                    }
+                }
+            }
+        } else {
+            unsafe { STATE.phase = Phase::AutoScan { last, remaining_100us: remaining, preparing: false }; }
+        }
+        return AppResult::Continue;
     }
     if let Phase::Seeking { remaining_100us } = unsafe { STATE.phase } {
         let complete = status & 1 != 0;
@@ -462,6 +633,7 @@ fn tick(api: &Api, dt_100us: u32) -> AppResult {
             }
             unsafe {
                 STATE.phase = Phase::Tuning;
+                STATE.meter = SignalMeter::EMPTY;
             }
             (api.set_speaker)(true);
         }
@@ -502,8 +674,12 @@ fn capture() -> Snap {
             input_len: STATE.input_len,
             input_digits: STATE.input,
             deci_mhz: STATE.deci_mhz,
-            seeking: matches!(STATE.phase, Phase::Seeking { .. }),
-            rssi: STATE.rssi,
+            status: match STATE.phase {
+                Phase::Seeking { .. } => Status::Seeking,
+                Phase::AutoScan { .. } => Status::Scanning(STATE.scan_added),
+                _ if STATE.notice != Notice::None => Status::Notice(STATE.notice),
+                _ => Status::Signal(STATE.meter.level),
+            },
             picker_selected,
         }
     }
@@ -533,8 +709,18 @@ fn draw(api: &Api) -> AppResult {
                     clear_strip(api, FREQ_CLEAR_Y, FREQ_CLEAR_H);
                     draw_freq(api, &snap);
                 }
-                if (p.seeking, p.rssi) != (snap.seeking, snap.rssi) {
-                    draw_status(api, &snap);
+                if p.status != snap.status {
+                    match (p.status, snap.status) {
+                        (Status::Signal(old), Status::Signal(new)) => {
+                            draw_signal_bars(api, new, old.min(new)..old.max(new));
+                        }
+                        _ => draw_status(api, &snap),
+                    }
+                }
+                if p.channel_mode != snap.channel_mode
+                    || matches!(p.status, Status::Scanning(_)) != matches!(snap.status, Status::Scanning(_))
+                {
+                    draw_footer(api, &snap);
                 }
             }
         }
@@ -558,33 +744,72 @@ fn full_redraw_tuning(api: &Api, snap: &Snap) {
     draw_header(api, snap);
     draw_freq(api, snap);
     draw_status(api, snap);
-    text(api, 4, HINT_TOP, b"VM CH/VFO  MENU SAVE", WHITE, BLACK, F6);
+    draw_footer(api, snap);
 }
 
 fn draw_header(api: &Api, snap: &Snap) {
-    clear_strip(api, HEADER_CLEAR_Y, HEADER_CLEAR_H);
-    let mut buf = [0u8; 8];
-    let n = if snap.channel_mode {
-        let idx = snap.channel_index as usize + 1;
-        buf[0] = b'F';
-        buf[1] = b'M';
-        buf[2] = b' ';
-        buf[3] = b'C';
-        buf[4] = b'H';
-        buf[5] = b' ';
-        buf[6] = b'0' + (idx / 10) as u8;
-        buf[7] = b'0' + (idx % 10) as u8;
-        8
+    (api.fill_rect)(0, 0, SCREEN_W as u16, HEADER_HEIGHT as u16, TITLE_BG);
+    text(api, 5, 2, b"FM RADIO", WHITE, TITLE_BG, F9);
+    if snap.channel_mode {
+        let mut label = *b"PRESET 00";
+        label[7..].copy_from_slice(&two_digits(snap.channel_index + 1));
+        text(api, 101, 6, &label, CYAN, TITLE_BG, F6);
     } else {
-        buf[0] = b'F';
-        buf[1] = b'M';
-        buf[2] = b' ';
-        buf[3] = b'V';
-        buf[4] = b'F';
-        buf[5] = b'O';
-        6
-    };
-    text(api, 4, HEADER_TOP, &buf[..n], WHITE, BLACK, F6);
+        text(api, 119, 6, b"MANUAL", CYAN, TITLE_BG, F6);
+    }
+}
+
+fn two_digits(value: u8) -> [u8; 2] {
+    [b'0' + value / 10, b'0' + value % 10]
+}
+
+fn draw_footer(api: &Api, snap: &Snap) {
+    (api.fill_rect)(0, FOOTER_Y, SCREEN_W as u16, (SCREEN_H - FOOTER_Y) as u16, PANEL);
+    if matches!(snap.status, Status::Scanning(_)) {
+        text(api, 5, FOOTER_Y + 7, b"SCAN ADDS TO EMPTY SLOTS", GRAY, PANEL, F6);
+        text(api, 5, FOOTER_Y + 21, b"EXIT  STOP AND SAVE", WHITE, PANEL, F6);
+    } else {
+        let arrows = if snap.channel_mode { b"UP/DN PRESET" } else { b"UP/DN TUNE  " };
+        let mode = if snap.channel_mode { b"V/M MANUAL " } else { b"V/M PRESETS" };
+        text(api, 5, FOOTER_Y + 2, arrows, WHITE, PANEL, F6);
+        text(api, 89, FOOTER_Y + 2, b"HOLD SEEK", GRAY, PANEL, F6);
+        text(api, 5, FOOTER_Y + 14, b"MENU SAVE", WHITE, PANEL, F6);
+        text(api, 89, FOOTER_Y + 14, b"HOLD # SCAN", GRAY, PANEL, F6);
+        text(api, 5, FOOTER_Y + 26, mode, WHITE, PANEL, F6);
+        text(api, 89, FOOTER_Y + 26, b"EXIT CLOSE", GRAY, PANEL, F6);
+    }
+}
+
+// Large digits drawn at four times their 5x7 pixel size.
+fn draw_big_frequency(api: &Api, value: &[u8]) {
+    const DIGITS: [[u8; 7]; 10] = [
+        [14,17,17,17,17,17,14], [4,12,4,4,4,4,14],
+        [14,17,1,2,4,8,31], [30,1,1,14,1,1,30],
+        [2,6,10,18,31,2,2], [31,16,16,30,1,1,30],
+        [14,16,16,30,17,17,14], [31,1,2,4,8,8,8],
+        [14,17,17,14,17,17,14], [14,17,17,15,1,1,14],
+    ];
+    let width: i16 = value.iter().map(|&c| if c == b'.' { 8 } else { 23 }).sum();
+    let mut x = (SCREEN_W - width - 18) / 2;
+    for &c in value {
+        if c == b'.' {
+            (api.fill_rect)(x + 2, FREQ_TOP + 24, 4, 4, CYAN);
+            x += 8;
+            continue;
+        }
+        let blank = [0u8; 7];
+        let dash = [0,0,0,31,0,0,0];
+        let rows = if c.is_ascii_digit() { &DIGITS[(c - b'0') as usize] }
+            else if c == b'-' { &dash } else { &blank };
+        for (row, &bits) in rows.iter().enumerate() {
+            for col in 0..5 {
+                if bits & (1 << (4 - col)) != 0 {
+                    (api.fill_rect)(x + col * 4, FREQ_TOP + row as i16 * 4, 4, 4, WHITE);
+                }
+            }
+        }
+        x += 23;
+    }
 }
 
 fn draw_freq(api: &Api, snap: &Snap) {
@@ -593,10 +818,18 @@ fn draw_freq(api: &Api, snap: &Snap) {
     } else {
         let mut buf = [0u8; 8];
         let n = fmt_deci(api, snap.deci_mhz, &mut buf);
-        let w = n as i16 * FW9;
-        let x = SCREEN_W - RIGHT_MARGIN - w;
-        text(api, x, FREQ_TOP, &buf[..n], WHITE, BLACK, F9);
+        draw_big_frequency(api, &buf[..n]);
     }
+    let unit = if snap.channel_mode && snap.input_len > 0 { b"CH " } else { b"MHz" };
+    text(api, 135, 47, unit, GRAY, BLACK, F6);
+    // A dial marker shows the tuned frequency within the broadcast band.
+    let offset = snap.deci_mhz.clamp(FREQ_LO_DECI_MHZ, FREQ_HI_DECI_MHZ) - FREQ_LO_DECI_MHZ;
+    let marker = 8 + (offset * 143 / (FREQ_HI_DECI_MHZ - FREQ_LO_DECI_MHZ)) as i16;
+    (api.fill_rect)(8, 65, 144, 2, TRACK);
+    for x in [8, 44, 80, 116, 151] {
+        (api.fill_rect)(x, 67, 1, 3, TRACK);
+    }
+    (api.fill_rect)(marker - 1, 62, 3, 8, CYAN);
 }
 
 fn draw_freq_input(api: &Api, snap: &Snap) {
@@ -626,57 +859,69 @@ fn draw_freq_input(api: &Api, snap: &Snap) {
             n += 1;
         }
     }
-    let w = n as i16 * FW9;
-    let x = SCREEN_W - RIGHT_MARGIN - w;
-    text(api, x, FREQ_TOP, &buf[..n], WHITE, BLACK, F9);
+    draw_big_frequency(api, &buf[..n]);
 }
 
 fn draw_status(api: &Api, snap: &Snap) {
     clear_strip(api, STATUS_CLEAR_Y, STATUS_CLEAR_H);
-    if snap.seeking {
-        text(api, 4, STATUS_TOP, b"SEEK...", WHITE, BLACK, F6);
-    } else {
-        let mut buf = [0u8; 16];
-        buf[0] = b'R';
-        buf[1] = b'S';
-        buf[2] = b'S';
-        buf[3] = b'I';
-        buf[4] = b' ';
-        let n =
-            (api.fmt_u32)(snap.rssi as u32, unsafe { buf.as_mut_ptr().add(5) })
-                as usize;
-        text(api, 4, STATUS_TOP, &buf[..5 + n], WHITE, BLACK, F6);
+    let mut label = *b"+00 ADDED";
+    let message: &[u8] = match snap.status {
+        Status::Signal(level) => {
+            text(api, 5, STATUS_TOP, b"SIGNAL", GRAY, BLACK, F6);
+            draw_signal_bars(api, level, 0..METER_THRESHOLDS.len() as u8);
+            return;
+        }
+        Status::Seeking => b"SEEKING...",
+        Status::Scanning(added) => {
+            label[1..3].copy_from_slice(&two_digits(added));
+            text(api, 101, STATUS_TOP, &label, WHITE, BLACK, F6);
+            b"SCANNING..."
+        }
+        Status::Notice(Notice::ScanDone { added, stopped }) => {
+            label[1..3].copy_from_slice(&two_digits(added));
+            text(api, 101, STATUS_TOP, &label, WHITE, BLACK, F6);
+            if stopped { b"SCAN STOPPED" } else { b"SCAN DONE" }
+        }
+        Status::Notice(Notice::PresetsFull) => b"PRESETS FULL (30/30)",
+        Status::Notice(Notice::NoPresets) => b"NO PRESETS. HOLD # TO SCAN",
+        Status::Notice(Notice::Saved(slot)) => {
+            let mut saved = *b"SAVED TO PRESET 00";
+            saved[16..].copy_from_slice(&two_digits(slot));
+            text(api, 5, STATUS_TOP, &saved, CYAN, BLACK, F6);
+            return;
+        }
+        Status::Notice(Notice::SaveFailed) => b"COULD NOT SAVE PRESETS",
+        Status::Notice(Notice::None) => return,
+    };
+    text(api, 5, STATUS_TOP, message, CYAN, BLACK, F6);
+}
+
+fn draw_signal_bars(api: &Api, level: u8, bars: core::ops::Range<u8>) {
+    for i in bars {
+        let color = if i < level { CYAN } else { TRACK };
+        (api.fill_rect)(56 + i16::from(i) * 10, STATUS_TOP + 2, 8, 6, color);
     }
 }
 
 fn full_redraw_picker(api: &Api, snap: &Snap) {
     clear_strip(api, 0, SCREEN_H);
+    (api.fill_rect)(0, 0, SCREEN_W as u16, HEADER_HEIGHT as u16, TITLE_BG);
+    text(api, 5, 2, b"SAVE PRESET", WHITE, TITLE_BG, F9);
+    let mut freq = [0u8; 8];
+    let len = fmt_deci(api, snap.deci_mhz, &mut freq);
+    text(api, SCREEN_W - RIGHT_MARGIN - len as i16 * FW6, 6, &freq[..len], CYAN, TITLE_BG, F6);
+    (api.fill_rect)(0, PICKER_FOOTER_Y, SCREEN_W as u16, (SCREEN_H - PICKER_FOOTER_Y) as u16, PANEL);
+    text(api, 5, PICKER_FOOTER_Y + 4, b"MENU SAVE     EXIT BACK", WHITE, PANEL, F6);
     draw_picker(api, snap);
 }
 
 fn draw_picker(api: &Api, snap: &Snap) {
-    // 标题栏
-    (api.fill_rect)(0, 0, SCREEN_W as u16, TITLE_HEIGHT as u16, TITLE_BG);
-    let title = b"SAVE TO";
-    let tw = title.len() as i16 * FW6;
-    text(api, (SCREEN_W - tw) / 2, 2, title, WHITE, TITLE_BG, F6);
-
     let selected = snap.picker_selected as usize;
     let top = scroll_top(selected);
     for slot in 0..VISIBLE_ROWS {
         let index = top + slot;
-        let row_top = LIST_TOP + slot as i16 * ROW_HEIGHT;
-        if index < CHANNEL_COUNT {
-            draw_picker_row(api, index, selected, row_top);
-        } else {
-            (api.fill_rect)(
-                0,
-                row_top,
-                SCREEN_W as u16,
-                ROW_HEIGHT as u16,
-                BLACK,
-            );
-        }
+        let row_top = HEADER_HEIGHT + slot as i16 * ROW_HEIGHT;
+        draw_picker_row(api, index, selected, row_top);
     }
 }
 
@@ -692,34 +937,33 @@ fn scroll_top(selected: usize) -> usize {
 
 fn draw_picker_row(api: &Api, index: usize, selected: usize, row_top: i16) {
     let is_sel = index == selected;
-    let bg = if is_sel { WHITE } else { BLACK };
-    let fg = if is_sel { BLACK } else { WHITE };
+    let bg = if is_sel { TITLE_BG } else { BLACK };
+    let fg = if is_sel { CYAN } else { WHITE };
     (api.fill_rect)(0, row_top, SCREEN_W as u16, ROW_HEIGHT as u16, bg);
+    if is_sel {
+        (api.fill_rect)(0, row_top, 2, ROW_HEIGHT as u16, CYAN);
+    }
     let text_top = row_top + 2;
 
-    let mut buf = [0u8; 8];
-    let n = index as usize + 1;
-    buf[0] = b'C';
-    buf[1] = b'H';
-    buf[2] = b' ';
-    buf[3] = b'0' + (n / 10) as u8;
-    buf[4] = b'0' + (n % 10) as u8;
-    text(api, 4, text_top, &buf[..5], fg, bg, F6);
+    let mut label = *b"PRESET 00";
+    label[7..].copy_from_slice(&two_digits(index as u8 + 1));
+    text(api, 6, text_top, &label, fg, bg, F9);
 
     let deci = channels()[index];
     if deci == CHANNEL_EMPTY {
         text(
             api,
-            SCREEN_W - RIGHT_MARGIN - 5 * FW6,
+            SCREEN_W - RIGHT_MARGIN - 5 * FW9,
             text_top,
             b"EMPTY",
-            fg,
+            if is_sel { CYAN } else { GRAY },
             bg,
-            F6,
+            F9,
         );
     } else {
+        let mut buf = [0u8; 8];
         let m = fmt_deci(api, deci, &mut buf);
-        let w = m as i16 * FW6;
+        let w = m as i16 * FW9;
         text(
             api,
             SCREEN_W - RIGHT_MARGIN - w,
@@ -727,7 +971,7 @@ fn draw_picker_row(api: &Api, index: usize, selected: usize, row_top: i16) {
             &buf[..m],
             fg,
             bg,
-            F6,
+            F9,
         );
     }
 }

@@ -38,6 +38,15 @@ skull = "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
 
 page = open(os.path.join(here, "uploader_template.html"), encoding="utf-8").read()
 page = page.replace("__SKULL__", skull).replace("__CSV__", embed(csv_text)).replace("__SECTIONS__", embed(sections)).replace("__DCS__", embed(dcs))
+with open(os.path.join(here, "..", "apps", "text.app"), "rb") as text_app:
+    page = page.replace("__TEXT_APP__", base64.b64encode(text_app.read()).decode("ascii"))
+with open(os.path.join(here, "..", "apps", "radio watch.app"), "rb") as watch_app:
+    page = page.replace("__WATCH_APP__", base64.b64encode(watch_app.read()).decode("ascii"))
+with open(os.path.join(here, "..", "apps", "satellite rx.app"), "rb") as sat_app:
+    page = page.replace("__SAT_RX_APP__", base64.b64encode(sat_app.read()).decode("ascii"))
+with open(os.path.join(here, "vendor", "satellite-LICENSE.md"), encoding="utf-8") as license, \
+     open(os.path.join(here, "vendor", "satellite-5.0.0.min.js"), encoding="utf-8") as library:
+    page = page.replace("/* __ORBIT_LIBRARY__ */", "/*\n" + license.read() + "\n*/\n" + library.read())
 out = os.path.join(base, "UV-5RM_Channel_Uploader.html")
 with open(out, "w", encoding="utf-8", newline="\n") as f:
     f.write(page)

@@ -76,6 +76,11 @@ dialog h2 { margin: 0 0 10px; font-size: 17px; }
 #appearanceStatus { min-height: 1.4em; }
 #appearanceStatus.err { color: var(--warn); }
 #appearanceStatus.ok { color: var(--ok); }
+#textDrafts, #watchLists { display: block; width: 100%; min-height: 12em; resize: vertical; box-sizing: border-box; }
+#satDlg { width: min(720px, 94vw); max-width: none; }
+#satTle { display: block; width: 100%; resize: vertical; box-sizing: border-box; }
+#satPreview { white-space: pre-wrap; max-height: 12em; overflow: auto; }
+#satDlg a { color: var(--ink); }
 </style>
 </head>
 <body>
@@ -87,6 +92,9 @@ dialog h2 { margin: 0 0 10px; font-size: 17px; }
   <button id="saveCsv">Save CSV</button>
   <button id="appearanceBtn">Screens &amp; themes</button>
   <button id="startupToneBtn">Startup tones</button>
+  <button id="draftsBtn">Text drafts</button>
+  <button id="watchBtn">Radio Watch</button>
+  <button id="satBtn">Satellite RX</button>
 </header>
 
 <main>
@@ -109,6 +117,60 @@ dialog h2 { margin: 0 0 10px; font-size: 17px; }
   <button id="useRadio" class="hidden">Use radio's channels</button>
   <button id="uploadBtn" class="primary">Upload to radio</button>
 </div>
+
+<dialog id="satDlg" aria-labelledby="satTitle">
+  <h2 id="satTitle">Satellite RX</h2>
+  <p>Calculate up to 12 passes over the next 48 hours with a peak elevation of at least 10°. Enter your listening location and the FM downlink you want to monitor.</p>
+  <div class="grid">
+    <label>Satellite label <input id="satName" maxlength="12" placeholder="ISS"></label>
+    <label>FM downlink MHz <input id="satFreq" type="number" step="0.00001" placeholder="Enter downlink"></label>
+    <label>Latitude <input id="satLat" type="number" step="any" min="-90" max="90"></label>
+    <label>Longitude <input id="satLon" type="number" step="any" min="-180" max="180"></label>
+    <label>Altitude in meters <input id="satAlt" type="number" value="0" step="any"></label>
+    <label><input id="satNarrow" type="checkbox"> Narrow FM</label>
+  </div>
+  <label for="satTle">Current orbital elements (TLE)</label>
+  <textarea id="satTle" rows="3" spellcheck="false" placeholder="Paste both TLE lines. An optional satellite name line is fine."></textarea>
+  <p class="muted"><a href="https://celestrak.org/NORAD/elements/gp.php?CATNR=25544&amp;FORMAT=TLE" target="_blank" rel="noopener">Get the ISS TLE from CelesTrak</a> and <a href="https://www.ariss.org/current-status-of-iss-stations.html" target="_blank" rel="noopener">check the ISS radio status</a>. A pass tells you when the satellite is in view.</p>
+  <p class="muted">The first upload backs up and replaces Band Sweep. Set the radio’s UTC clock with * before tracking.</p>
+  <pre id="satPreview"></pre>
+  <p id="satStatus" role="status"></p>
+  <div class="actions">
+    <button id="satCalculate">Calculate passes</button>
+    <button id="satWrite" class="primary">Upload and verify</button>
+    <button id="satClose">Close</button>
+  </div>
+</dialog>
+
+<dialog id="watchDlg" aria-labelledby="watchTitle">
+  <h2 id="watchTitle">Radio Watch scan lists</h2>
+  <p>Enter up to six named lists with up to 32 saved channels each. Use the channel numbers from the CPS table.</p>
+  <label for="watchLists">One list per line</label>
+  <textarea id="watchLists" rows="6" spellcheck="false" placeholder="Marine: 1, 2, 5-9&#10;Airband: 12, 17&#10;Local: 21-25"></textarea>
+  <p class="muted">The first upload backs up and replaces Spectrum. Later uploads update the Radio Watch lists.</p>
+  <p class="muted">On the radio, open RADIO WATCH, choose a list, and press MENU. Press # for Recent Activity, then MENU on a hit to listen.</p>
+  <p id="watchStatus" role="status"></p>
+  <div class="actions">
+    <button id="watchRead">Read from radio</button>
+    <button id="watchWrite" class="primary">Upload and verify</button>
+    <button id="watchClose">Close</button>
+  </div>
+</dialog>
+
+<dialog id="draftsDlg" aria-labelledby="draftsTitle">
+  <h2 id="draftsTitle">TEXT drafts</h2>
+  <p>Enter one message per line. Save up to eight drafts of 50 plain keyboard characters each.</p>
+  <label for="textDrafts">Messages</label>
+  <textarea id="textDrafts" rows="8" spellcheck="false" placeholder="OK&#10;ON MY WAY&#10;CALL ME"></textarea>
+  <p class="muted">Read from the radio to edit its current list. Upload replaces the list, updates TEXT if needed, and downloads a backup before writing.</p>
+  <p class="muted">On the radio, open TEXT and hold *. Use Up/Down to preview drafts, MENU to load one, and MENU again when ready to send.</p>
+  <p id="draftsStatus" role="status"></p>
+  <div class="actions">
+    <button id="draftsRead">Read from radio</button>
+    <button id="draftsWrite" class="primary">Upload and verify</button>
+    <button id="draftsClose">Close</button>
+  </div>
+</dialog>
 
 <dialog id="appearanceDlg" aria-labelledby="appearanceTitle">
   <h2 id="appearanceTitle">Screens, themes &amp; startup tones</h2>
@@ -147,6 +209,22 @@ dialog h2 { margin: 0 0 10px; font-size: 17px; }
         <option value="ocean">Ocean bell</option>
         <option value="racer">Racer</option>
         <option value="powerup">Power up</option>
+        <option value="mission">Mission Impossible (excerpt)</option>
+        <option value="mario">Mario (excerpt)</option>
+        <option value="starwars">Star Wars</option>
+        <option value="badapple1">Bad Apple — track 1 (excerpt)</option>
+        <option value="badapple2">Bad Apple — track 2 (excerpt)</option>
+        <option value="takeonme">Take On Me (excerpt)</option>
+        <option value="songofth">Song of Time</option>
+        <option value="axelf">Axel F (excerpt)</option>
+        <option value="pacman">Pac-Man</option>
+        <option value="barbiegirl">Barbie Girl</option>
+        <option value="mammamia">Mamma Mia</option>
+        <option value="harrypot">Harry Potter</option>
+        <option value="calltopo">Call to Post</option>
+        <option value="sonic">Sonic (excerpt)</option>
+        <option value="tetris">Tetris</option>
+        <option value="aroundworld">Around the World (excerpt)</option>
       </select></label>
       <button id="tuneLoadPreset" type="button" disabled>Load tune</button>
       <label>Import MIDI or RTTTL <input id="tuneFile" type="file" accept=".mid,.midi,.rtttl,.txt,audio/midi,text/plain" disabled></label>
@@ -211,6 +289,7 @@ dialog h2 { margin: 0 0 10px; font-size: 17px; }
 </dialog>
 
 <script>
+/* __ORBIT_LIBRARY__ */
 const BUILTIN_CSV = __CSV__;
 const SECTIONS = __SECTIONS__;
 const DCS_CODES = __DCS__;
@@ -571,7 +650,7 @@ function setNotice(msg, kind) { const n = $("notice"); n.textContent = msg; n.cl
 function setDirty(v) { dirty = v; $("source").textContent = sourceName + (dirty ? " (unsaved changes)" : ""); }
 function setBusy(v) {
   busy = v;
-  for (const id of ["readBtn", "uploadBtn", "useRadio", "saveCsv", "addCh", "appearanceBtn", "startupToneBtn"]) {
+  for (const id of ["readBtn", "uploadBtn", "useRadio", "saveCsv", "addCh", "appearanceBtn", "startupToneBtn", "draftsBtn", "watchBtn", "satBtn"]) {
     $(id).disabled = v || (!("serial" in navigator) && ["readBtn", "uploadBtn"].includes(id));
   }
   $("prog").classList.toggle("hidden", !v);
@@ -913,13 +992,31 @@ const ART_COMMANDS = { startup: [0x4C, 0x6C], background: [0x42, 0x62] };
 const SETTINGS_ADDR = 0x9000, SETTINGS_BYTES = 168, BOOT_THEME_BYTE = 30;
 const BOOT_SOUND_BYTE = 31, TUNE_OFFSET = 72, TUNE_BYTES = 96;
 const TUNE_FREQ = [110,120,120,130,140,150,160,160,170,190,200,210,220,230,250,260,280,290,310,330,350,370,390,420,440,470,490,520,550,590,620,660,700,740,780,830,880,930,990,1050,1110,1170,1240,1320,1400];
-// Original short RTTTL melodies, compatible with the radio's 48-entry limit.
+// Short RTTTL melodies, compatible with the radio's 48-entry limit.
 const TUNE_PRESETS = {
   launch: "Launch:d=8,o=5,b=150:c,e,g,4c6",
   arcade: "Arcade:d=8,o=5,b=170:e,g,a,16p,g,4c6",
   ocean: "Ocean:d=8,o=5,b=100:g,16p,e,16p,c,4g",
   racer: "Racer:d=16,o=5,b=160:c,e,g,c6,8g,4c6",
-  powerup: "PowerUp:d=16,o=5,b=150:c,d,e,g,a,b,4c6"
+  powerup: "PowerUp:d=16,o=5,b=150:c,d,e,g,a,b,4c6",
+  // User-supplied melody, shortened and transposed down one octave.
+  mission: "mission_imp:d=16,o=5,b=95:32d,32d#,32d,32d#,32d,32d#,32d,32d#,32d,32d,32d#,32e,32f,32f#,32g,g,8p,g,8p,a#,p,c6,p,g,8p,g,8p,f,p,f#,p,g,8p,g,8p,a#,p,c6,p,g,8p,g,8p,f,p,f#",
+  mario: "mario:d=4,o=4,b=100:16e5,16e5,32p,8e5,16c5,8e5,8g5,8p,8g4,8p,8c5,16p,8g4,16p,8e4,16p,8a4,8b4,16a#4,8a4,16g4.,16e5,16g5,8a5,16f5,8g5,8e5,16c5,16d5,8b4,16p,8c5,16p,8g4,16p,8e4,16p,8a4,8b4,16a#4,8a4,16g4.,16e5,16g5,8a5,16f5,8g5,8e5",
+  starwars: "star_wars:d=16,o=5,b=100:4e,4e,4e,8c,p,g,4e,8c,p,g,4e,4p,4b,4b,4b,8c6,p,g,4d#,8c,p,g,4e,8p",
+  badapple1: "Track1:d=4,o=5,b=147:16d#4,16d#4,16a#4,16a#4,16d#4,16d#4,16a#4,16a#4,16d#4,16d#4,16a#4,16a#4,16d#4,16d#4,16a#4,16a#4,16d#4,16d#4,16a#4,16a#4,16d#4,16d#4,16a#4,16a#4,16d#4,16d#4,16a#4,16a#4,16d#4,16d#4,16a#4,16a#4,16b4,16b4,16f#4,16f#4,16b4,16b4,16f#4,16f#4,16b4,16b4,16f#4,16f#4,16b4,16b4,16f#4,16f#4",
+  badapple2: "Track2:d=4,o=5,b=147:16d#,16d#,16f,16f,16f#,16f#,16g#,16g#,16a#,8p,16a#,16d#6,16d#6,16c#6,16c#6,16a#,8p,16a#,16d#,8p,16d#,16a#,16a#,16g#,16g#,16f#,16f#,16f,16f,16d#,16d#,16f,16f,16f#,16f#,16g#,16g#,16a#,8p,16a#,16g#,16g#,16f#,16f#,16f,16f,16d#,16d#",
+  // Supplied melodies; excerpts and octave shifts fit the radio.
+  takeonme: "TakeOnMe:d=4,o=4,b=160:8f#5,8f#5,8f#5,8d5,8p,8b,8p,8e5,8p,8e5,8p,8e5,8g#5,8g#5,8a5,8b5,8a5,8a5,8a5,8e5,8p,8d5,8p,8f#5,8p,8f#5,8p,8f#5,8e5,4e5",
+  songofth: "SongOfTh:d=4,o=6,b=140:8f5,8a5,b5,8f5,8a5,b5,8f5,8a5,8b5,8e,d,8b5,8c,8b5,8g5,2e5,8p,8d5,8e5,8g5,2e5,8p,8d5,8e5,f5,8g5,8a5,b5,8c,8b5,e5,8p,8d5,8c5,8f5,8e5,8g5,8f5,8a5,8g5,16a#5,16a5,16a5,16g5,2a5",
+  axelf: "Axel-F:d=4,o=4,b=125:g,8a#.,16g,16p,16g,8c5,8g,8f,g,8d.5,16g,16p,16g,8d#5,8d5,8a#,8g,8d5,8g5,16g,16f,16p,16f,8d,8a#,4g",
+  pacman: "Pacman:d=32,o=5,b=112:b.4,b.,f#.,d#.,b.,f#.,16p,16d#,c.,c.6,g.,e.,c.6,g.,16p,16e,b.4,b.,f#.,d#.,b.,f#.,16p,1d#.,1e.,1f.,1f.,1f#.,1g.,1g.,1g#.,1a.,b.",
+  barbiegirl: "BarbieGi:d=4,o=5,b=125:8g#,8e,8g#,8c#6,a,p,8f#,8d#,8f#,8b,g#,8f#,8e,p,8e,8c#,f#,c#,p,8f#,8e,g#,f#",
+  mammamia: "Abba - Mamma Mia:d=4,o=4,b=40:32f5,32d#5,32f5,8d#5,32d#5,32d#5,32f5,32g5,32f5,16d#.5,32p,16f5,8d#5,16g#5,32g#5,32g#5,32g#5,16g5,16d#.5,32p,8a#5,32a#5,32a#5,16a#5,16f5,16g5,8g#5,16g5,16g5,32g5,16g5,16d5,16d#5,8f5,16f5,8d#5,16g#5,32g#5,32g#5,32g#5,32g5,32d#5,32f5,16d#5",
+  harrypot: "HarryPot:d=8,o=5,b=100:b4,e.,16g,f#,4e,b,4a.,4f#.,e.,16g,f#,4d,f,2b4,p,b4,e.,16g,f#,4e,b,4d6,c#6,4c6,g#,c.6,16b,a#,4a#4,g,2e",
+  calltopo: "CallToPo:d=16,o=5,b=140:8c,8f,8a,8c6,c6,c6,c6,p,8a,a,a,8a,8f,8a,8f,4c.,c,f,a,8c6,c6,c6,8c6,8a,a,a,8a,8c,8c,8c,4f.",
+  sonic: "SonicThe:d=4,o=4,b=125:16c6,32p,8a5,32p,16c6,32p,8b5,32p,16c6,32p,8b5,32p,g5,p,16a5,32p,16e6,32p,8d6,32p,16c6,32p,8b5,32p,4c6",
+  tetris: "Tetris:d=4,o=4,b=80:8f5,16c5,16c#5,16d#5,32f5,32d#5,16c#5,16c5,8a#,16a#,16c#5,8f5,16d#5,16c#5,8c.5,16c#5,8d#5,8f5,8c#5,8a#,a#,8d#5,16f#5,8a#5,16g#5,16f#5,8f.5,16c#5,8f5,16d#5,16c#5,8c5,16c5,16c#5,8d#5,8f5,8c#5,8a#,8a#",
+  aroundworld: "ATC - Around The World:d=4,o=5,b=140:8e6,8a,8c6,8e6,8b,8e,8g,8b,8c6,8f,8a,8c6,8d6,8g,8b,4d6"
 };
 const THEME_NAMES = ["Default", "Blue", "Purple", "Sun"];
 let appearance = null, appearanceBusy = false;
@@ -1392,7 +1489,509 @@ function writeAppearance() {
   });
 }
 
+/* ---------- reusable TEXT drafts ---------- */
+const BUNDLED_TEXT = "__TEXT_APP__";
+const SLOT_BASE = 0x14C000, SLOT_BYTES = 0x8000, SLOT_COUNT = 9;
+const FLASH_READ = 0x44, APP_ERASE = 0x41, APP_WRITE = 0x61;
+const FLASH_BLOCK = 64, APP_BLOCK = 512;
+const DRAFTS_OFFSET = SLOT_BYTES - APP_BLOCK, DRAFT_HEADER = 8, DRAFT_RECORD = 51;
+const DRAFT_MAX = 8, DRAFT_MAGIC = Uint8Array.of(84, 88, 84, 49); // TXT1
+let draftsBusy = false;
+
+function encodeDrafts(input) {
+  const lines = input.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+  if (lines.length > DRAFT_MAX) throw new Error("Enter up to eight drafts.");
+  const bytes = new Uint8Array(APP_BLOCK).fill(255);
+  bytes.set(DRAFT_MAGIC);
+  bytes[4] = lines.length;
+  for (const [i, line] of lines.entries()) {
+    if (!/^[\x20-\x7E]{1,50}$/.test(line)) throw new Error(`Draft ${i + 1} must use 1–50 plain keyboard characters.`);
+    const at = DRAFT_HEADER + i * DRAFT_RECORD;
+    bytes[at] = line.length;
+    bytes.set(new TextEncoder().encode(line), at + 1);
+  }
+  new DataView(bytes.buffer).setUint16(APP_BLOCK - 2, crc16(bytes.subarray(0, APP_BLOCK - 2)));
+  return bytes;
+}
+
+function decodeDrafts(bytes) {
+  if (!sameBytes(bytes.subarray(0, 4), DRAFT_MAGIC)) return null;
+  const check = bytes[APP_BLOCK - 2] << 8 | bytes[APP_BLOCK - 1];
+  if (bytes.length !== APP_BLOCK || bytes[4] > DRAFT_MAX || check !== crc16(bytes.subarray(0, APP_BLOCK - 2))) {
+    throw new Error("The radio’s draft block is damaged.");
+  }
+  const lines = [];
+  for (let i = 0; i < bytes[4]; i++) {
+    const at = DRAFT_HEADER + i * DRAFT_RECORD, len = bytes[at];
+    const line = String.fromCharCode(...bytes.subarray(at + 1, at + 1 + len));
+    if (len < 1 || len > 50 || !/^[\x20-\x7E]+$/.test(line)) throw new Error("The radio contains an invalid draft.");
+    lines.push(line);
+  }
+  return lines;
+}
+
+function appSlotName(bytes) {
+  if (String.fromCharCode(...bytes.subarray(0, 4)) !== "OVL1") return "";
+  return String.fromCharCode(...bytes.subarray(12, 28)).split("\0", 1)[0];
+}
+
+function appImageEnd(bytes, name) {
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const offset = view.getUint32(28, true), length = view.getUint32(32, true);
+  if (appSlotName(bytes) !== name || bytes[8] !== 1 || offset !== 108 || !length || offset + length > DRAFTS_OFFSET) {
+    throw new Error(`The installed ${name} package layout is unsupported.`);
+  }
+  return offset + length;
+}
+
+async function readFlash(link, address, size) {
+  const bytes = new Uint8Array(size);
+  for (let at = 0; at < size; at += FLASH_BLOCK) {
+    const reply = await link.send(FLASH_READ, (address + at) / FLASH_BLOCK);
+    if (reply.data.length !== FLASH_BLOCK) throw new Error("The radio sent an unexpected flash reply.");
+    bytes.set(reply.data, at);
+  }
+  return bytes;
+}
+
+async function findAppSlot(link, target, replacement) {
+  const found = [];
+  for (let slot = 0; slot < SLOT_COUNT; slot++) {
+    const address = SLOT_BASE + slot * SLOT_BYTES;
+    const header = await readFlash(link, address, FLASH_BLOCK);
+    const name = appSlotName(header);
+    if (name === target || name === replacement) found.push({ slot, address, header, name });
+  }
+  const installed = found.filter(app => app.name === target);
+  const choices = installed.length ? installed : found;
+  if (choices.length > 1) throw new Error(`More than one ${choices[0].name} slot was found.`);
+  if (!choices.length) {
+    throw new Error(replacement ? `Install ${target} or ${replacement} first.` : `This radio does not have ${target} installed.`);
+  }
+  appImageEnd(choices[0].header, choices[0].name);
+  return choices[0];
+}
+
+async function writeDrafts(link, drafts, status) {
+  const app = await findAppSlot(link, "TEXT");
+  const { address, header } = app;
+  const current = await readFlash(link, address, SLOT_BYTES);
+  if (!sameBytes(header, current.subarray(0, FLASH_BLOCK))) throw new Error("The TEXT slot changed during the read.");
+  const previous = current.subarray(DRAFTS_OFFSET);
+  const next = current.slice();
+  if (decodeDrafts(previous) === null) {
+    const bundled = Uint8Array.from(atob(BUNDLED_TEXT), char => char.charCodeAt(0));
+    const end = appImageEnd(bundled, "TEXT");
+    if (end !== bundled.length || !sameBytes(bundled.subarray(4, 8), header.subarray(4, 8))) {
+      throw new Error("This TEXT app uses a different firmware version. The CPS can’t update it.");
+    }
+    if (previous.some(byte => byte !== 255)) throw new Error("The TEXT slot already uses the draft storage area.");
+    next.fill(255, 0, Math.max(appImageEnd(header, "TEXT"), end));
+    next.set(bundled);
+  }
+  next.set(drafts, DRAFTS_OFFSET);
+  if (sameBytes(current, next)) return false;
+  await rewriteAppSlot(link, app, current, next, status);
+  return true;
+}
+
+async function rewriteAppSlot(link, { slot, address, name }, current, next, status) {
+  const backup = `${name.replaceAll(" ", "-")}-slot-${slot}-backup.app`;
+  saveFile(backup, current, "application/octet-stream");
+  status(`Writing the ${name} slot. Leave the programming cable connected.`);
+  try {
+    await link.send(APP_ERASE, slot, undefined, 20000);
+    // Commit the package header last so an interrupted write won't launch.
+    for (let at = APP_BLOCK; at < SLOT_BYTES; at += APP_BLOCK) {
+      const block = next.subarray(at, at + APP_BLOCK);
+      if (block.some(byte => byte !== 255)) await link.send(APP_WRITE, at, block);
+    }
+    await link.send(APP_WRITE, 0, next.subarray(0, APP_BLOCK));
+    status("Reading back the app slot to verify.");
+    if (!sameBytes(next, await readFlash(link, address, SLOT_BYTES))) throw new Error("App read-back differs.");
+  } catch (error) {
+    throw new Error(`${describeError(error)} To roll back, restore ${backup} to slot ${slot}.`);
+  }
+}
+
+function refreshDraftControls() {
+  const serial = "serial" in navigator;
+  $("draftsRead").disabled = draftsBusy || !serial;
+  $("draftsWrite").disabled = draftsBusy || !serial || BUNDLED_TEXT.startsWith("__");
+  $("draftsClose").disabled = draftsBusy;
+  $("textDrafts").disabled = draftsBusy;
+}
+
+async function runDraftAction(write) {
+  if (draftsBusy || busy || appearanceBusy) return;
+  const status = message => { $("draftsStatus").textContent = message; };
+  draftsBusy = true;
+  refreshDraftControls();
+  try {
+    const drafts = write ? encodeDrafts($("textDrafts").value) : null;
+    status("Connecting and checking the TEXT app…");
+    await withLink(async link => {
+      if (drafts) {
+        const changed = await writeDrafts(link, drafts, status);
+        status(changed ? `${drafts[4]} drafts verified. The radio is restarting.` : "These drafts already match the radio.");
+      } else {
+        const { address } = await findAppSlot(link, "TEXT");
+        const lines = decodeDrafts(await readFlash(link, address + DRAFTS_OFFSET, APP_BLOCK));
+        $("textDrafts").value = (lines || []).join("\n");
+        status(lines ? `Read ${lines.length} drafts.` : "No drafts on this radio yet.");
+      }
+      await link.end();
+    });
+  } catch (error) {
+    status(describeError(error));
+  } finally {
+    draftsBusy = false;
+    refreshDraftControls();
+  }
+}
+
+/* ---------- Radio Watch scan lists ---------- */
+const BUNDLED_WATCH = "__WATCH_APP__";
+const WATCH_APP = "RADIO WATCH", WATCH_REPLACES = "SPECTRUM";
+const WATCH_MAGIC = Uint8Array.of(82, 87, 48, 49); // RW01
+const WATCH_MAX_LISTS = 6, WATCH_MAX_MEMBERS = 32, WATCH_NAME = 12;
+const WATCH_HEADER = 8, WATCH_RECORD = 78;
+let watchBusy = false;
+
+function encodeWatch(input) {
+  const lines = input.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+  if (!lines.length || lines.length > WATCH_MAX_LISTS) throw new Error("Enter one to six scan lists.");
+  const bytes = new Uint8Array(APP_BLOCK).fill(255);
+  const view = new DataView(bytes.buffer);
+  bytes.set(WATCH_MAGIC);
+  bytes[4] = lines.length;
+  const names = new Set();
+  for (const [i, line] of lines.entries()) {
+    const colon = line.indexOf(":");
+    const name = line.slice(0, colon).trim();
+    if (colon < 1 || !/^[\x20-\x7E]{1,12}$/.test(name)) throw new Error("List names need 1–12 keyboard characters followed by a colon.");
+    if (names.has(name.toUpperCase())) throw new Error("Use a different name for each list.");
+    names.add(name.toUpperCase());
+    const channels = new Set();
+    for (const token of line.slice(colon + 1).split(",")) {
+      const match = token.trim().match(/^(\d{1,4})(?:\s*-\s*(\d{1,4}))?$/);
+      if (!match) throw new Error("Use channel numbers or ranges separated by commas.");
+      const start = Number(match[1]), end = Number(match[2] || match[1]);
+      if (start < 1 || end < start || end > MAX_CHANNELS) throw new Error("Channel numbers must be in ascending ranges within 1–1000.");
+      for (let channel = start; channel <= end; channel++) {
+        channels.add(channel);
+        if (channels.size > WATCH_MAX_MEMBERS) throw new Error("Each scan list can contain up to 32 channels.");
+      }
+    }
+    const at = WATCH_HEADER + i * WATCH_RECORD;
+    bytes.set(new TextEncoder().encode(name), at);
+    bytes[at + WATCH_NAME] = channels.size;
+    let cursor = at + 14;
+    for (const channel of channels) {
+      view.setUint16(cursor, channel, true);
+      cursor += 2;
+    }
+  }
+  view.setUint16(APP_BLOCK - 2, crc16(bytes.subarray(0, APP_BLOCK - 2)));
+  return bytes;
+}
+
+function decodeWatch(bytes) {
+  if (!sameBytes(bytes.subarray(0, 4), WATCH_MAGIC)) return null;
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  if (bytes.length !== APP_BLOCK || bytes[4] < 1 || bytes[4] > WATCH_MAX_LISTS
+      || view.getUint16(APP_BLOCK - 2) !== crc16(bytes.subarray(0, APP_BLOCK - 2))) {
+    throw new Error("The radio’s scan list data is damaged.");
+  }
+  const lists = [];
+  for (let i = 0; i < bytes[4]; i++) {
+    const at = WATCH_HEADER + i * WATCH_RECORD, count = bytes[at + WATCH_NAME];
+    const name = String.fromCharCode(...bytes.subarray(at, at + WATCH_NAME)).split("\xff", 1)[0];
+    if (count < 1 || count > WATCH_MAX_MEMBERS || !/^[\x20-\x7E]+$/.test(name)) throw new Error("Invalid scan list on the radio.");
+    const channels = [];
+    for (let n = 0; n < count; n++) {
+      const channel = view.getUint16(at + 14 + 2 * n, true);
+      if (channel < 1 || channel > MAX_CHANNELS) throw new Error("Invalid channel number in a scan list.");
+      channels.push(channel);
+    }
+    lists.push({ name, channels });
+  }
+  return lists;
+}
+
+async function writeWatch(link, config, status) {
+  const app = await findAppSlot(link, WATCH_APP, WATCH_REPLACES);
+  const { address, header, name } = app;
+  const current = await readFlash(link, address, SLOT_BYTES);
+  if (!sameBytes(header, current.subarray(0, FLASH_BLOCK))) throw new Error("The app slot changed during the read.");
+  const lists = decodeWatch(config);
+  const channels = new Set(lists.flatMap(list => list.channels));
+  status("Checking saved channels…");
+  for (const channel of channels) {
+    const reply = await link.send(CMD_READ, (channel - 1) * REC);
+    if (reply.data.length !== REC) throw new Error("Unexpected channel reply from the radio.");
+    if (isBlank(reply.data, 0)) throw new Error("Channel " + channel + " is empty on the radio. Upload the channel or remove it from the list.");
+  }
+
+  let next = current.slice();
+  if (name === WATCH_REPLACES) {
+    const bundled = Uint8Array.from(atob(BUNDLED_WATCH), char => char.charCodeAt(0));
+    if (appImageEnd(bundled, WATCH_APP) !== bundled.length
+        || !sameBytes(bundled.subarray(4, 8), header.subarray(4, 8))) {
+      throw new Error("This radio uses a different app interface. The CPS can’t install Radio Watch.");
+    }
+    next = new Uint8Array(SLOT_BYTES).fill(255);
+    next.set(bundled);
+  }
+  next.set(config, DRAFTS_OFFSET);
+  if (sameBytes(current, next)) return false;
+  await rewriteAppSlot(link, app, current, next, status);
+  return true;
+}
+
+function refreshWatchControls() {
+  const serial = "serial" in navigator;
+  $("watchRead").disabled = watchBusy || !serial;
+  $("watchWrite").disabled = watchBusy || !serial || BUNDLED_WATCH.startsWith("__");
+  $("watchClose").disabled = watchBusy;
+  $("watchLists").disabled = watchBusy;
+}
+
+async function runWatchAction(write) {
+  if (watchBusy || busy || appearanceBusy || draftsBusy) return;
+  const status = message => { $("watchStatus").textContent = message; };
+  watchBusy = true;
+  refreshWatchControls();
+  try {
+    const config = write ? encodeWatch($("watchLists").value) : null;
+    status("Connecting and checking the app slot…");
+    await withLink(async link => {
+      if (config) {
+        const changed = await writeWatch(link, config, status);
+        status(changed ? "Radio Watch and its lists verified. The radio is restarting." : "These lists already match the radio.");
+      } else {
+        const app = await findAppSlot(link, WATCH_APP, WATCH_REPLACES);
+        const lists = app.name === WATCH_APP
+          ? decodeWatch(await readFlash(link, app.address + DRAFTS_OFFSET, APP_BLOCK))
+          : null;
+        $("watchLists").value = (lists || []).map(list => list.name + ": " + list.channels.join(", ")).join("\n");
+        status(lists ? "Read " + lists.length + " scan lists." : "No Radio Watch lists on this radio yet.");
+      }
+      await link.end();
+    });
+  } catch (error) {
+    status(describeError(error));
+  } finally {
+    watchBusy = false;
+    refreshWatchControls();
+  }
+}
+
+/* ---------- Satellite RX pass planning ---------- */
+const BUNDLED_SAT_RX = "__SAT_RX_APP__";
+const SAT_RX = "SATELLITE RX", SAT_REPLACES = "BAND SWEEP";
+const SAT_PLAN_BYTES = 4096, SAT_OFFSET = SLOT_BYTES - SAT_PLAN_BYTES;
+const SAT_PLAN_HEADER = 32, SAT_PASS_BYTES = 260, SAT_POINTS = 41, SAT_MAX_PASSES = 12;
+const SECONDS_2000 = Date.UTC(2000, 0, 1) / 1000;
+const RAD = Math.PI / 180;
+let satBusy = false;
+
+function satrecFromTle(tle) {
+  const lines = tle.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+  const [a, b] = lines.slice(-2);
+  const valid = (line, prefix) => {
+    if (!line || line.length !== 69 || !line.startsWith(prefix) || !/\d/.test(line[68])) return false;
+    let checksum = 0;
+    for (const ch of line.slice(0, 68)) checksum += ch === "-" ? 1 : Number(ch) || 0;
+    return checksum % 10 === Number(line[68]);
+  };
+  if (!valid(a, "1 ") || !valid(b, "2 ") || a.slice(2, 7) !== b.slice(2, 7)) {
+    throw new Error("Paste two matching TLE lines with valid checksums.");
+  }
+  const orbit = satellite.twoline2satrec(a, b);
+  if (!Number.isFinite(orbit.jdsatepoch) || !(orbit.no > 0) || 2 * Math.PI / orbit.no > 225) {
+    throw new Error("Enter orbital elements for a low-Earth-orbit satellite.");
+  }
+  return orbit;
+}
+
+function predictSatellite(options, now = Math.floor(Date.now() / 1000) - SECONDS_2000) {
+  const { name, hz, lat, lon, alt, wide, tle } = options;
+  if (!/^[\x20-\x7E]{1,12}$/.test(name)) throw new Error("Enter a satellite label of up to 12 keyboard characters.");
+  if (!Number.isInteger(hz) || !((hz >= 136000000 && hz <= 174000000) || (hz >= 400000000 && hz <= 520000000))) {
+    throw new Error("Enter an FM downlink in 136–174 or 400–520 MHz.");
+  }
+  if (!Number.isFinite(lat) || !Number.isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) {
+    throw new Error("Enter the latitude and longitude of your listening location.");
+  }
+  if (!Number.isFinite(alt) || alt < -500 || alt > 9000) throw new Error("Check the altitude in meters.");
+  const orbit = satrecFromTle(tle);
+  const epoch = (orbit.jdsatepoch - 2440587.5) * 86400 - SECONDS_2000;
+  if (epoch > now + 86400 || now - epoch > 14 * 86400) throw new Error("These orbital elements are stale or future-dated. Get a fresh TLE and check the PC clock.");
+  const observer = { latitude: lat * RAD, longitude: lon * RAD, height: alt / 1000 };
+  const look = t => {
+    const date = new Date((t + SECONDS_2000) * 1000);
+    const result = satellite.propagate(orbit, date);
+    if (!result || !result.position) throw new Error("Could not propagate this orbit. Try a fresh TLE.");
+    const angles = satellite.ecfToLookAngles(observer, satellite.eciToEcf(result.position, satellite.gstime(date)));
+    if (![angles.azimuth, angles.elevation, angles.rangeSat].every(Number.isFinite)) throw new Error("The TLE produced invalid pointing angles.");
+    return angles;
+  };
+  const crossing = (lo, hi, rising) => {
+    while (hi - lo > 1) {
+      const mid = Math.floor((lo + hi) / 2);
+      if ((look(mid).elevation >= 0) === rising) hi = mid;
+      else lo = mid;
+    }
+    return hi;
+  };
+  const passes = [];
+  const horizon = now + 48 * 3600;
+  let previous = look(now).elevation;
+  let rise = previous >= 0 ? now : null, peak = previous;
+  for (let t = now + 20; t <= horizon && passes.length < SAT_MAX_PASSES; t += 20) {
+    const elevation = look(t).elevation;
+    if (rise === null && elevation >= 0) {
+      rise = crossing(t - 20, t, true);
+      peak = elevation;
+    }
+    if (rise !== null) {
+      peak = Math.max(peak, elevation);
+      if (elevation < 0 && previous >= 0) {
+        const end = crossing(t - 20, t, false);
+        if (peak >= 10 * RAD && end > rise && end - rise <= 3600) {
+          const points = [];
+          for (let i = 0; i < SAT_POINTS; i++) {
+            const at = rise + (end - rise) * i / (SAT_POINTS - 1);
+            const angle = look(at);
+            const rate = (look(at + 1).rangeSat - look(at - 1).rangeSat) / 2;
+            const shift = Math.round(-hz * rate / 299792.458);
+            if (Math.abs(shift) > 32767) throw new Error("The computed Doppler correction is out of range.");
+            points.push([Math.round(angle.azimuth / RAD * 10) % 3600, Math.round(angle.elevation / RAD * 10), shift]);
+          }
+          passes.push({ start: rise, end, peak: Math.round(peak / RAD), points });
+        }
+        rise = null;
+      }
+    }
+    previous = elevation;
+  }
+  if (!passes.length) throw new Error("No pass above 10° was found in the next 48 hours for this location.");
+
+  const bytes = new Uint8Array(SAT_PLAN_BYTES).fill(255);
+  const view = new DataView(bytes.buffer);
+  bytes.set([83, 82, 88, 49, passes.length, Number(wide)]); // SRX1
+  bytes.fill(0, 8, 20);
+  bytes.set(new TextEncoder().encode(name), 8);
+  view.setUint32(20, hz, true);
+  for (const [i, pass] of passes.entries()) {
+    const offset = SAT_PLAN_HEADER + i * SAT_PASS_BYTES;
+    view.setUint32(offset, pass.start, true);
+    view.setUint32(offset + 4, pass.end, true);
+    view.setUint16(offset + 8, pass.peak, true);
+    for (const [n, [az, el, shift]] of pass.points.entries()) {
+      const at = offset + 12 + 6 * n;
+      view.setUint16(at, az, true);
+      view.setInt16(at + 2, el, true);
+      view.setInt16(at + 4, shift, true);
+    }
+  }
+  view.setUint16(SAT_PLAN_BYTES - 2, crc16(bytes.subarray(0, SAT_PLAN_BYTES - 2)));
+  return { bytes, passes };
+}
+
+function satOptions() {
+  const input = id => $(id).value.trim();
+  const value = id => input(id) ? Number(input(id)) : NaN;
+  return {
+    name: input("satName"), hz: Math.round(value("satFreq") * 1e6),
+    lat: value("satLat"), lon: value("satLon"), alt: input("satAlt") ? value("satAlt") : 0,
+    wide: !$("satNarrow").checked, tle: input("satTle"),
+  };
+}
+
+async function writeSatPlan(link, plan, status) {
+  const app = await findAppSlot(link, SAT_RX, SAT_REPLACES);
+  const { address, header, name } = app;
+  const current = await readFlash(link, address, SLOT_BYTES);
+  if (!sameBytes(header, current.subarray(0, FLASH_BLOCK))) throw new Error("The app slot changed during the read.");
+  let next = current.slice();
+  if (name === SAT_REPLACES) {
+    const bundled = Uint8Array.from(atob(BUNDLED_SAT_RX), ch => ch.charCodeAt(0));
+    if (appImageEnd(bundled, SAT_RX) !== bundled.length || bundled.length > SAT_OFFSET
+        || !sameBytes(bundled.subarray(4, 8), header.subarray(4, 8))) {
+      throw new Error("This radio uses a different app interface. The CPS can’t install Satellite RX.");
+    }
+    next = new Uint8Array(SLOT_BYTES).fill(255);
+    next.set(bundled);
+  } else if (appImageEnd(header, SAT_RX) > SAT_OFFSET) {
+    throw new Error("The installed Satellite RX app uses the pass-plan area.");
+  }
+  next.set(plan, SAT_OFFSET);
+  if (sameBytes(current, next)) return false;
+  await rewriteAppSlot(link, app, current, next, status);
+  return true;
+}
+
+function refreshSatControls() {
+  $("satCalculate").disabled = satBusy;
+  $("satWrite").disabled = satBusy || !("serial" in navigator) || BUNDLED_SAT_RX.startsWith("__");
+  $("satClose").disabled = satBusy;
+  for (const id of ["satName", "satFreq", "satLat", "satLon", "satAlt", "satNarrow", "satTle"]) $(id).disabled = satBusy;
+}
+
+async function runSatAction(write) {
+  if (satBusy || busy || appearanceBusy || draftsBusy || watchBusy) return;
+  const status = message => { $("satStatus").textContent = message; };
+  satBusy = true;
+  refreshSatControls();
+  try {
+    const plan = predictSatellite(satOptions());
+    $("satPreview").textContent = plan.passes.map(p => {
+      const utc = new Date((p.start + SECONDS_2000) * 1000).toISOString().slice(0, 16).replace("T", " ");
+      return utc + " UTC   Peak " + p.peak + "°";
+    }).join("\n");
+    status(plan.passes.length + " passes calculated. Times are UTC.");
+    if (write) {
+      await withLink(async link => {
+        const changed = await writeSatPlan(link, plan.bytes, status);
+        status(changed ? "Satellite RX verified. The radio is restarting." : "The pass plan already matches.");
+        await link.end();
+      });
+    }
+  } catch (error) {
+    status(describeError(error));
+  } finally {
+    satBusy = false;
+    refreshSatControls();
+  }
+}
+
 /* ---------- wiring ---------- */
+$("satBtn").addEventListener("click", () => {
+  refreshSatControls();
+  $("satDlg").showModal();
+});
+$("satCalculate").addEventListener("click", () => runSatAction(false));
+$("satWrite").addEventListener("click", () => runSatAction(true));
+$("satClose").addEventListener("click", () => $("satDlg").close());
+$("satDlg").addEventListener("cancel", event => { if (satBusy) event.preventDefault(); });
+$("watchBtn").addEventListener("click", () => {
+  refreshWatchControls();
+  $("watchDlg").showModal();
+});
+$("watchRead").addEventListener("click", () => runWatchAction(false));
+$("watchWrite").addEventListener("click", () => runWatchAction(true));
+$("watchClose").addEventListener("click", () => $("watchDlg").close());
+$("watchDlg").addEventListener("cancel", event => { if (watchBusy) event.preventDefault(); });
+$("draftsBtn").addEventListener("click", () => {
+  refreshDraftControls();
+  $("draftsDlg").showModal();
+});
+$("draftsRead").addEventListener("click", () => runDraftAction(false));
+$("draftsWrite").addEventListener("click", () => runDraftAction(true));
+$("draftsClose").addEventListener("click", () => $("draftsDlg").close());
+$("draftsDlg").addEventListener("cancel", event => { if (draftsBusy) event.preventDefault(); });
 $("search").addEventListener("input", render);
 $("onlyChanged").addEventListener("change", render);
 $("addCh").addEventListener("click", () => openEditor(null));
@@ -1549,7 +2148,7 @@ document.querySelector(".filebtn").addEventListener("keydown", e => {
   if (e.key === "Enter" || e.key === " ") { e.preventDefault(); $("fileIn").click(); }
 });
 window.addEventListener("beforeunload", e => {
-  if (dirty || busy || appearanceBusy || Object.keys(pendingArt).length || pendingBackgroundClear || $("radioTheme").value !== "" || tuneDirty || $("bootSound").value !== "") {
+  if (dirty || busy || appearanceBusy || draftsBusy || watchBusy || satBusy || Object.keys(pendingArt).length || pendingBackgroundClear || $("radioTheme").value !== "" || tuneDirty || $("bootSound").value !== "") {
     e.preventDefault();
     e.returnValue = "";
   }

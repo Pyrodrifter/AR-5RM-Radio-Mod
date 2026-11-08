@@ -1,30 +1,34 @@
 # AR-5RM Radio Mod
-This repo contains new firmware for Baofeng UV5-RM radios adding new apps including texting. CAUTION: CHIRP will no longer work so use the included apps to program channels and categories
 
-Custom firmware and add-on apps for the Baofeng UV-5RM, built on the open-source
-[bf-5rh-firmware-open](https://github.com/sophiel-meow/bf-5rh-firmware-open). The main addition
-is `TEXT`: short text messages between two radios, with delivery confirmation and no phone,
-internet or extra hardware.
+Custom firmware and add-on apps for the Baofeng AR-5RM NRF and compatible UV-5RM
+radios, based on [bf-5rh-firmware-open](https://github.com/sophiel-meow/bf-5rh-firmware-open).
+Send short radio-to-radio texts with delivery confirmation, scan saved channels,
+and customize the display and startup sound from a local browser tool.
 
-> **Stock firmware recovery is unavailable.** No copy of the factory firmware is known for this hardware, so
-> there's no way back to stock, and CHIRP stops working with the radio. A bad flash could brick
-> it. This has only been run on two radios, so use it at your own risk.
+> **Check the hardware ID and back up your radio before flashing.** The tested
+> hardware has no documented recovery path back to its factory firmware. A bad
+> flash can brick the radio. Use the included programming tools after flashing.
+> CHIRP CSV import and export are supported by the CPS, but CHIRP cannot program
+> the custom firmware directly.
 
 ## What it adds
 
 | Feature | What it does |
 |---|---|
-| **TEXT** | Sends messages up to 50 characters, retries until confirmed, saves them, and plays a tone when one arrives |
+| **TEXT** | Sends messages up to 50 characters, retries delivery, saves messages, and alerts on receipt. Load up to eight reusable drafts from the AR-5RM CPS. |
+| **RADIO WATCH** | Scans named lists of saved channels and lets you listen to recent hits. Optional CPS install replaces SPECTRUM. |
+| **SATELLITE RX** | Uses a pass plan from the CPS to track an FM downlink with receive Doppler correction. Optional CPS install replaces BAND SWEEP. |
+| **FM RADIO** | The redesigned broadcast FM app adds a signal meter and an auto-scan that fills empty preset slots. Available as a separate app package. |
 | **Scan modes** | Press Band to switch between Weather, Police/Fire/EMS, Air, Repeaters, FRS, GMRS, MURS and more, or type a custom range |
 | **BAND SWEEP** | Sweeps a whole band for activity |
 | **RPT FINDER** | Works out a repeater's input frequency and tone |
 | **FOX HUNT** | Signal meter and rough distance estimate for finding a transmitter |
 | **SEARCH/QT SCAN** | Finds a nearby signal's frequency, or the tone on your channel; press 1 to switch |
-| **Look and feel** | Skull start-up logo, black and red menus, and a custom start-up tune |
+| **Screens and startup tones** | Custom artwork, themes, and built-in or imported startup tunes on compatible AR-5RM builds |
 
-Screenshots: see the `preview_*.png` files in `UV-5RM Custom Firmware`.
+See the `preview_*.png` screenshots in [UV-5RM Custom Firmware](UV-5RM%20Custom%20Firmware/).
 
-## Before you start: check your radio
+## Check your radio before flashing
 
 Radios that look identical can have different chips. Check the hardware identifier before choosing a firmware image.
 
@@ -33,8 +37,8 @@ Radios that look identical can have different chips. Check the hardware identifi
 
 | Screen says | What to do |
 |---|---|
-| `5RHNRF` v0.21 or v0.22 | Use the experimental AR-5RM NRF build described below |
-| `5RHNRFB-YP07` | Use the original UV-5RM firmware described under Legacy UV-5RM installation |
+| `5RHNRF` v0.21 or v0.22 | [Install on AR-5RM NRF](#install-on-ar-5rm-nrf) |
+| `5RHNRFB-YP07` | [Legacy UV-5RM installation](#legacy-uv-5rm-installation) |
 | Other identifiers | Hardware compatibility is unverified |
 
 ### Experimental AR-5RM NRF build
@@ -44,18 +48,6 @@ The `ar5rm-nrf` source feature targets the AR-5RM that identifies itself as
 [5RH NRF v0.14 reference image](https://github.com/amoxu/Baofeng-UV-5RM-5RH-RE/tree/main/factory_firmware/NRF_FD6818).
 On AR-5RM v0.21 and v0.22, the custom firmware booted and all nine apps passed installation read-back. The radios exchanged a TEXT ping and acknowledgment. FM receive, broadcast FM and the day/night shortcut were tested. With the AM squelch update and MONITOR off, the radio
 played ATIS on 132.300 MHz at SQL 3 and stayed quiet on 132.400 MHz.
-
-Use Rust 1.99.1 and `--features ar5rm-nrf` for this target. The full build
-needs the following size flags in the PowerShell session that runs Cargo.
-Keep the packaged output to a one-region application `.BF`. A programming-data
-backup and a bootloader response do not establish a way back to stock v0.21.
-
-```powershell
-$env:RUSTFLAGS = '-C link-arg=-Tlink.x -C link-arg=--icf=all -C llvm-args=-enable-machine-outliner=always'
-```
-
-While the stock firmware still runs, `radio_read.py PORT OUTPUT --calibration`
-saves the raw factory calibration blocks separately from the channel backup.
 
 The persistence build skips the factory format. On first boot it checks that
 the private SPI flash region at `0x1A0000..0x1BA000` is erased, then copies
@@ -67,14 +59,6 @@ TX starts inhibited on every boot and requires a valid low-power calibration
 byte. A short press of the upper side key opens FM with the default assignment
 and the FM app installed.
 
-After a successful bench boot and receive check, the installer can provision
-the apps in verified blank slots and check TEXT's log area before it writes.
-Run this from `UV-5RM Custom Firmware`, substituting the actual COM port.
-
-```
-py source-changes\install_new_apps.py --preserve-stock COM7 - 64 "..\AR-5RM Firmware\SETTINGS_AR5RM_DAYNIGHT.app" apps/text.app apps/chanmgr.app apps/searchqt.app apps/spectrum.app apps/bandsweep.app apps/foxhunt.app apps/rptfinder.app apps/fm.app
-```
-
 ### Custom CPS for the AR-5RM
 
 Open [AR-5RM_CPS.html](AR-5RM_CPS.html) in Chrome or Edge on Windows. It runs
@@ -82,25 +66,24 @@ locally. Connect the programming cable with the radio on its normal screen,
 then click **Read radio** and choose its USB serial port. You can edit
 channels, import or export a CHIRP CSV, and save a backup before uploading.
 
-Open **Radio appearance** and click **Read appearance**. Choose a photo or a
-160 × 128 RGB565 image and preview it before clicking **Write and verify**.
-The startup tune editor accepts up to 48 note and duration pairs and provides
-default and Doom presets with an audio preview. MIDI (`.mid` or `.midi`) and
-RTTTL ringtone files can be imported into the tune editor. MIDI import uses the
-first track with non-drum notes and skips overlapping notes. The radio is
-monophonic, supports 48 note/rest entries in 30 ms units, and can play pitches
-from A2 to approximately F6. Files outside those limits must be edited first.
-The CPS downloads an
-appearance backup before replacing artwork, a theme, or the tune. Use
-**Open appearance backup** to stage that backup for restoration.
+| CPS control | Workflow |
+|---|---|
+| **Screens & themes** | Select **Read appearance**, then choose a photo or a 160 × 128 RGB565 image. Compatible builds also support a separate home-screen background and the Default, Blue, Purple, and Sun themes. Preview changes and select **Write and verify**. |
+| **Startup tones** | Select **Read appearance**, then load a built-in tune, import a MIDI or RTTTL file, or edit the notes. Select **Play preview**, then **Write and verify**. |
+| **Text drafts** | Enter up to eight drafts, one per line, with up to 50 plain keyboard characters each. **Read from radio** loads existing drafts. **Upload and verify** backs up the TEXT slot and updates the app if needed. |
+| **Radio Watch** | Enter up to six named lists of up to 32 saved channels each, using their CPS channel numbers or ranges (for example, `Local: 1, 3, 5-9`). The first **Upload and verify** backs up and replaces SPECTRUM. Later uploads update the lists. |
+| **Satellite RX** | Enter a satellite label, listening location, FM downlink, and current two-line orbital elements (TLE). **Calculate passes** previews up to 12 passes over the next 48 hours with peak elevation of at least 10°. The first **Upload and verify** backs up and replaces BAND SWEEP. |
 
-The `AR-5RM_NRF_FULL.BF` build uses the startup image for menu artwork as
-well. The UI build adds a separate home-screen background and the Classic,
-Blue, Purple, and Sun themes. The CPS checks the radio before enabling
-those controls. A background becomes active after its upload is verified.
-The DAY/NIGHT key function switches between Sun and the most recently chosen
-dark theme. On the tested v0.22, holding the lower side button runs it. The
-assignment can be changed under SETTINGS → KEYS.
+Startup tunes are monophonic and can hold up to 48 notes and rests. Durations
+use 30 ms units and the pitch range is A2 to approximately F6. MIDI import uses
+the first track with non-drum notes and skips overlapping notes. The CPS
+downloads an appearance backup before changing artwork, theme, or startup
+sound. Use **Open appearance backup** to stage a restore.
+
+On the radio, open **RADIO WATCH**, choose a list, and press **Menu** to start
+scanning. Press **#** for Recent Activity and **Menu** on a hit to listen.
+In **SATELLITE RX**, press **\*** to set the radio's UTC clock, then select a
+pass and press **Menu** to track it.
 
 To regenerate the page, run `py source-changes\build_cps.py` from
 `UV-5RM Custom Firmware`.
@@ -133,7 +116,24 @@ py source-changes\flash_bf.py "..\AR-5RM Firmware\AR-5RM_NRF_ROUNDED.BF" COM3 cb
 
 The firmware image must be encoded with `source-changes\wrap_bf.py`. Do not wrap a raw binary with only a header: the bootloader acknowledges it but the application will not boot. A custom firmware image can be reinstalled through the bootloader. The stock application image has not been recovered.
 
-The firmware image does not install apps or artwork. The tested radios have nine separate apps installed, including TEXT and the matching SETTINGS app. Provision apps separately using the AR-5RM installer, and preserve existing slots and radio data. Assign `DAY/NIGHT` to the desired side key in SETTINGS → KEYS. Select `CHDISP` → `NAME` to show a large channel name and smaller frequency.
+After the radio boots to its main screen and you confirm that it receives, run
+the app installer. The `--preserve-stock` option requires verified blank slots
+for new apps and checks the TEXT log area before installing TEXT.
+
+```powershell
+py source-changes\install_new_apps.py --preserve-stock COM3 - 64 "..\AR-5RM Firmware\SETTINGS_AR5RM_DAYNIGHT.app" apps/text.app apps/chanmgr.app apps/searchqt.app apps/spectrum.app apps/bandsweep.app apps/foxhunt.app apps/rptfinder.app apps/fm.app
+```
+
+Use the CPS for the optional Radio Watch and Satellite RX replacements after
+installing the base apps. The installer uses the standard `apps/fm.app`.
+The [redesigned FM app](UV-5RM%20Custom%20Firmware/source-changes/fm_redesign.app)
+is packaged separately. In that version, hold **#** to scan the broadcast band
+and fill empty presets. Press **Exit** during the scan to stop and save.
+
+Use **SETTINGS → KEYS** to assign `DAY/NIGHT` to a side key. On the tested
+v0.22, holding the lower side button switches between Sun and the most recent
+dark theme. Select **CHDISP → NAME** to show a large channel name and smaller
+frequency.
 
 ## Legacy UV-5RM installation
 
@@ -192,6 +192,7 @@ when you opened it. Don't use a repeater.
 | Hold **Exit** | Close the app |
 | **Up / Down** | Scroll saved messages |
 | **\*** | Send a numbered test ping |
+| Hold **\*** | Browse uploaded drafts with **Up / Down**. Press **Menu** to load one, then **Menu** again when ready to send. |
 | **A/B** | Switch between low (default) and high power |
 | Hold **#** twice | Erase all saved messages |
 
@@ -223,13 +224,22 @@ You're responsible for what you transmit.
 
 ## Building from source
 
-`firmware-source` is the complete source of the provided firmware and apps; the firmware and `TEXT`
-were confirmed to rebuild byte for byte. It needs [Rust](https://rustup.rs) and the target in its
-`rust-toolchain.toml`. Use a short `--target-dir`, because long paths break linking on Windows.
+The [firmware source](UV-5RM%20Custom%20Firmware/firmware-source/) includes the
+firmware and apps. Install [Rust](https://rustup.rs) and the `thumbv7em-none-eabi`
+target. Run the commands from `UV-5RM Custom Firmware` and keep `--target-dir`
+short to avoid linker path limits on Windows.
 
 ```
 cargo build --release --manifest-path firmware-source/Cargo.toml --config firmware-source/.cargo/config.toml --target-dir C:/t/fw
 py source-changes/elf2bin.py C:/t/fw/thumbv7em-none-eabi/release/bf5rh-fw fw.bin
+```
+
+For AR-5RM NRF, add `--features ar5rm-nrf` to the Cargo command and set the
+size flags in the same PowerShell session before building. Package the output
+as a one-region application `.BF` using `source-changes\wrap_bf.py`.
+
+```powershell
+$env:RUSTFLAGS = '-C link-arg=-Tlink.x -C link-arg=--icf=all -C llvm-args=-enable-machine-outliner=always'
 ```
 
 `source-changes` holds the patches against upstream and the PC tools. `source-changes/simulator` runs
@@ -242,6 +252,9 @@ C:/t/sim/x86_64-pc-windows-msvc/release/sim.exe out-folder skull_logo.rgb565
 
 The output folder has to exist. The simulator only checks logic, so it can't prove how a real radio
 behaves on the air.
+
+See the [screen emulator guide](UV-5RM%20Custom%20Firmware/source-changes/emulator/README.md)
+for an interactive preview of the radio UI and controls.
 
 ## Credits and license
 

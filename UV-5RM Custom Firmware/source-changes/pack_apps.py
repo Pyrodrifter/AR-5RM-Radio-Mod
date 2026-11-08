@@ -9,7 +9,7 @@ APPS = [("SETTINGS", ["menu", "radio", "system"]), ("CHAN MGR", ["chanmgr"]), ("
         ("SCANQT", ["scanqt"]), ("SPECTRUM", ["spectrum"]), ("FM", ["fm"]),
         ("RPT FINDER", ["rptfind"]), ("BAND SWEEP", ["bandsweep"]), ("FOX HUNT", ["foxhunt"]),
         ("SEARCH/QT SCAN", ["qtscan2", "search2"]),
-        ("TEXT", ["textapp"])]
+        ("TEXT", ["textapp"]), ("RADIO WATCH", ["radiowatch"]), ("SATELLITE RX", ["satrx"])]
 
 lib = os.path.join(fw_root, "abi", "src", "lib.rs")
 build_hash = zlib.crc32(open(lib, "rb").read()) & 0xFFFFFFFF
@@ -50,12 +50,18 @@ def read_elf(path):
     return bytes(image), bss, entry - ORIGIN
 
 
+only = sys.argv[4:]
+if any(title not in dict(APPS) for title in only):
+    sys.exit('Unknown app name in package selection')
+
 for title, parts in APPS:
+    if only and title not in only:
+        continue
     body, entries = bytearray(), []
     for part in parts:
         image, bss, entry_off = read_elf(os.path.join(elf_dir, part))
         total = len(image) + bss
-        assert total <= ARENA_MAX, (part, total)
+        assert total <= (ARENA_SIZE if title in ('TEXT', 'RADIO WATCH', 'SATELLITE RX') else ARENA_MAX), (part, total)
         body += b"\0" * (-len(body) % 4)
         offset = HEADER_SIZE + len(body)
         body += image
@@ -67,6 +73,10 @@ for title, parts in APPS:
     assert len(header) == HEADER_SIZE
     pkg = header + bytes(body)
     assert len(pkg) <= SLOT_SIZE, (title, len(pkg))
+    if title in ('TEXT', 'RADIO WATCH'):
+        assert len(pkg) <= SLOT_SIZE - 512, 'App code overlaps the CPS settings block'
+    if title == 'SATELLITE RX':
+        assert len(pkg) <= SLOT_SIZE - 4096, 'App code overlaps the CPS pass plan'
     out = os.path.join(out_dir, title.lower().replace("/", " ") + ".app")
     open(out, "wb").write(pkg)
     print(f"{title}: {len(pkg)} bytes, {len(parts)} segment(s), hash {build_hash:#010x} -> {out}")
