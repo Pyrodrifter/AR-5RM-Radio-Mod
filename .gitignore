@@ -1,5 +1,6 @@
 # Personal: channel dumps, settings and calibration from specific radios.
 UV-5RM Custom Firmware/backup/
+radio_backups/
 *.img
 radio_channels*.bin
 radio_settings*.bin
