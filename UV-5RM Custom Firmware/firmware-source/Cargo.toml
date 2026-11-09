@@ -14,6 +14,7 @@ bench = false
 [features]
 default = []
 ar5rm-nrf = []
+ar5rm-nrf-bench-full-power = ["ar5rm-nrf"]
 
 [dependencies]
 cortex-m = "0.7"

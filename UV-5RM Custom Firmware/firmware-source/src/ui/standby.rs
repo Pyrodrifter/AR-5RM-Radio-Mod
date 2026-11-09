@@ -1,10 +1,10 @@
-//! Home screen, clean style: no boxes, one thing per line. The side you
-//! transmit on gets a header line, large digits (or its name, in channel
-//! mode), a details line and a thin signal bar; the other side is one line
-//! at the bottom. With dual watch on, both sides get the large readout.
+//! Home screen with a status bar, a framed readout for the active side
+//! and a compact standby panel. With dual watch on, both sides get the
+//! large readout.
 //! Labels are `accent`, readouts `value`. Only what changed is redrawn.
 
 use super::backdrop;
+use super::list::fill;
 use super::theme::{self, Theme};
 use super::{freq_text, icons, num, TextBuf, SCREEN_H, SCREEN_W};
 use crate::app::{self, ChannelDisplayMode};
@@ -15,23 +15,26 @@ use embedded_graphics::mono_font::{MonoFont, MonoTextStyle};
 use crate::ui::fonts::FONT_6X10;
 use embedded_graphics::pixelcolor::Rgb565;
 use embedded_graphics::prelude::*;
-use embedded_graphics::primitives::Rectangle;
 use embedded_graphics::text::{Baseline, Text};
 
-const STATUS_H: i32 = 13;
-/// The large readout uses the 6x10 font scaled up: frequencies 3x, names 2x
-/// (to fit 12 letters), so every character has the same size and stroke.
+const PANEL_X: i32 = 2;
+const PANEL_W: i32 = SCREEN_W - 2 * PANEL_X;
+const INNER_X: i32 = PANEL_X + 1;
+const INNER_W: i32 = PANEL_W - 2;
+const LEFT: i32 = 6;
+const RIGHT: i32 = SCREEN_W - 4;
+const STATUS_H: i32 = 14;
+const BATTERY_DIVIDER: i32 = 105;
+const HEADER_TEXT_END: i32 = RIGHT - 22;
 const READ_H: i32 = 30;
 const SMALL_W: i32 = 6;
-const RIGHT: i32 = SCREEN_W - 4;
 
 // Single layout.
 const HEAD_Y: i32 = 20;
 const READ_Y: i32 = 38;
 const DETAIL_Y: i32 = 76;
 const METER_Y: i32 = 92;
-const RULE_Y: i32 = 108;
-const STBY_Y: i32 = 112;
+const STBY_Y: i32 = 113;
 
 // Dual layout: two blocks of this height, each a header line, the readout
 // and a thin bar.
@@ -89,8 +92,7 @@ struct MeterState {
     tx: bool,
     level: u8,
     live: bool,
-    dbm: Option<i32>,
-    s_number: u8,
+    peak_dbm: Option<i32>,
     over_s9: i32,
     side: u8,
 }
@@ -172,18 +174,9 @@ fn shown_freq(app: &app::App, i: usize) -> u32 {
 
 // ---- drawing primitives ----
 
-fn fill<D>(lcd: &mut D, x: i32, y: i32, w: i32, h: i32, color: Rgb565)
-where
-    D: DrawTarget<Color = Rgb565>,
-{
-    if w > 0 && h > 0 {
-        lcd.fill_solid(&Rectangle::new(Point::new(x, y), Size::new(w as u32, h as u32)), color).ok();
-    }
-}
-
 /// Clears a rectangle to the background (or the uploaded picture).
 #[inline(never)]
-fn clear<D>(lcd: &mut D, app: &mut app::App, x: i32, y: i32, w: i32, h: i32)
+fn paint_backdrop<D>(lcd: &mut D, app: &mut app::App, y: i32, h: i32, readout: bool)
 where
     D: DrawTarget<Color = Rgb565>,
 {
@@ -191,13 +184,23 @@ where
         lcd,
         &mut |a, b| app.storage_mut().read_raw(a, b),
         unsafe { BG_PRESENT },
-        x,
+        if readout { INNER_X } else { 0 },
         y,
-        w,
+        if readout { INNER_W } else { SCREEN_W },
         h,
-        true,
+        readout,
         theme::t().bg,
     );
+}
+
+#[inline(never)]
+fn panel<D>(lcd: &mut D, y: i32, h: i32)
+where
+    D: DrawTarget<Color = Rgb565>,
+{
+    let t = theme::t();
+    fill(lcd, PANEL_X, y, PANEL_W, h, t.card);
+    icons::draw_outline(lcd, Point::new(PANEL_X, y), Size::new(PANEL_W as u32, h as u32), t.card_hi);
 }
 
 /// Text with its top at `y`; returns the x after it.
@@ -219,12 +222,12 @@ where
     text(lcd, s, font, right - s.len() as i32 * font.character_size.width as i32, y, color);
 }
 
-/// Draws into `lcd` `k` times the size, from (x, y).
+/// Draws the channel name three times taller, with a width that fits the readout.
 struct Scaled<'a, D> {
     lcd: &'a mut D,
     x: i32,
     y: i32,
-    k: i32,
+    scale_x: i32,
 }
 
 impl<D> OriginDimensions for Scaled<'_, D> {
@@ -245,7 +248,7 @@ where
         I: IntoIterator<Item = Pixel<Rgb565>>,
     {
         for Pixel(p, c) in pixels {
-            fill(self.lcd, self.x + p.x * self.k, self.y + p.y * self.k, self.k, self.k, c);
+            fill(self.lcd, self.x + p.x * self.scale_x, self.y + p.y * 3, self.scale_x, 3, c);
         }
         Ok(())
     }
@@ -341,20 +344,28 @@ where
         BG_PRESENT = backdrop::background_present(&mut |a, b| app.storage_mut().read_raw(a, b));
     }
     let t = theme::t();
-    clear(lcd, app, 0, 0, SCREEN_W, SCREEN_H);
+    paint_backdrop(lcd, app, 0, SCREEN_H, false);
+    panel(lcd, 0, STATUS_H);
+    fill(lcd, BATTERY_DIVIDER, 1, 1, STATUS_H - 2, t.card_hi);
     draw_flags(lcd, app);
 
     for i in 0..2 {
         if has_box(snap, i) {
+            let y = header_y(snap, i) - 3;
+            panel(lcd, y, if snap.dual_standby { BLOCK_H - 2 } else { 90 });
+            if i == snap.master_index {
+                fill(lcd, PANEL_X, y + 1, 2, 13, t.accent);
+            }
             draw_header(lcd, app, snap, i);
             draw_box(lcd, app, snap, i);
         } else {
+            panel(lcd, STBY_Y - 2, 15);
             draw_standby_line(lcd, app, i);
         }
     }
     if !snap.dual_standby {
         draw_details(lcd, app, snap.master_index);
-        fill(lcd, 0, RULE_Y, SCREEN_W, 1, t.card_hi);
+        fill(lcd, INNER_X, METER_Y - 4, INNER_W, 1, t.card_hi);
     }
 
     if app.tx_prohibited() {
@@ -467,15 +478,15 @@ where
     D: DrawTarget<Color = Rgb565>,
 {
     let t = theme::t();
-    clear(lcd, app, 0, 0, 100, STATUS_H);
+    fill(lcd, INNER_X, 1, BATTERY_DIVIDER - INNER_X, STATUS_H - 2, t.card);
     let y = 2;
     let side = match (app.dual_standby_enabled(), app.master_index()) {
-        (true, 0) => "WATCH A",
-        (true, _) => "WATCH B",
-        (false, 0) => "VFO A",
-        (false, _) => "VFO B",
+        (true, 0) => "DW A",
+        (true, _) => "DW B",
+        (false, 0) => "A",
+        (false, _) => "B",
     };
-    let mut x = text(lcd, side, &FONT_6X10, 3, y, t.accent) + 6;
+    let mut x = text(lcd, side, &FONT_6X10, 5, y, t.accent) + 2;
 
     if app.is_transmitting() {
         let secs = app.tx_elapsed_seconds();
@@ -487,10 +498,10 @@ where
         text(lcd, buf.as_str(), &FONT_6X10, x, y, t.alert);
         return;
     }
-    x = text(lcd, app.chan_mode_short(), &FONT_6X10, x, y, t.dim) + 6;
+    x = text(lcd, app.chan_mode_short(), &FONT_6X10, x, y, t.dim) + 2;
     for (on, label, color) in [(app.power_save_active(), "PS", t.dim), (app.vox_enabled(), "VOX", t.ok)] {
         if on {
-            x = text(lcd, label, &FONT_6X10, x, y, color) + 6;
+            x = text(lcd, label, &FONT_6X10, x, y, color) + 2;
         }
     }
     if app.is_key_locked() {
@@ -509,8 +520,8 @@ where
     *last = Some(state);
     let (bars, cv) = state;
     let t = theme::t();
-    clear(lcd, app, 100, 0, SCREEN_W - 100, STATUS_H);
-    let icon_x = SCREEN_W - 2 - icons::BATTERY_W;
+    fill(lcd, BATTERY_DIVIDER + 1, 1, PANEL_X + PANEL_W - BATTERY_DIVIDER - 2, STATUS_H - 2, t.card);
+    let icon_x = RIGHT - icons::BATTERY_W;
     let mut volts: TextBuf<8> = TextBuf::new();
     num(&mut volts, cv as u32 / 100, 1);
     volts.write_str(".").ok();
@@ -522,7 +533,7 @@ where
         _ => t.ok,
     };
     text_right(lcd, volts.as_str(), &FONT_6X10, icon_x - 3, 2, charge);
-    icons::draw_battery(lcd, icon_x, 1, bars, t.dim, charge);
+    icons::draw_battery(lcd, icon_x, 2, bars, t.dim, charge);
 }
 
 // ---- the active side ----
@@ -536,9 +547,9 @@ where
     let dual = snap.dual_standby;
     let y = header_y(snap, i);
     let is_master = i == snap.master_index;
-    clear(lcd, app, 0, y, RIGHT - 22, 10);
+    fill(lcd, LEFT, y, HEADER_TEXT_END - LEFT, 10, t.card);
 
-    let mut x = 4;
+    let mut x = LEFT;
     if dual {
         x = text(lcd, if i == 0 { "A" } else { "B" }, &FONT_6X10, x, y, if is_master { t.accent } else { t.dim }) + 6;
     }
@@ -573,7 +584,7 @@ where
         freq_text(&mut freq, shown_freq(app, i), 5);
         text(lcd, freq.as_str(), &FONT_6X10, x, y, t.text);
     } else if named {
-        let room = ((RIGHT - 24 - x) / SMALL_W).max(0) as usize;
+        let room = ((HEADER_TEXT_END - x) / SMALL_W).max(0) as usize;
         text(lcd, &name[..name.len().min(room)], &FONT_6X10, x, y, t.text);
     }
 }
@@ -586,11 +597,11 @@ where
     let t = theme::t();
     let y = box_top(snap, i);
     let is_master = i == snap.master_index;
-    clear(lcd, app, 0, y, SCREEN_W, READ_H);
+    paint_backdrop(lcd, app, y - 2, READ_H + 4, true);
     let color = if is_master { t.value } else { t.dim };
 
     if is_master && app.freq_input_len() > 0 {
-        big_freq(lcd, t, 0, RIGHT - 2, y, color, Some(app));
+        big_freq(lcd, t, 0, RIGHT - 1, y, color, Some(app));
         return;
     }
     if !is_master && app.dtmf_dial_active() {
@@ -599,12 +610,14 @@ where
     }
     if name_big(app, i) {
         let name = app.side_name_str(i);
-        let name = &name[..name.len().min(12)];
-        let mut big = Scaled { lcd, x: (SCREEN_W - name.len() as i32 * 12) / 2, y: y + 5, k: 2 };
+        let count = name.chars().count() as i32;
+        let scale_x = if count <= INNER_W / (SMALL_W * 3) { 3 } else { 2 };
+        let x = (SCREEN_W - count * SMALL_W * scale_x) / 2;
+        let mut big = Scaled { lcd, x, y, scale_x };
         text(&mut big, name, &FONT_6X10, 0, 0, color);
         return;
     }
-    big_freq(lcd, t, shown_freq(app, i), RIGHT - 2, y, color, None);
+    big_freq(lcd, t, shown_freq(app, i), RIGHT - 1, y, color, None);
 }
 
 /// Mode, power, tone, shift, bandwidth and reverse, as one line.
@@ -613,7 +626,7 @@ where
     D: DrawTarget<Color = Rgb565>,
 {
     let t = theme::t();
-    clear(lcd, app, 0, DETAIL_Y, SCREEN_W, 10);
+    fill(lcd, INNER_X, DETAIL_Y, INNER_W, 10, t.card);
     let modulation = match app.side_modulation(i) {
         Modulation::Fm => "FM",
         Modulation::Am => "AM",
@@ -648,7 +661,7 @@ where
         (if app.side_wide_band(i) { "" } else { "NAR" }, t.ok),
         (if app.side_reversed(i) { "REV" } else { "" }, t.alert),
     ];
-    let mut x = 4;
+    let mut x = LEFT;
     for (label, color) in fields {
         if !label.is_empty() && x + label.len() as i32 * SMALL_W <= RIGHT {
             x = text(lcd, label, &FONT_6X10, x, DETAIL_Y, color) + 9;
@@ -656,15 +669,15 @@ where
     }
 }
 
-/// Single layout: the other side, under the rule at the bottom.
+/// Single layout: the other side, in the compact standby panel.
 fn draw_standby_line<D>(lcd: &mut D, app: &mut app::App, i: usize)
 where
     D: DrawTarget<Color = Rgb565>,
 {
     let t = theme::t();
-    clear(lcd, app, 0, STBY_Y, SCREEN_W, SCREEN_H - STBY_Y);
-    let y = STBY_Y + 1;
-    let mut x = text(lcd, "STBY", &FONT_6X10, 4, y, t.accent) + 6;
+    fill(lcd, INNER_X, STBY_Y, INNER_W, 10, t.card);
+    let y = STBY_Y;
+    let mut x = text(lcd, "STBY", &FONT_6X10, LEFT, y, t.accent) + 6;
     x = text(lcd, if i == 0 { "A" } else { "B" }, &FONT_6X10, x, y, t.accent) + 6;
     if app.dtmf_dial_active() {
         draw_dtmf(lcd, app, x, y);
@@ -731,7 +744,7 @@ fn draw_rx_status<D>(
 
     let t = theme::t();
     let y = header_y(snap, i);
-    clear(lcd, app, RIGHT - 20, y, 20, 10);
+    fill(lcd, RIGHT - 20, y, 20, 10, t.card);
     let (label, color) = match kind {
         RxStatusText::Tx => ("TX", t.alert),
         RxStatusText::Rx => ("RX", t.ok),
@@ -778,16 +791,16 @@ where
 
 // ---- meter ----
 
-const S_SEGS: u8 = 14;
+const S9_SEGMENTS: u8 = 9;
+const METER_SEGMENTS: u8 = S9_SEGMENTS + 4;
 
 fn meter_state(app: &app::App) -> MeterState {
     if app.is_transmitting() {
         return MeterState {
             tx: true,
-            level: ((app.mic_level() as u16 * S_SEGS as u16 + 127) / 255).min(S_SEGS as u16) as u8,
+            level: ((app.mic_level() as u16 * METER_SEGMENTS as u16 + 127) / 255) as u8,
             live: true,
-            dbm: None,
-            s_number: 0,
+            peak_dbm: None,
             over_s9: 0,
             side: app.master_index() as u8,
         };
@@ -797,8 +810,7 @@ fn meter_state(app: &app::App) -> MeterState {
             tx: false,
             level: app.s_meter_level(),
             live: true,
-            dbm: Some(app.rssi_dbm()),
-            s_number: app.s_meter_s_number(),
+            peak_dbm: None,
             over_s9: app.s_meter_over_s9_dbm(),
             side: app.watching_index() as u8,
         }
@@ -808,8 +820,7 @@ fn meter_state(app: &app::App) -> MeterState {
                 tx: false,
                 level: app::s_meter_level_of(dbm),
                 live: false,
-                dbm: Some(dbm),
-                s_number: 0,
+                peak_dbm: Some(dbm),
                 over_s9: 0,
                 side: side as u8,
             },
@@ -817,8 +828,7 @@ fn meter_state(app: &app::App) -> MeterState {
                 tx: false,
                 level: 0,
                 live: false,
-                dbm: None,
-                s_number: 0,
+                peak_dbm: None,
                 over_s9: 0,
                 side: app.master_index() as u8,
             },
@@ -834,58 +844,81 @@ where
     if !force && *last == Some(state) {
         return;
     }
+    let side_changed = last.map(|prev| prev.side) != Some(state.side);
+    let redraw_bar = force || side_changed || last.is_some_and(|prev| {
+        (prev.level, prev.live, prev.tx) != (state.level, state.live, state.tx)
+    });
     *last = Some(state);
     let t = theme::t();
-    let color = if !state.live {
-        t.dim
-    } else if state.tx || state.level >= 11 {
-        t.alert
-    } else if state.level >= 8 {
-        t.warn
+    let colors = if !state.live {
+        (t.dim, t.dim)
+    } else if state.tx {
+        (t.alert, t.alert)
     } else {
-        t.ok
+        (t.ok, t.warn)
     };
 
     if snap.dual_standby {
-        for side in 0..2usize {
-            let level = if side == state.side as usize { state.level } else { 0 };
-            bar(lcd, 4, box_top(snap, side) + READ_H + 4, SCREEN_W - 8, level, color, t.card_hi);
+        if redraw_bar {
+            for side in 0..2usize {
+                let active = side == state.side as usize;
+                if active || force || side_changed {
+                    let level = if active { state.level } else { 0 };
+                    bar(lcd, box_top(snap, side) + READ_H + 6, 11, 4, level, colors);
+                }
+            }
         }
         return;
     }
 
-    clear(lcd, app, 0, METER_Y, SCREEN_W, 10);
-    let mut x = 4;
-    if state.tx {
-        x = text(lcd, "MIC", &FONT_6X10, x, METER_Y, t.alert) + 4;
+    if redraw_bar {
+        bar(lcd, METER_Y + 9, 8, 8, state.level, colors);
     }
-    bar(lcd, x, METER_Y + 4, 110 - x, state.level, color, t.card_hi);
+
     let mut line: TextBuf<12> = TextBuf::new();
-    match state.dbm {
-        Some(_) if state.live && state.over_s9 > 0 => {
-            line.write_str("S9+").ok();
-            num(&mut line, state.over_s9 as u32, 1);
-        }
-        Some(_) if state.live => {
-            line.write_str("S").ok();
-            num(&mut line, state.s_number as u32, 1);
-        }
+    match state.peak_dbm {
         Some(dbm) => {
             line.write_str("-").ok();
             num(&mut line, dbm.unsigned_abs(), 1);
             line.write_str("dBm").ok();
         }
-        None => {}
+        None if state.over_s9 > 0 => {
+            line.write_str("S9+").ok();
+            num(&mut line, state.over_s9 as u32, 1);
+        }
+        None if state.live && !state.tx => {
+            line.write_str("S").ok();
+            num(&mut line, app.s_meter_s_number() as u32, 1);
+        }
+        None => {
+            line.write_str(if state.tx { "MIC" } else { "S--" }).ok();
+        }
     }
-    text_right(lcd, line.as_str(), &FONT_6X10, RIGHT, METER_Y, if state.live { t.text } else { t.dim });
+    fill(lcd, 111, METER_Y - 1, 46, 12, t.card_hi);
+    text_right(lcd, line.as_str(), &FONT_6X10, RIGHT - 2, METER_Y, if state.live { t.text } else { t.dim });
 }
 
-/// A thin bar `w` wide, lit in proportion to `level`.
-fn bar<D>(lcd: &mut D, x: i32, y: i32, w: i32, level: u8, on: Rgb565, off: Rgb565)
+/// Stepped segments with a wider gap at S9.
+#[inline(never)]
+fn bar<D>(lcd: &mut D, bottom: i32, pitch: i32, height: i32, level: u8, colors: (Rgb565, Rgb565))
 where
     D: DrawTarget<Color = Rgb565>,
 {
-    let lit = w * level as i32 / S_SEGS as i32;
-    fill(lcd, x, y, lit, 2, on);
-    fill(lcd, x + lit, y, w - lit, 2, off);
+    let off = theme::t().card_hi;
+    let mut x = LEFT;
+    for segment in 0..METER_SEGMENTS {
+        if segment == S9_SEGMENTS {
+            x += 2;
+        }
+        let h = height - i32::from(segment < 3) - i32::from(segment < 6);
+        let color = if segment >= level {
+            off
+        } else if segment < S9_SEGMENTS {
+            colors.0
+        } else {
+            colors.1
+        };
+        fill(lcd, x, bottom - h, pitch - 2, h, color);
+        x += pitch;
+    }
 }

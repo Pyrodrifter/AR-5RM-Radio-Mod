@@ -60,7 +60,7 @@ pub(super) fn set_ptt(app: &mut App, syst: &mut SYST, pressed: bool) {
             .radio
             .apply_pa_calibration(&mut app.storage, tx_freq_hz, power);
         #[cfg(feature = "ar5rm-nrf")]
-        if power != Power::Low || !calibrated {
+        if (!cfg!(feature = "ar5rm-nrf-bench-full-power") && power != Power::Low) || !calibrated {
             app.tx_prohibited = true;
             return;
         }

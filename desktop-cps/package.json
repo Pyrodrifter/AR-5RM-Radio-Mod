@@ -1,0 +1,17 @@
+{
+  "name": "ar-5rm-cps-desktop",
+  "productName": "AR-5RM CPS",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Offline desktop CPS for the AR-5RM custom firmware",
+  "license": "GPL-3.0-only",
+  "main": "main.cjs",
+  "scripts": {
+    "start": "electron .",
+    "package:win": "electron-packager . AR-5RM-CPS --platform=win32 --arch=x64 --asar --out=out --overwrite --extra-resource=../AR-5RM_CPS.html --extra-resource=../LICENSE"
+  },
+  "devDependencies": {
+    "@electron/packager": "20.3.0",
+    "electron": "45.2.3"
+  }
+}

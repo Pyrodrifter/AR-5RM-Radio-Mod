@@ -5,120 +5,634 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>AR-5RM Custom CPS</title>
 <style>
+/* Charcoal and hardwood. Flat surfaces, hairlines, square-ish corners; teak marks the one action that matters. */
 :root {
   color-scheme: dark;
-  --bg: #0c0e14; --panel: #171b24; --panel-solid: #171b24; --ink: #f3f5fa; --muted: #bec6d5;
-  --line: #3c4759; --red: #a32f3d; --red-hi: #df5968; --red-ink: #ff9aa3; --select: #3a2733; --warn: #ffd073; --ok: #91e4b8;
+  --bg: #131110;
+  --bg-2: #181513;
+  --surface: #1c1916;
+  --raised: #24201c;
+  --hover: #2a2520;
+  --line: #2e2924;
+  --line-2: #3d362f;
+  --ink: #efe7dc;
+  --ink-2: #c9bdad;
+  --muted: #918574;
+  --faint: #6c6258;
+
+  --walnut: #1f1812;
+  --walnut-2: #2a2018;
+  --teak: #c88247;
+  --teak-hi: #dc965a;
+  --teak-deep: #9a5f2c;
+  --teak-ink: #1b1007;
+  --teak-wash: rgba(200, 130, 71, .13);
+  --sand: #d9c29d;
+  --sand-wash: rgba(217, 194, 157, .10);
+  --ok: #8fbf86;
+  --ok-wash: rgba(143, 191, 134, .10);
+  --warn: #ec8a62;
+  --warn-wash: rgba(236, 138, 98, .12);
+
+  --r-sm: 3px;
+  --r: 5px;
+  --r-lg: 8px;
+  --ease: cubic-bezier(.2, .7, .2, 1);
+  --grain:
+    repeating-linear-gradient(90deg, rgba(255, 236, 214, .018) 0 1px, transparent 1px 5px),
+    repeating-linear-gradient(90deg, rgba(0, 0, 0, .10) 0 2px, transparent 2px 13px),
+    repeating-linear-gradient(90deg, rgba(255, 224, 190, .025) 0 1px, transparent 1px 31px);
+
+  --font: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", sans-serif;
+  --font-display: "Segoe UI Variable Display", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", sans-serif;
+  --mono: "Cascadia Mono", "Cascadia Code", ui-monospace, Consolas, monospace;
+
+  scrollbar-width: thin;
+  scrollbar-color: #4a4037 transparent;
 }
 * { box-sizing: border-box; }
+[hidden], .hidden { display: none !important; }
 html { background: var(--bg); }
-body { margin: 0; color: var(--ink); font: 14px/1.4 "Segoe UI", system-ui, sans-serif; }
-body::before {
-  content: ""; position: fixed; inset: 0; z-index: -1; opacity: .8;
-  background: none center center / min(96vw, 1180px) auto no-repeat;
+body {
+  margin: 0;
+  min-height: 100vh;
+  color: var(--ink);
+  background: var(--bg);
+  font: 14px/1.5 var(--font);
+  -webkit-font-smoothing: antialiased;
 }
-header { background: #191d28; border-bottom: 1px solid var(--line); padding: 14px 20px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; position: sticky; top: 0; z-index: 4; }
-h1 { font-size: 20px; margin: 0; letter-spacing: .03em; }
-.spacer { flex: 1; }
-main { max-width: 1320px; margin: 0 auto; padding: 14px 20px 110px; }
-button, .filebtn { font: inherit; padding: 8px 13px; border: 1px solid var(--line); border-radius: 7px; background: #252b38; color: var(--ink); cursor: pointer; display: inline-block; }
-button:hover:not(:disabled), .filebtn:hover { border-color: var(--red-hi); background: var(--select); }
-button:disabled { opacity: .45; cursor: not-allowed; }
-button.primary { background: var(--red); border-color: var(--red-hi); font-weight: 600; }
-button.primary:hover:not(:disabled) { background: var(--red-hi); }
-button.link { background: none; border: 0; padding: 0; color: var(--red-ink); text-decoration: underline; }
-:focus-visible { outline: 2px solid var(--red-ink); outline-offset: 1px; }
-input, select, textarea { font: inherit; padding: 7px 9px; border: 1px solid var(--line); border-radius: 6px; background: #10141c; color: var(--ink); min-width: 0; }
-input[type=checkbox] { accent-color: var(--red-hi); width: 16px; height: 16px; padding: 0; }
-.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; margin-bottom: 10px; }
-.toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-#search { flex: 1 1 240px; }
-.hidden { display: none !important; }
-#notice { margin: 0; }
-#notice.err { color: var(--warn); font-weight: 600; }
-#notice.ok { color: var(--ok); }
-details.sec { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; margin-bottom: 8px; overflow: hidden; }
-details.sec > summary { background: #222936; padding: 10px 12px; cursor: pointer; display: flex; gap: 8px; align-items: center; font-weight: 600; }
-summary .count { margin-left: auto; font-weight: 400; color: var(--muted); font-size: 12px; white-space: nowrap; }
+/* Watermark slot kept for the channel uploader build. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background: none center / min(70vw, 900px) auto no-repeat;
+  opacity: .03;
+  z-index: -1;
+}
+::selection { background: rgba(200, 130, 71, .38); color: #fff; }
+
+/* ---------- controls ---------- */
+button, input, select, textarea { font: inherit; color: inherit; }
+button, input, select, textarea, label { min-width: 0; }
+button {
+  min-height: 34px;
+  padding: 6px 14px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r);
+  color: var(--ink-2);
+  background: var(--raised);
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 13px;
+  white-space: nowrap;
+  transition: background .14s var(--ease), border-color .14s var(--ease), color .14s var(--ease);
+}
+button:hover:not(:disabled) { color: var(--ink); border-color: #554a3f; background: var(--hover); }
+button:active:not(:disabled) { background: #201c18; }
+button:disabled { opacity: .42; cursor: default; }
+button.primary { color: var(--teak-ink); border-color: var(--teak); background: var(--teak); }
+button.primary:hover:not(:disabled) { color: var(--teak-ink); border-color: var(--teak-hi); background: var(--teak-hi); }
+button.primary:active:not(:disabled) { background: var(--teak-deep); border-color: var(--teak-deep); }
+button.danger { color: var(--warn); border-color: rgba(236, 138, 98, .35); background: transparent; }
+button.danger:hover:not(:disabled) { color: #ffb092; border-color: var(--warn); background: var(--warn-wash); }
+button.quiet { border-color: transparent; background: transparent; color: var(--ink-2); }
+button.quiet:hover:not(:disabled) { border-color: var(--line-2); background: rgba(255, 255, 255, .04); }
+button.link { min-height: auto; padding: 0; border: 0; background: none; color: var(--teak-hi); text-decoration: underline; white-space: normal; }
+:focus-visible { outline: 2px solid var(--teak-hi); outline-offset: 2px; }
+a { color: var(--teak-hi); text-underline-offset: 2px; }
+a:hover { color: #f0b07a; }
+
+input, select, textarea {
+  padding: 7px 10px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r);
+  color: var(--ink);
+  background: var(--bg-2);
+  transition: border-color .14s var(--ease), background .14s var(--ease);
+}
+input:hover:not(:disabled), select:hover:not(:disabled), textarea:hover:not(:disabled) { border-color: #554a3f; }
+input:focus, select:focus, textarea:focus { outline: none; border-color: var(--teak); background: #0f0d0c; box-shadow: 0 0 0 3px rgba(200, 130, 71, .18); }
+input:disabled, select:disabled, textarea:disabled { color: var(--faint); background-color: #161311; }
+input::placeholder, textarea::placeholder { color: var(--faint); }
+select {
+  appearance: none;
+  padding-right: 30px;
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23918574' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") right 11px center / 10px 6px no-repeat,
+    var(--bg-2);
+}
+select:focus { background-color: #0f0d0c; }
+option { background: var(--surface); color: var(--ink); }
+textarea { line-height: 1.5; font: 13px/1.55 var(--mono); }
+input[type=checkbox] { flex: none; accent-color: var(--teak); width: 15px; height: 15px; margin: 0; vertical-align: middle; cursor: pointer; }
+input[type=file] { max-width: 100%; padding: 5px; font-size: 12.5px; color: var(--muted); border-style: dashed; }
+input::file-selector-button {
+  margin-right: 10px;
+  padding: 4px 11px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-sm);
+  color: var(--ink-2);
+  background: var(--raised);
+  font: 600 12.5px var(--font);
+  cursor: pointer;
+}
+progress {
+  appearance: none;
+  width: min(220px, 100%);
+  height: 4px;
+  border: 0;
+  border-radius: 2px;
+  overflow: hidden;
+  background: var(--line-2);
+}
+progress::-webkit-progress-bar { background: transparent; }
+progress::-webkit-progress-value { background: var(--teak); transition: width .25s var(--ease); }
+progress::-moz-progress-bar { background: var(--teak); }
+
+.icon-library { position: absolute; width: 0; height: 0; overflow: hidden; }
+.icon { width: 18px; height: 18px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.with-icon { display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+.with-icon .icon { width: 16px; height: 16px; }
+.kicker { margin: 0; color: var(--muted); font-size: 10.5px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; }
+.muted { color: var(--muted); font-size: 13px; }
+
+/* ---------- shell ---------- */
+.app-shell { min-height: 100vh; display: flex; flex-direction: column; }
+.titlebar {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  height: 48px;
+  padding: 0 clamp(16px, 2.6vw, 36px);
+  border-bottom: 1px solid #0b0908;
+  background: var(--grain), linear-gradient(180deg, var(--walnut-2), var(--walnut));
+  box-shadow: inset 0 -1px 0 rgba(255, 220, 180, .05);
+}
+.brand { display: flex; align-items: center; gap: 11px; margin-right: auto; min-width: 0; }
+.brand-mark {
+  width: 26px; height: 26px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-sm);
+  color: var(--teak-ink);
+  background: var(--teak);
+}
+.brand-mark .icon { width: 16px; height: 16px; stroke-width: 1.9; }
+.brand-name { display: flex; align-items: baseline; gap: 10px; white-space: nowrap; overflow: hidden; }
+.brand-name strong { font: 700 14px/1 var(--font-display); letter-spacing: .04em; }
+.brand-name span { color: var(--muted); font-size: 12.5px; }
+.file-actions { display: flex; align-items: center; gap: 2px; }
+.file-actions button { min-height: 32px; }
+
+.workspace { flex: 1; width: min(100%, 1520px); margin: 0 auto; padding: 32px clamp(16px, 2.6vw, 36px) 96px; }
+.hero { display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 14px 28px; margin-bottom: 20px; }
+.hero h1 { margin: 6px 0 0; font: 600 clamp(28px, 3.2vw, 36px)/1.1 var(--font-display); letter-spacing: -.02em; }
+.hero-lede { margin: 6px 0 0; max-width: 60ch; color: var(--muted); font-size: 14px; }
+#tally {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 12px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r);
+  color: var(--ink-2);
+  background: var(--surface);
+  font: 600 12.5px var(--font);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+#tally::before { content: ""; width: 6px; height: 6px; border-radius: 1px; background: var(--teak); }
+#tally:empty { display: none; }
+
+.status-banner {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  margin-bottom: 14px;
+  padding: 9px 14px;
+  border: 1px solid var(--line);
+  border-left: 2px solid var(--line-2);
+  border-radius: var(--r);
+  background: var(--surface);
+  color: var(--ink-2);
+}
+.status-banner > .icon { width: 16px; height: 16px; color: var(--muted); }
+.status-banner p { margin: 0; }
+.status-banner:has(.ok) { border-left-color: var(--ok); background: linear-gradient(90deg, var(--ok-wash), var(--surface) 50%); }
+.status-banner:has(.ok) > .icon { color: var(--ok); }
+.status-banner:has(.err), .status-banner:has(.error) { border-left-color: var(--warn); background: linear-gradient(90deg, var(--warn-wash), var(--surface) 50%); }
+.status-banner:has(.err) > .icon, .status-banner:has(.error) > .icon { color: var(--warn); }
+#noSerial { border-left-color: var(--teak); }
+#notice.ok, [role=status].ok { color: var(--ok); }
+#notice.err, #notice.error, [role=status].err, [role=status].error { color: var(--warn); }
+
+.layout { display: grid; grid-template-columns: minmax(0, 1fr) 272px; gap: 20px; align-items: start; }
+
+/* ---------- surfaces ---------- */
+.panel { border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--surface); }
+.channel-surface { min-width: 0; overflow: clip; }
+.surface-heading { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 16px 18px 4px; }
+.surface-heading h2 { margin: 0; font: 600 16px/1.3 var(--font-display); }
+#source { display: block; margin-top: 1px; overflow-wrap: anywhere; font-size: 12.5px; }
+.toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+.channel-tools { justify-content: space-between; gap: 10px 18px; padding: 12px 18px 14px; }
+.search-field { position: relative; display: flex; align-items: center; flex: 0 1 400px; min-width: min(240px, 100%); }
+.search-field .icon { position: absolute; left: 11px; width: 15px; height: 15px; color: var(--muted); pointer-events: none; }
+#search { width: 100%; height: 36px; padding-left: 34px; }
+.check { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
+.channel-tools .check { color: var(--ink-2); font-size: 13px; font-weight: 500; }
+
+.selection-bar {
+  position: sticky;
+  top: 48px;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  padding: 8px 12px 8px 18px;
+  border-top: 1px solid var(--teak-deep);
+  border-bottom: 1px solid var(--teak-deep);
+  background: var(--grain), linear-gradient(180deg, #2b2016, #241a12);
+}
+.sel-count { display: flex; align-items: baseline; gap: 10px; color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
+.sel-count small { color: var(--muted); font-weight: 400; font-size: 12px; }
+.selection-bar button { min-height: 30px; padding: 4px 12px; font-size: 12.5px; }
+
+#sections:not(:empty) { border-top: 1px solid var(--line); }
+details.sec { border-bottom: 1px solid var(--line); }
+details.sec:last-child { border-bottom: 0; }
+details.sec > summary {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 11px 18px;
+  color: var(--ink);
+  font-weight: 600;
+  font-size: 13.5px;
+  cursor: pointer;
+  list-style: none;
+  background: var(--bg-2);
+}
+details.sec > summary:hover { background: var(--raised); }
+summary::-webkit-details-marker { display: none; }
+summary::before {
+  content: "";
+  flex: none;
+  order: 9;
+  width: 6px; height: 6px;
+  margin-left: 4px;
+  border: solid var(--muted);
+  border-width: 0 1.5px 1.5px 0;
+  transform: rotate(-45deg);
+  transition: transform .18s var(--ease);
+}
+details[open] > summary::before { transform: translateY(-2px) rotate(45deg); }
+summary .count { margin-left: auto; color: var(--muted); font-size: 12px; font-weight: 500; font-variant-numeric: tabular-nums; }
+
 .tablewrap { overflow-x: auto; }
 table { width: 100%; border-collapse: collapse; font-size: 13px; }
-th { text-align: left; font-size: 12px; color: var(--muted); font-weight: 600; padding: 5px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
-td { padding: 6px 8px; border-bottom: 1px solid #2c3543; }
-tr:last-child td { border-bottom: 0; }
-tbody tr { cursor: pointer; }
-tbody tr:hover td { background: var(--select); }
-td.nm { font-weight: 600; white-space: nowrap; }
-td.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
-.tag { font-size: 11px; padding: 1px 6px; border-radius: 10px; border: 1px solid var(--red-hi); color: var(--red-ink); white-space: nowrap; }
-.tag.new { border-color: var(--warn); color: var(--warn); }
-.muted { color: var(--muted); font-size: 12px; }
-.bar { position: fixed; left: 0; right: 0; bottom: 0; background: #191d28; border-top: 1px solid var(--line); padding: 10px 20px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; z-index: 4; }
-#tally { font-weight: 600; }
-progress { flex: 1 1 200px; height: 12px; accent-color: var(--red-hi); }
-dialog { background: var(--panel-solid); color: var(--ink); border: 2px solid var(--red-hi); border-radius: 10px; max-width: min(620px, 94vw); padding: 16px; }
-dialog::backdrop { background: rgba(0, 0, 0, .75); }
-dialog h2 { margin: 0 0 10px; font-size: 17px; }
-.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; }
-.grid label { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--muted); }
+th, td { padding: 8px 12px; border-bottom: 1px solid var(--line); text-align: left; }
+th:first-child, td:first-child { width: 1%; padding-left: 18px; padding-right: 4px; }
+th:last-child, td:last-child { padding-right: 18px; }
+th {
+  color: var(--muted);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  background: var(--surface);
+}
+tbody tr { cursor: pointer; transition: background .1s var(--ease); }
+tbody tr:hover, tbody tr:focus-within { background: var(--hover); }
+tbody tr.selected { background: var(--teak-wash); box-shadow: inset 2px 0 0 var(--teak); }
+tbody tr.selected:hover { background: rgba(200, 130, 71, .19); }
+tbody tr:last-child td { border-bottom: 0; }
+td { color: var(--ink-2); }
+td.nm { color: var(--ink); font-weight: 600; white-space: nowrap; }
+td.num { font: 12.5px var(--mono); white-space: nowrap; color: var(--ink); }
+td.ch { font: 12.5px var(--mono); color: var(--faint); white-space: nowrap; }
+tbody td:last-child { color: var(--muted); }
+.tag {
+  display: inline-block;
+  padding: 1px 7px;
+  border: 1px solid rgba(217, 194, 157, .3);
+  border-radius: var(--r-sm);
+  color: var(--sand);
+  background: var(--sand-wash);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.tag.new { color: var(--teak-hi); border-color: rgba(200, 130, 71, .45); background: var(--teak-wash); }
+.tag[title] { color: var(--warn); border-color: rgba(236, 138, 98, .4); background: var(--warn-wash); }
+
+.empty-state { padding: clamp(40px, 9vh, 80px) 18px; text-align: center; }
+.empty-icon {
+  display: grid;
+  place-items: center;
+  width: 56px; height: 56px;
+  margin: 0 auto 16px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-lg);
+  color: var(--teak);
+  background: var(--grain), var(--walnut-2);
+}
+.empty-icon .icon { width: 26px; height: 26px; stroke-width: 1.5; }
+.empty-state h3 { margin: 0; font: 600 18px/1.3 var(--font-display); }
+.empty-state p { max-width: 360px; margin: 6px auto 0; }
+
+/* ---------- tools ---------- */
+.tools { display: grid; gap: 18px; position: sticky; top: 68px; }
+.tool-group { display: grid; gap: 0; border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--surface); overflow: hidden; }
+.tool-group > .kicker { padding: 11px 14px 9px; border-bottom: 1px solid var(--line); background: var(--bg-2); }
+.tile {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 58px;
+  padding: 10px 14px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  text-align: left;
+  white-space: normal;
+  color: var(--ink);
+  background: transparent;
+}
+.tile:last-child { border-bottom: 0; }
+.tile:hover:not(:disabled) { border-color: var(--line); background: var(--hover); box-shadow: inset 2px 0 0 var(--teak); }
+.tile-orb {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 32px; height: 32px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r);
+  color: var(--ink-2);
+  background: var(--bg-2);
+}
+.tile-orb.warm { color: var(--teak-hi); border-color: rgba(200, 130, 71, .35); background: var(--grain), var(--walnut-2); }
+.tile-orb .icon { width: 17px; height: 17px; }
+.tile-text { display: grid; gap: 0; min-width: 0; }
+.tile-text strong { font-size: 13.5px; font-weight: 600; }
+.tile-text small { color: var(--muted); font-size: 12px; line-height: 1.35; }
+
+/* ---------- transfer bar ---------- */
+.dock {
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  flex-wrap: wrap;
+  padding: 9px clamp(16px, 2.6vw, 36px);
+  border-top: 1px solid #0b0908;
+  background: var(--grain), linear-gradient(180deg, var(--walnut-2), var(--walnut));
+  box-shadow: inset 0 1px 0 rgba(255, 220, 180, .05), 0 -10px 30px rgba(0, 0, 0, .35);
+}
+.transfer-meta { display: flex; align-items: center; gap: 14px; flex: 1 1 160px; min-width: 0; }
+.dock-label { display: flex; align-items: center; gap: 8px; color: var(--ink-2); font-size: 12.5px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; white-space: nowrap; }
+.dock-label .icon { width: 16px; height: 16px; color: var(--teak); }
+.transfer-meta:has(#prog:not(.hidden)) .dock-label span::after { content: " · working"; color: var(--muted); text-transform: none; letter-spacing: 0; font-weight: 500; }
+.transfer-actions { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; justify-content: flex-end; }
+.transfer-actions button { min-height: 36px; padding-inline: 16px; }
+
+/* ---------- dialogs ---------- */
+dialog {
+  --dialog-x: 24px;
+  --dialog-y: 22px;
+  width: min(100% - 32px, 580px);
+  max-width: none;
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+  padding: var(--dialog-y) var(--dialog-x);
+  border: 1px solid var(--line-2);
+  border-top: 2px solid var(--teak);
+  border-radius: var(--r-lg);
+  color: var(--ink);
+  background: var(--surface);
+  box-shadow: 0 30px 80px rgba(0, 0, 0, .6);
+}
+dialog[open] { animation: rise .18s var(--ease); }
+dialog::backdrop { background: rgba(6, 5, 4, .66); }
+@keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+dialog .kicker { color: var(--teak); }
+dialog h2 { margin: 4px 0 8px; font: 600 22px/1.2 var(--font-display); letter-spacing: -.015em; }
+dialog h2 + p { margin-top: 0; color: var(--ink-2); }
+dialog p { margin: 10px 0; }
+dialog .muted { color: var(--muted); }
+dialog label { color: var(--ink-2); font-size: 12.5px; font-weight: 600; }
+dialog [role=status]:empty { display: none; }
+dialog [role=status] { padding: 9px 12px; border: 1px solid var(--line); border-radius: var(--r); background: var(--bg-2); }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(170px, 100%), 1fr)); gap: 12px; }
+.grid label, .stacked-field { display: flex; flex-direction: column; gap: 5px; }
 .grid label.wide { grid-column: 1 / -1; }
-.grid label.check { flex-direction: row; align-items: center; gap: 8px; color: var(--ink); font-size: 14px; }
-.actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px; flex-wrap: wrap; }
+.grid label.check { flex-direction: row; align-items: center; align-self: end; min-height: 36px; }
+.actions { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; align-items: end; margin-top: 18px; }
 .actions .danger { margin-right: auto; }
-#formErr { color: var(--warn); font-weight: 600; margin: 8px 0 0; min-height: 1.2em; }
-#diffList { max-height: 240px; overflow: auto; margin: 8px 0; padding: 0; list-style: none; font-size: 13px; }
-#diffList li { padding: 2px 0; border-bottom: 1px solid #2c3543; }
-#appearanceDlg { width: min(680px, 94vw); max-width: none; }
-.artwork { border: 1px solid var(--line); border-radius: 8px; padding: 10px; min-width: 0; }
-.artwork h3 { margin: 0 0 8px; font-size: 14px; }
-.artwork canvas { display: block; width: 100%; max-width: 240px; height: auto; margin: 0 auto 10px; background: #000; image-rendering: pixelated; border: 1px solid var(--line); }
-.artwork input { width: 100%; }
-.artwork .muted { min-height: 1.4em; margin: 6px 0 0; overflow-wrap: anywhere; }
-#appearanceStatus { min-height: 1.4em; }
-#appearanceStatus.err { color: var(--warn); }
-#appearanceStatus.ok { color: var(--ok); }
-#textDrafts, #watchLists { display: block; width: 100%; min-height: 12em; resize: vertical; box-sizing: border-box; }
-#satDlg { width: min(720px, 94vw); max-width: none; }
-#satTle { display: block; width: 100%; resize: vertical; box-sizing: border-box; }
-#satPreview { white-space: pre-wrap; max-height: 12em; overflow: auto; }
-#satDlg a { color: var(--ink); }
+.dialog-footer { padding-top: 14px; border-top: 1px solid var(--line); }
+#formErr, #bulkErr { margin: 12px 0 0; color: var(--warn); font-weight: 600; }
+#formErr:empty, #bulkErr:empty { display: none; }
+#diffList { max-height: 240px; overflow: auto; margin: 12px 0; padding: 2px 12px; list-style: none; font: 12.5px/1.5 var(--mono); border: 1px solid var(--line); border-radius: var(--r); background: var(--bg-2); }
+#diffList:empty { display: none; }
+#diffList li { padding: 6px 0; border-bottom: 1px solid var(--line); }
+#diffList li:last-child { border-bottom: 0; }
+.fine { margin: 0; }
+.keep select:has(option[value=keep]:checked), .keep input:placeholder-shown { color: var(--muted); }
+
+#appearanceDlg { width: min(100% - 32px, 820px); }
+.appearance-tabs { display: inline-flex; gap: 0; margin: 4px 0 16px; border: 1px solid var(--line-2); border-radius: var(--r); overflow: hidden; }
+.appearance-tabs button { min-height: 30px; padding: 4px 14px; border: 0; border-radius: 0; background: transparent; color: var(--muted); }
+.appearance-tabs button + button { border-left: 1px solid var(--line-2); }
+.appearance-tabs button:hover:not(:disabled) { border-color: var(--line-2); background: var(--hover); }
+.appearance-tabs [aria-pressed=true], .appearance-tabs [aria-pressed=true]:hover:not(:disabled) { color: var(--teak-ink); background: var(--teak); }
+.appearance-footer {
+  position: sticky;
+  bottom: calc(-1 * var(--dialog-y));
+  z-index: 1;
+  justify-content: space-between;
+  margin: 18px calc(-1 * var(--dialog-x)) calc(-1 * var(--dialog-y));
+  padding: 12px var(--dialog-x) 14px;
+  background: var(--surface);
+}
+.appearance-footer .stacked-field { flex: 0 1 270px; }
+.artwork { min-width: 0; padding: 14px; border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--bg-2); }
+.artwork h3 { margin: 0 0 12px; font: 600 14px var(--font-display); }
+.artwork canvas {
+  display: block;
+  width: min(100%, 200px);
+  height: auto;
+  margin: 0 auto 14px;
+  border: 6px solid #0b0a09;
+  border-radius: var(--r);
+  background: #000;
+  image-rendering: pixelated;
+  box-shadow: 0 0 0 1px var(--line-2);
+}
+.artwork input, .artwork textarea { width: 100%; }
+.artwork .muted { margin: 8px 0 0; overflow-wrap: anywhere; }
+.appearance-options { margin-top: 14px; }
+#backgroundClear { margin-top: 8px; }
+#tuneSection .muted { margin: 0 0 10px; }
+.tune-tools { margin-top: 12px; }
+.tune-controls { justify-content: flex-start; margin-top: 12px; }
+#textDrafts, #watchLists, #satTle { display: block; width: 100%; margin-top: 6px; resize: vertical; }
+#satDlg, #editDlg, #bulkDlg { width: min(100% - 32px, 700px); }
+#satTle { min-height: 76px; }
+#satDlg label[for=satTle] { display: block; margin-top: 16px; }
+#satPreview { max-height: 13em; overflow: auto; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--r); white-space: pre-wrap; font: 12.5px/1.5 var(--mono); background: var(--bg-2); }
+#satPreview:empty { display: none; }
+#portPicker { width: min(100% - 32px, 470px); }
+
+/* ---------- desktop app (Electron, integrated title bar) ---------- */
+.desktop .titlebar { -webkit-app-region: drag; padding-right: calc(100vw - env(titlebar-area-width, calc(100vw - 150px)) + 12px); }
+.desktop .titlebar button, .desktop .titlebar input { -webkit-app-region: no-drag; }
+
+/* ---------- responsive ---------- */
+@media (max-width: 1100px) {
+  .layout { grid-template-columns: 1fr; }
+  .tools { position: static; order: -1; grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); gap: 12px; }
+}
+@media (max-width: 640px) {
+  .brand-name span { display: none; }
+  .file-actions button { padding-inline: 10px; }
+  .workspace { padding-top: 22px; padding-bottom: 150px; }
+  .surface-heading, .channel-tools { padding-inline: 14px; }
+  details.sec > summary { padding-inline: 14px; }
+  th:first-child, td:first-child { padding-left: 14px; }
+  .search-field { flex-basis: 100%; }
+  .tile-text small { display: none; }
+  .transfer-meta { flex-basis: 100%; }
+  .transfer-actions { flex: 1; }
+  .transfer-actions button { flex: 1; padding-inline: 10px; }
+  dialog { --dialog-x: 16px; --dialog-y: 16px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition: none !important; animation: none !important; }
+}
 </style>
 </head>
 <body>
-<header>
-  <h1>AR-5RM Custom CPS</h1>
-  <span id="source" class="muted"></span>
-  <span class="spacer"></span>
-  <label class="filebtn" tabindex="0">Open CSV or backup<input type="file" id="fileIn" accept=".csv,.bin,text/csv" class="hidden"></label>
-  <button id="saveCsv">Save CSV</button>
-  <button id="appearanceBtn">Screens &amp; themes</button>
-  <button id="startupToneBtn">Startup tones</button>
-  <button id="draftsBtn">Text drafts</button>
-  <button id="watchBtn">Radio Watch</button>
-  <button id="satBtn">Satellite RX</button>
-</header>
+<svg class="icon-library" aria-hidden="true" focusable="false">
+  <symbol id="icon-radio" viewBox="0 0 24 24"><path d="M7 7V2m0 5h10a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2Z"/><path d="M8.5 11h7v3h-7zM9 17.5h.01m3 0h.01m3 0h.01"/></symbol>
+  <symbol id="icon-list" viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11M4 6h1m-1 6h1m-1 6h1"/></symbol>
+  <symbol id="icon-screen" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="13" rx="2"/><path d="M8 21h8m-4-3v3M7 14l3-3 3 3 2-2 2 2"/></symbol>
+  <symbol id="icon-music" viewBox="0 0 24 24"><path d="M9 18V6l11-3v12M9 9l11-3"/><ellipse cx="6" cy="18" rx="3" ry="2"/><ellipse cx="17" cy="15" rx="3" ry="2"/></symbol>
+  <symbol id="icon-text" viewBox="0 0 24 24"><path d="M5 4h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-5 3v-4a2 2 0 0 1-1-2V6a2 2 0 0 1 2-2Z"/><path d="M7 9h10M7 13h6"/></symbol>
+  <symbol id="icon-scan" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 4v8l5-4m-5 4h.01M4 12h2m12 0h2m-8 6v2"/></symbol>
+  <symbol id="icon-satellite" viewBox="0 0 24 24"><path d="m8 5 3-3 3 3-3 3-3-3Zm2 8 4-4 4 4-4 4-4-4Zm5 6 3-3 3 3-3 3-3-3ZM4 13a7 7 0 0 0 7 7M4 18a2 2 0 0 0 2 2"/></symbol>
+  <symbol id="icon-folder" viewBox="0 0 24 24"><path d="M3 18V7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1Z"/><path d="M3 10h18"/></symbol>
+  <symbol id="icon-download" viewBox="0 0 24 24"><path d="M12 3v12m-4-4 4 4 4-4M4 16v4h16v-4"/></symbol>
+  <symbol id="icon-upload" viewBox="0 0 24 24"><path d="M12 15V3m-4 4 4-4 4 4M4 16v4h16v-4"/></symbol>
+  <symbol id="icon-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="5.5"/><path d="m15 15 4 4"/></symbol>
+  <symbol id="icon-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="icon-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5m0-8h.01"/></symbol>
+  <symbol id="icon-cable" viewBox="0 0 24 24"><path d="M9 3v4m6-4v4M7 7h10v4a5 5 0 0 1-10 0V7Zm5 9v5"/></symbol>
+  <symbol id="icon-archive" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="5" rx="1.5"/><path d="M5 9v9a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9m-9 4h4"/></symbol>
+</svg>
+<div class="app-shell">
+  <header class="titlebar">
+    <div class="brand">
+      <span class="brand-mark"><svg class="icon" aria-hidden="true"><use href="#icon-radio"/></svg></span>
+      <div class="brand-name"><strong>AR-5RM</strong><span>Custom CPS</span></div>
+    </div>
+    <div id="fileActions" class="file-actions">
+      <button id="openFile" class="quiet with-icon"><svg class="icon" aria-hidden="true"><use href="#icon-folder"/></svg>Open file</button>
+      <input type="file" id="fileIn" accept=".csv,.bin,text/csv" class="hidden" aria-label="Open CSV or backup">
+      <button id="saveCsv" class="quiet with-icon"><svg class="icon" aria-hidden="true"><use href="#icon-download"/></svg>Save CSV</button>
+    </div>
+  </header>
 
-<main>
-  <div id="noSerial" class="panel hidden"><p style="margin:0"><b>This browser can't reach the radio.</b> Open this file in Chrome or Edge to read and upload.</p></div>
-  <div class="panel"><p id="notice" role="status">Connect the radio, turn it on, and leave it on its normal screen. Close any other program using the cable first.</p></div>
-  <div class="panel toolbar">
-    <input type="search" id="search" placeholder="Search name, frequency, or notes" aria-label="Search channels">
-    <label class="toolbar" style="gap:6px"><input type="checkbox" id="onlyChanged"> Different from radio</label>
-    <button id="addCh">Add channel</button>
-  </div>
-  <div id="sections"></div>
-  <div id="noMatch" class="panel hidden muted">No channels match.</div>
-</main>
+  <main class="workspace">
+    <header class="hero">
+      <div>
+        <p class="kicker">Radio workspace</p>
+        <h1>Channels</h1>
+        <p class="hero-lede">Edit memories, frequencies and scan lists, then send them to the radio.</p>
+      </div>
+      <span id="tally"></span>
+    </header>
 
-<div class="bar">
-  <span id="tally"></span>
-  <progress id="prog" class="hidden" max="100" value="0"></progress>
-  <span class="spacer"></span>
-  <button id="readBtn">Read radio</button>
-  <button id="useRadio" class="hidden">Use radio's channels</button>
-  <button id="uploadBtn" class="primary">Upload to radio</button>
+    <div id="noSerial" class="status-banner hidden"><svg class="icon" aria-hidden="true"><use href="#icon-info"/></svg><p>Open the CPS in Chrome or Edge to connect to your radio.</p></div>
+    <div class="status-banner">
+      <svg class="icon" aria-hidden="true"><use href="#icon-info"/></svg>
+      <p id="notice" role="status">Connect the programming cable and leave the radio on its normal screen.</p>
+    </div>
+
+    <div class="layout">
+      <section class="channel-surface panel" aria-labelledby="channelsTitle">
+        <div class="surface-heading">
+          <div><h2 id="channelsTitle">Channel memory</h2><span id="source" class="muted">Local workspace</span></div>
+          <button id="addCh" class="with-icon"><svg class="icon" aria-hidden="true"><use href="#icon-plus"/></svg>Add channel</button>
+        </div>
+        <div class="toolbar channel-tools">
+          <label class="search-field">
+            <svg class="icon" aria-hidden="true"><use href="#icon-search"/></svg>
+            <input type="search" id="search" placeholder="Search name, frequency or notes" aria-label="Search channels">
+          </label>
+          <label class="check"><input type="checkbox" id="onlyChanged"> Different from radio</label>
+        </div>
+        <div id="selectionBar" class="selection-bar hidden" role="region" aria-label="Selected channels">
+          <span class="sel-count"><span id="selCount"></span><small>Shift-click selects a range · Ctrl-click toggles · Esc clears</small></span>
+          <div class="toolbar">
+            <button id="bulkEdit" class="primary">Edit selected</button>
+            <button id="bulkScanOn">Include in scans</button>
+            <button id="bulkScanOff">Exclude from scans</button>
+            <button id="bulkDelete" class="danger">Delete</button>
+            <button id="bulkClear" class="quiet">Clear</button>
+          </div>
+        </div>
+        <div id="sections"></div>
+        <div id="noMatch" class="empty-state">
+          <div class="empty-icon"><svg class="icon" aria-hidden="true"><use href="#icon-radio"/></svg></div>
+          <h3 id="emptyTitle">No channels loaded</h3>
+          <p class="muted" id="emptyHint">Read the connected radio, open a CHIRP CSV, or restore a saved channel backup.</p>
+        </div>
+      </section>
+
+      <nav class="tools" aria-label="Radio setup and apps">
+        <div class="tool-group">
+          <p class="kicker">Radio setup</p>
+          <button id="appearanceBtn" class="tile"><span class="tile-orb warm"><svg class="icon" aria-hidden="true"><use href="#icon-screen"/></svg></span><span class="tile-text"><strong>Screens &amp; themes</strong><small>Startup art, background, theme</small></span></button>
+          <button id="startupToneBtn" class="tile"><span class="tile-orb warm"><svg class="icon" aria-hidden="true"><use href="#icon-music"/></svg></span><span class="tile-text"><strong>Startup tones</strong><small>Boot tune and sound</small></span></button>
+        </div>
+        <div class="tool-group">
+          <p class="kicker">Radio apps</p>
+          <button id="draftsBtn" class="tile"><span class="tile-orb"><svg class="icon" aria-hidden="true"><use href="#icon-text"/></svg></span><span class="tile-text"><strong>Text drafts</strong><small>Canned messages for TEXT</small></span></button>
+          <button id="watchBtn" class="tile"><span class="tile-orb"><svg class="icon" aria-hidden="true"><use href="#icon-scan"/></svg></span><span class="tile-text"><strong>Radio Watch</strong><small>Named scan lists</small></span></button>
+          <button id="satBtn" class="tile"><span class="tile-orb"><svg class="icon" aria-hidden="true"><use href="#icon-satellite"/></svg></span><span class="tile-text"><strong>Satellite RX</strong><small>Pass plans from a TLE</small></span></button>
+        </div>
+      </nav>
+    </div>
+  </main>
+
+  <footer class="dock" aria-label="Radio transfer">
+    <div class="transfer-meta">
+      <span class="dock-label"><svg class="icon" aria-hidden="true"><use href="#icon-cable"/></svg><span>Radio</span></span>
+      <progress id="prog" class="hidden" max="100" value="0" aria-label="Radio transfer progress"></progress>
+    </div>
+    <div class="transfer-actions">
+      <button id="readBtn" class="with-icon"><svg class="icon" aria-hidden="true"><use href="#icon-download"/></svg>Read radio</button>
+      <button id="useRadio" class="hidden">Use radio's channels</button>
+      <button id="uploadBtn" class="primary with-icon"><svg class="icon" aria-hidden="true"><use href="#icon-upload"/></svg>Upload to radio</button>
+    </div>
+  </footer>
 </div>
 
 <dialog id="satDlg" aria-labelledby="satTitle">
+  <p class="kicker">Radio apps</p>
   <h2 id="satTitle">Satellite RX</h2>
   <p>Calculate up to 12 passes over the next 48 hours with a peak elevation of at least 10°. Enter your listening location and the FM downlink you want to monitor.</p>
   <div class="grid">
@@ -127,7 +641,7 @@ dialog h2 { margin: 0 0 10px; font-size: 17px; }
     <label>Latitude <input id="satLat" type="number" step="any" min="-90" max="90"></label>
     <label>Longitude <input id="satLon" type="number" step="any" min="-180" max="180"></label>
     <label>Altitude in meters <input id="satAlt" type="number" value="0" step="any"></label>
-    <label><input id="satNarrow" type="checkbox"> Narrow FM</label>
+    <label class="check"><input id="satNarrow" type="checkbox"> Narrow FM</label>
   </div>
   <label for="satTle">Current orbital elements (TLE)</label>
   <textarea id="satTle" rows="3" spellcheck="false" placeholder="Paste both TLE lines. An optional satellite name line is fine."></textarea>
@@ -135,14 +649,15 @@ dialog h2 { margin: 0 0 10px; font-size: 17px; }
   <p class="muted">The first upload backs up and replaces Band Sweep. Set the radio’s UTC clock with * before tracking.</p>
   <pre id="satPreview"></pre>
   <p id="satStatus" role="status"></p>
-  <div class="actions">
+  <div class="actions dialog-footer">
+    <button id="satClose">Close</button>
     <button id="satCalculate">Calculate passes</button>
     <button id="satWrite" class="primary">Upload and verify</button>
-    <button id="satClose">Close</button>
   </div>
 </dialog>
 
 <dialog id="watchDlg" aria-labelledby="watchTitle">
+  <p class="kicker">Radio apps</p>
   <h2 id="watchTitle">Radio Watch scan lists</h2>
   <p>Enter up to six named lists with up to 32 saved channels each. Use the channel numbers from the CPS table.</p>
   <label for="watchLists">One list per line</label>
@@ -150,58 +665,67 @@ dialog h2 { margin: 0 0 10px; font-size: 17px; }
   <p class="muted">The first upload backs up and replaces Spectrum. Later uploads update the Radio Watch lists.</p>
   <p class="muted">On the radio, open RADIO WATCH, choose a list, and press MENU. Press # for Recent Activity, then MENU on a hit to listen.</p>
   <p id="watchStatus" role="status"></p>
-  <div class="actions">
+  <div class="actions dialog-footer">
+    <button id="watchClose">Close</button>
     <button id="watchRead">Read from radio</button>
     <button id="watchWrite" class="primary">Upload and verify</button>
-    <button id="watchClose">Close</button>
   </div>
 </dialog>
 
 <dialog id="draftsDlg" aria-labelledby="draftsTitle">
-  <h2 id="draftsTitle">TEXT drafts</h2>
+  <p class="kicker">Radio apps</p>
+  <h2 id="draftsTitle">Text drafts</h2>
   <p>Enter one message per line. Save up to eight drafts of 50 plain keyboard characters each.</p>
   <label for="textDrafts">Messages</label>
   <textarea id="textDrafts" rows="8" spellcheck="false" placeholder="OK&#10;ON MY WAY&#10;CALL ME"></textarea>
-  <p class="muted">Read from the radio to edit its current list. Upload replaces the list, updates TEXT if needed, and downloads a backup before writing.</p>
+  <p class="muted">Read from the radio to edit its current list. Upload replaces the list, updates TEXT if needed, and saves a backup before writing.</p>
   <p class="muted">On the radio, open TEXT and hold *. Use Up/Down to preview drafts, MENU to load one, and MENU again when ready to send.</p>
   <p id="draftsStatus" role="status"></p>
-  <div class="actions">
+  <div class="actions dialog-footer">
+    <button id="draftsClose">Close</button>
     <button id="draftsRead">Read from radio</button>
     <button id="draftsWrite" class="primary">Upload and verify</button>
-    <button id="draftsClose">Close</button>
   </div>
 </dialog>
 
 <dialog id="appearanceDlg" aria-labelledby="appearanceTitle">
-  <h2 id="appearanceTitle">Screens, themes &amp; startup tones</h2>
+  <p class="kicker">Radio setup</p>
+  <h2 id="appearanceTitle">Radio appearance</h2>
   <p id="appearanceSupport" class="muted">Connect the radio and select Read appearance to unlock these controls.</p>
-  <p class="muted">To change the startup tone: select Read appearance, import a MIDI or RTTTL file or edit notes below, preview, then select Write and verify.</p>
-  <div class="grid">
-    <section class="artwork" aria-labelledby="startupTitle">
-      <h3 id="startupTitle">Startup screen</h3>
-      <canvas id="startupPreview" width="160" height="128" aria-label="Startup artwork preview"></canvas>
-      <label>Choose startup artwork <input id="startupFile" type="file" accept="image/*,.rgb565"></label>
-      <p id="startupLabel" class="muted">No image selected</p>
-    </section>
-    <section class="artwork" aria-labelledby="backgroundTitle">
-      <h3 id="backgroundTitle">Radio background</h3>
-      <canvas id="backgroundPreview" width="160" height="128" aria-label="Background artwork preview"></canvas>
-      <label>Choose background artwork <input id="backgroundFile" type="file" accept="image/*,.rgb565" disabled></label>
-      <button id="backgroundClear" type="button" disabled>Clear background</button>
-      <p id="backgroundLabel" class="muted">Read appearance to enable</p>
-    </section>
-    <label>Sizing for new photos
-      <select id="imageFit"><option value="fit">Fit with black borders</option><option value="fill">Fill and crop to center</option></select>
-    </label>
-    <label>Radio theme
-      <select id="radioTheme" disabled><option value="">Keep current</option><option value="0">Default</option><option value="1">Blue</option><option value="2">Purple</option><option value="3">Sun</option></select>
-    </label>
+  <div class="appearance-tabs" role="group" aria-label="Appearance view">
+    <button id="appearanceScreens" type="button" aria-pressed="true" aria-controls="screensPane">Screens &amp; themes</button>
+    <button id="appearanceTones" type="button" aria-pressed="false" aria-controls="tuneSection">Startup tones</button>
   </div>
-  <section id="tuneSection" class="artwork" style="margin-top:10px" aria-labelledby="tuneTitle">
+  <div id="screensPane">
+    <div class="grid">
+      <section class="artwork" aria-labelledby="startupTitle">
+        <h3 id="startupTitle">Startup screen</h3>
+        <canvas id="startupPreview" width="160" height="128" aria-label="Startup artwork preview"></canvas>
+        <label>Choose startup artwork <input id="startupFile" type="file" accept="image/*,.rgb565"></label>
+        <p id="startupLabel" class="muted">No image selected</p>
+      </section>
+      <section class="artwork" aria-labelledby="backgroundTitle">
+        <h3 id="backgroundTitle">Radio background</h3>
+        <canvas id="backgroundPreview" width="160" height="128" aria-label="Background artwork preview"></canvas>
+        <label>Choose background artwork <input id="backgroundFile" type="file" accept="image/*,.rgb565" disabled></label>
+        <button id="backgroundClear" type="button" disabled>Clear background</button>
+        <p id="backgroundLabel" class="muted">Read appearance to enable</p>
+      </section>
+    </div>
+    <div class="grid appearance-options">
+      <label>Sizing for new photos
+        <select id="imageFit"><option value="fit">Fit with black borders</option><option value="fill">Fill and crop to center</option></select>
+      </label>
+      <label>Radio theme
+        <select id="radioTheme" disabled><option value="">Keep current</option><option value="0">Default</option><option value="1">Blue</option><option value="2">Purple</option><option value="3">Sun</option></select>
+      </label>
+    </div>
+  </div>
+  <section id="tuneSection" class="artwork" aria-labelledby="tuneTitle" hidden>
     <h3 id="tuneTitle">Startup tune</h3>
     <p class="muted">One note per line as note number, duration. Notes 1–45 run from A2 to F6. Use 0 for a rest. Duration units are 30 ms.</p>
-    <textarea id="bootTune" rows="5" aria-label="Startup tune notes" placeholder="Read appearance to load the current tune" style="width:100%" disabled></textarea>
-    <div class="toolbar">
+    <textarea id="bootTune" rows="5" aria-label="Startup tune notes" placeholder="Read appearance to load the current tune" disabled></textarea>
+    <div class="grid tune-tools">
       <label>Built-in tunes <select id="tunePreset" disabled>
         <option value="">Choose a tune</option>
         <option value="launch">Launch</option>
@@ -226,26 +750,29 @@ dialog h2 { margin: 0 0 10px; font-size: 17px; }
         <option value="tetris">Tetris</option>
         <option value="aroundworld">Around the World (excerpt)</option>
       </select></label>
-      <button id="tuneLoadPreset" type="button" disabled>Load tune</button>
       <label>Import MIDI or RTTTL <input id="tuneFile" type="file" accept=".mid,.midi,.rtttl,.txt,audio/midi,text/plain" disabled></label>
       <label>Boot sound <select id="bootSound" disabled><option value="">Keep current</option><option value="1">On</option><option value="0">Off</option></select></label>
+    </div>
+    <div class="toolbar tune-controls">
+      <button id="tuneLoadPreset" type="button" disabled>Load tune</button>
       <button id="tuneDefault" type="button" disabled>Default tune</button>
       <button id="tuneDoom" type="button" disabled>Doom riff</button>
       <button id="tunePreview" type="button" disabled>Play preview</button>
     </div>
   </section>
   <p id="appearanceStatus" role="status"></p>
-  <div class="actions">
-    <label>Open appearance backup <input id="appearanceBackup" type="file" accept=".json,application/json"></label>
-  </div>
-  <div class="actions">
-    <button id="appearanceClose">Close</button>
-    <button id="appearanceRead">Read appearance</button>
-    <button id="appearanceWrite" class="primary">Write and verify</button>
+  <div class="actions dialog-footer appearance-footer">
+    <label class="stacked-field">Open appearance backup <input id="appearanceBackup" type="file" accept=".json,application/json"></label>
+    <div class="toolbar">
+      <button id="appearanceClose">Close</button>
+      <button id="appearanceRead">Read appearance</button>
+      <button id="appearanceWrite" class="primary">Write and verify</button>
+    </div>
   </div>
 </dialog>
 
 <dialog id="editDlg" aria-labelledby="editTitle">
+  <p class="kicker">Channel memory</p>
   <h2 id="editTitle">Edit channel</h2>
   <div class="grid">
     <label>Channel number <input type="number" id="fNum" min="1" max="1000"></label>
@@ -270,19 +797,51 @@ dialog h2 { margin: 0 0 10px; font-size: 17px; }
   </div>
   <p class="muted">The radio's modes go by channel number, so moving a channel can move it to a different mode.</p>
   <p id="formErr" role="alert"></p>
-  <div class="actions">
+  <div class="actions dialog-footer">
     <button id="delBtn" class="danger">Delete channel</button>
     <button id="cancelBtn">Cancel</button>
     <button id="okBtn" class="primary">Apply</button>
   </div>
 </dialog>
 
+<dialog id="bulkDlg" aria-labelledby="bulkTitle">
+  <p class="kicker">Channel memory</p>
+  <h2 id="bulkTitle">Edit selected channels</h2>
+  <p>Fields left on Keep, or empty, stay as they are on each channel. Everything else is applied to every selected channel.</p>
+  <div class="grid keep">
+    <label>Transmit
+      <select id="bDuplex"><option value="keep">Keep</option><option value="off">Receive only</option><option value="">Same as receive</option><option value="+">Offset up (+)</option><option value="-">Offset down (-)</option></select>
+    </label>
+    <label>Offset MHz <input type="text" id="bOffset" inputmode="decimal" placeholder="Keep"></label>
+    <label>Tone type
+      <select id="bTone"><option value="keep">Keep</option><option value="">None</option><option value="Tone">Transmit tone</option><option value="TSQL">Tone both ways</option><option value="DTCS">DCS</option></select>
+    </label>
+    <label>Tone Hz or DCS code <input type="text" id="bToneVal" placeholder="100.0 or 244"></label>
+    <label>Bandwidth
+      <select id="bMode"><option value="keep">Keep</option><option>FM</option><option>NFM</option><option>AM</option></select>
+    </label>
+    <label>Power
+      <select id="bPower"><option value="keep">Keep</option><option value="2">Mid (5 W setting)</option><option value="1">Low (0.5-2 W setting)</option><option value="0">High (8 W setting)</option></select>
+    </label>
+    <label>Scans
+      <select id="bScan"><option value="keep">Keep</option><option value="1">Include in scans</option><option value="0">Exclude from scans</option></select>
+    </label>
+    <label>Notes <input type="text" id="bNote" placeholder="Keep"></label>
+  </div>
+  <p id="bulkErr" role="alert"></p>
+  <div class="actions dialog-footer">
+    <button id="bulkCancel">Cancel</button>
+    <button id="bulkApply" class="primary">Apply</button>
+  </div>
+</dialog>
+
 <dialog id="confirmDlg" aria-labelledby="confirmTitle">
+  <p class="kicker">Radio transfer</p>
   <h2 id="confirmTitle">Upload to radio?</h2>
-  <p id="confirmText" style="margin:0"></p>
+  <p id="confirmText" class="fine"></p>
   <ul id="diffList"></ul>
-  <p class="muted" style="margin:0">A backup of the radio's channels downloads first. The radio restarts when it finishes. Don't unplug it until this page says it's done.</p>
-  <div class="actions">
+  <p class="muted fine">The CPS saves a channel backup first. The radio restarts when it finishes. Leave the cable connected until the CPS says it's done.</p>
+  <div class="actions dialog-footer">
     <button id="confirmNo">Cancel</button>
     <button id="confirmYes" class="primary">Upload</button>
   </div>
@@ -676,13 +1235,17 @@ async function writeSectors(link, target, sectors, onProgress) {
 
 /* ---------- app state and rendering ---------- */
 const $ = id => document.getElementById(id);
+let selected = new Set(), lastPick = null;
 let chans = [], csvBase = null, sourceName = "", dirty = false, radioTable = null, busy = false, port = null, editing = null;
 
 function setNotice(msg, kind) { const n = $("notice"); n.textContent = msg; n.className = kind || ""; }
-function setDirty(v) { dirty = v; $("source").textContent = sourceName + (dirty ? " (unsaved changes)" : ""); }
+function setDirty(v) {
+  dirty = v;
+  $("source").textContent = (sourceName || "Local workspace") + (dirty ? " · Unsaved changes" : "");
+}
 function setBusy(v) {
   busy = v;
-  for (const id of ["readBtn", "uploadBtn", "useRadio", "saveCsv", "addCh", "appearanceBtn", "startupToneBtn", "draftsBtn", "watchBtn", "satBtn"]) {
+  for (const id of ["readBtn", "uploadBtn", "useRadio", "openFile", "saveCsv", "addCh", "bulkEdit", "bulkScanOn", "bulkScanOff", "bulkDelete", "appearanceBtn", "startupToneBtn", "draftsBtn", "watchBtn", "satBtn"]) {
     $(id).disabled = v || (!("serial" in navigator) && ["readBtn", "uploadBtn"].includes(id));
   }
   $("prog").classList.toggle("hidden", !v);
@@ -708,7 +1271,7 @@ function sectionGroups() {
     if (list.length) groups.push({ title: s.title, list });
   }
   const rest = chans.filter(c => !used.has(c.num)).sort((a, b) => a.num - b.num);
-  if (rest.length) groups.push({ title: "Other channels", list: rest });
+  if (rest.length) groups.push({ title: SECTIONS.length ? "Other channels" : "All channels", list: rest });
   return groups;
 }
 
@@ -719,19 +1282,24 @@ function matches(c) {
   return (c.num + " " + c.name + " " + fmtFreq(c.freq) + " " + c.mode + " " + (c.note || "")).toLowerCase().includes(q);
 }
 
-const open = new Set();
+const open = new Map();
 function render() {
   const host = $("sections");
   host.textContent = "";
   let any = false;
-  for (const g of sectionGroups()) {
+  const live = new Set(chans);
+  for (const c of selected) if (!live.has(c)) selected.delete(c);
+  const order = [];
+  const groups = sectionGroups();
+  const filtering = !!$("search").value.trim() || $("onlyChanged").checked;
+  for (const g of groups) {
     const shown = g.list.filter(matches);
     if (!shown.length) continue;
     any = true;
     const d = document.createElement("details");
     d.className = "sec";
-    d.open = open.has(g.title) || !!$("search").value.trim() || $("onlyChanged").checked;
-    d.addEventListener("toggle", () => { d.open ? open.add(g.title) : open.delete(g.title); });
+    d.open = filtering || (open.get(g.title) ?? groups.length === 1);
+    d.addEventListener("toggle", () => { if (!filtering) open.set(g.title, d.open); });
     const sum = document.createElement("summary");
     const box = document.createElement("input");
     box.type = "checkbox";
@@ -751,12 +1319,20 @@ function render() {
     d.append(sum);
     const wrap = document.createElement("div"); wrap.className = "tablewrap";
     const table = document.createElement("table");
-    table.innerHTML = "<thead><tr><th>Scan</th><th>CH</th><th>Name</th><th>RX MHz</th><th>TX MHz</th><th>Tone</th><th>Mode</th><th>Power</th><th></th><th>Notes</th></tr></thead>";
+    table.innerHTML = "<thead><tr><th><input type=checkbox></th><th>Scan</th><th>CH</th><th>Name</th><th>RX MHz</th><th>TX MHz</th><th>Tone</th><th>Mode</th><th>Power</th><th></th><th>Notes</th></tr></thead>";
+    const all = table.querySelector("th input");
+    const picked = shown.filter(c => selected.has(c)).length;
+    all.setAttribute("aria-label", "Select all shown in " + g.title);
+    all.checked = picked > 0 && picked === shown.length;
+    all.indeterminate = picked > 0 && picked < shown.length;
+    all.addEventListener("change", () => { for (const c of shown) all.checked ? selected.add(c) : selected.delete(c); render(); });
     const tb = document.createElement("tbody");
     for (const c of shown) {
+      order.push(c);
       const tr = document.createElement("tr");
+      tr.classList.toggle("selected", selected.has(c));
       const hz = txHz(c);
-      const cells = [["", ""], ["num", String(c.num).padStart(3, "0")], ["nm", c.name], ["num", fmtFreq(c.freq)],
+      const cells = [["", ""], ["", ""], ["ch", String(c.num).padStart(3, "0")], ["nm", c.name], ["num", fmtFreq(c.freq)],
         ["num", hz === null ? "RX only" : fmtFreq(hz / 1e6)], ["", toneLabel(c)], ["", c.mode], ["", POWER_NAMES[c.powerRaw] ?? "?"], ["", ""], ["", c.note || ""]];
       cells.forEach(([cls, text]) => { const td = document.createElement("td"); if (cls) td.className = cls; td.textContent = text; tr.append(td); });
       const cb = document.createElement("input");
@@ -764,18 +1340,37 @@ function render() {
       cb.setAttribute("aria-label", "Include channel " + c.num + " in scans");
       cb.addEventListener("click", e => e.stopPropagation());
       cb.addEventListener("change", () => { setField(c, { skip: cb.checked ? "" : "S" }); setDirty(true); render(); });
-      tr.children[0].append(cb);
+      tr.children[1].append(cb);
+      const pick = document.createElement("input");
+      pick.type = "checkbox"; pick.checked = selected.has(c);
+      pick.setAttribute("aria-label", "Select channel " + c.num);
+      pick.addEventListener("click", e => { e.stopPropagation(); e.preventDefault(); pickRow(c, e.shiftKey ? "range" : "toggle", order); });
+      tr.children[0].append(pick);
       const flag = channelDiff(c);
-      if (flag) { const t = document.createElement("span"); t.className = "tag" + (flag === "new" ? " new" : ""); t.textContent = flag === "new" ? "not on radio" : "different"; tr.children[8].append(t); }
-      if (!txAllowed(c)) { const t = document.createElement("span"); t.className = "tag new"; t.textContent = "TX blocked"; t.title = "Outside the radio's transmit plan"; tr.children[8].append(" ", t); }
-      tr.addEventListener("click", () => openEditor(c));
+      if (flag) { const t = document.createElement("span"); t.className = "tag" + (flag === "new" ? " new" : ""); t.textContent = flag === "new" ? "not on radio" : "different"; tr.children[9].append(t); }
+      if (!txAllowed(c)) { const t = document.createElement("span"); t.className = "tag new"; t.textContent = "TX blocked"; t.title = "Outside the radio's transmit plan"; tr.children[9].append(" ", t); }
+      tr.addEventListener("click", e => {
+        if (e.shiftKey) pickRow(c, "range", order);
+        else if (e.ctrlKey || e.metaKey) pickRow(c, "toggle", order);
+        else openEditor(c);
+      });
       tb.append(tr);
     }
     table.append(tb); wrap.append(table); d.append(wrap); host.append(d);
   }
   $("noMatch").classList.toggle("hidden", any);
+  $("selectionBar").classList.toggle("hidden", !selected.size);
+  $("selCount").textContent = selected.size === 1 ? "1 channel selected" : `${selected.size} channels selected`;
+  if (!any) {
+    $("emptyTitle").textContent = chans.length ? "No matching channels" : "No channels loaded";
+    $("emptyHint").textContent = chans.length
+      ? "Clear the search or change the filter to see more channels."
+      : "Read the connected radio, open a CHIRP CSV, or restore a saved channel backup.";
+  }
   const scanning = chans.filter(c => c.skip !== "S").length;
   $("tally").textContent = `${chans.length} channels, ${scanning} in scans`;
+  $("readBtn").classList.toggle("primary", !chans.length);
+  $("uploadBtn").classList.toggle("primary", !!chans.length);
 }
 
 /* Edits go through here so the row's original CSV text is only replaced when it really changes. */
@@ -808,11 +1403,13 @@ function exportCsv() {
 }
 
 function saveFile(name, data, type) {
+  if (globalThis.desktopCps) return globalThis.desktopCps.saveFile(name, data);
   const url = URL.createObjectURL(new Blob([data], { type }));
   const a = document.createElement("a");
   a.href = url; a.download = name;
   document.body.append(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 5000);
+  return true;
 }
 
 const stamp = () => new Date().toISOString().slice(0, 19).replace(/[-:]/g, "").replace("T", "-");
@@ -997,7 +1594,7 @@ async function finishUpload() {
     const result = await withLink(async link => {
       const current = await link.readChannels(f => progress(f * 0.3));
       if (!sameBytes(current, preview)) throw new Error("The radio's channels changed since the preview, so nothing was written. Try the upload again.");
-      saveFile(`radio-backup-${stamp()}.bin`, current, "application/octet-stream");
+      await saveFile(`radio-backup-${stamp()}.bin`, current, "application/octet-stream");
       const sectors = touchedSectors(current, target);
       wrote = true;
       const bad = await writeSectors(link, target, sectors, f => progress(0.3 + f * 0.7));
@@ -1473,7 +2070,7 @@ function writeAppearance() {
       throw new Error("Enable the startup screen in radio settings before turning on boot sound.");
     }
     if (Object.keys(before).length || backgroundChanged || changeTheme || tuneChanged || soundChanged) {
-      saveFile(`radio-appearance-${stamp()}.json`,
+      await saveFile(`radio-appearance-${stamp()}.json`,
         packAppearanceBackup(before, changeTheme ? oldTheme : undefined,
           tuneChanged ? oldTune : undefined, soundChanged ? oldSound : undefined,
           backgroundChanged && currentPresence !== null ? currentPresence : undefined,
@@ -1504,7 +2101,7 @@ function writeAppearance() {
         if (!sameBytes(await readThemeSettings(link), settings)) throw new Error("Startup settings failed read-back.");
       }
     } catch (e) {
-      throw new Error(`${describeError(e)} A write may have been interrupted. The appearance backup was downloaded first.`);
+      throw new Error(`${describeError(e)} A write may have been interrupted. The CPS saved the appearance backup first.`);
     }
     for (const kind of Object.keys(images)) appearance[kind] = images[kind].bytes;
     if (images.background && currentPresence !== null) appearance.backgroundPresent = true;
@@ -1629,7 +2226,7 @@ async function writeDrafts(link, drafts, status) {
 
 async function rewriteAppSlot(link, { slot, address, name }, current, next, status) {
   const backup = `${name.replaceAll(" ", "-")}-slot-${slot}-backup.app`;
-  saveFile(backup, current, "application/octet-stream");
+  await saveFile(backup, current, "application/octet-stream");
   status(`Writing the ${name} slot. Leave the programming cable connected.`);
   try {
     await link.send(APP_ERASE, slot, undefined, 20000);
@@ -1999,6 +2596,95 @@ async function runSatAction(write) {
   }
 }
 
+/* ---------- selection and bulk edit ---------- */
+function pickRow(c, how, order) {
+  if (how === "range" && lastPick && order.includes(lastPick)) {
+    const [a, b] = [order.indexOf(lastPick), order.indexOf(c)].sort((x, y) => x - y);
+    for (const r of order.slice(a, b + 1)) selected.add(r);
+  } else if (selected.has(c)) selected.delete(c);
+  else selected.add(c);
+  lastPick = c;
+  render();
+}
+
+/* o holds only the fields to change; anything undefined is kept per channel. */
+function bulkPatch(o) {
+  const p = {};
+  if (o.duplex !== undefined) p.duplex = o.duplex;
+  if (o.offset !== undefined) p.offset = o.offset;
+  if (o.tone !== undefined) {
+    p.tone = o.tone; p.rawCodes = undefined;
+    if (o.tone === "Tone") p.rtone = o.toneVal;
+    if (o.tone === "TSQL") p.ctone = o.toneVal;
+    if (o.tone === "DTCS") { p.dcs = String(o.toneVal ?? "").padStart(3, "0"); p.rxdcs = p.dcs; p.pol = "NN"; }
+  }
+  if (o.mode !== undefined) p.mode = o.mode;
+  if (o.powerRaw !== undefined) p.powerRaw = o.powerRaw;
+  if (o.scan !== undefined) p.skip = o.scan ? "" : "S";
+  if (o.note !== undefined) p.note = o.note;
+  return p;
+}
+
+/* All or nothing: returns the validation errors, and changes no channel if there are any. */
+function applyBulk(list, o) {
+  const patch = bulkPatch(o);
+  if (!Object.keys(patch).length) return [];
+  const errors = list.map(c => validate({ ...c, ...patch })).filter(Boolean);
+  if (!errors.length) for (const c of list) setField(c, { ...patch });
+  return errors;
+}
+
+function bulkOptions() {
+  const o = {}, keep = v => v === "keep";
+  if (!keep($("bDuplex").value)) o.duplex = $("bDuplex").value;
+  if ($("bOffset").value.trim()) o.offset = $("bOffset").value.trim();
+  if (!keep($("bTone").value)) { o.tone = $("bTone").value; o.toneVal = $("bToneVal").value.trim(); }
+  if (!keep($("bMode").value)) o.mode = $("bMode").value;
+  if (!keep($("bPower").value)) o.powerRaw = Number($("bPower").value);
+  if (!keep($("bScan").value)) o.scan = $("bScan").value === "1";
+  if ($("bNote").value.trim()) o.note = $("bNote").value.trim();
+  return o;
+}
+
+function openBulk() {
+  if (!selected.size) return;
+  for (const id of ["bDuplex", "bTone", "bMode", "bPower", "bScan"]) $(id).value = "keep";
+  for (const id of ["bOffset", "bToneVal", "bNote"]) $(id).value = "";
+  $("bulkTitle").textContent = `Edit ${selected.size} channel${selected.size === 1 ? "" : "s"}`;
+  $("bulkApply").textContent = `Apply to ${selected.size}`;
+  $("bulkErr").textContent = "";
+  $("bulkDlg").showModal();
+}
+
+function runBulk() {
+  const o = bulkOptions();
+  if (!Object.keys(o).length) { $("bulkErr").textContent = "Change at least one field, or Cancel."; return; }
+  const list = [...selected].sort((a, b) => a.num - b.num);
+  const errors = applyBulk(list, o);
+  if (errors.length) {
+    $("bulkErr").textContent = `${errors.length} of ${list.length} channels can't take this change, so nothing was applied. ${errors[0]}`;
+    return;
+  }
+  $("bulkDlg").close();
+  setDirty(true);
+  render();
+  setNotice(`Updated ${list.length} channel${list.length === 1 ? "" : "s"}.`, "ok");
+}
+
+function bulkScan(on) {
+  for (const c of selected) setField(c, { skip: on ? "" : "S" });
+  setDirty(true); render();
+}
+
+function bulkDelete() {
+  const n = selected.size;
+  if (!n || !confirm(`Delete ${n} channel${n === 1 ? "" : "s"} from the list? They leave the radio on the next upload.`)) return;
+  chans = chans.filter(c => !selected.has(c));
+  selected.clear();
+  setDirty(true); render();
+  setNotice(`Deleted ${n} channel${n === 1 ? "" : "s"}. Nothing changes on the radio until you upload.`, "ok");
+}
+
 /* ---------- wiring ---------- */
 $("satBtn").addEventListener("click", () => {
   refreshSatControls();
@@ -2027,6 +2713,22 @@ $("draftsDlg").addEventListener("cancel", event => { if (draftsBusy) event.preve
 $("search").addEventListener("input", render);
 $("onlyChanged").addEventListener("change", render);
 $("addCh").addEventListener("click", () => openEditor(null));
+$("bulkEdit").addEventListener("click", openBulk);
+$("bulkApply").addEventListener("click", runBulk);
+$("bulkCancel").addEventListener("click", () => $("bulkDlg").close());
+$("bulkScanOn").addEventListener("click", () => bulkScan(true));
+$("bulkScanOff").addEventListener("click", () => bulkScan(false));
+$("bulkDelete").addEventListener("click", bulkDelete);
+$("bulkClear").addEventListener("click", () => { selected.clear(); render(); });
+document.addEventListener("keydown", e => {
+  if (document.querySelector("dialog[open]") || e.target.matches?.("input, select, textarea")) return;
+  if (e.key === "Escape" && selected.size) { selected.clear(); render(); }
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "a" && chans.length) {
+    e.preventDefault();
+    for (const c of chans) if (matches(c)) selected.add(c);
+    render();
+  }
+});
 $("okBtn").addEventListener("click", applyEditor);
 $("cancelBtn").addEventListener("click", () => $("editDlg").close());
 $("delBtn").addEventListener("click", () => {
@@ -2036,15 +2738,23 @@ $("delBtn").addEventListener("click", () => {
 $("readBtn").addEventListener("click", compareWithRadio);
 $("useRadio").addEventListener("click", useRadioChannels);
 $("uploadBtn").addEventListener("click", startUpload);
-$("appearanceBtn").addEventListener("click", () => {
+function selectAppearancePane(tones) {
+  $("screensPane").hidden = tones;
+  $("tuneSection").hidden = !tones;
+  $("appearanceScreens").setAttribute("aria-pressed", String(!tones));
+  $("appearanceTones").setAttribute("aria-pressed", String(tones));
+  $("appearanceDlg").scrollTop = 0;
+}
+function openAppearance(tones) {
+  selectAppearancePane(tones);
   renderAppearance();
   $("appearanceDlg").showModal();
-});
-$("startupToneBtn").addEventListener("click", () => {
-  renderAppearance();
-  $("appearanceDlg").showModal();
-  $("tuneSection").scrollIntoView({ block: "start" });
-});
+  $(tones ? "appearanceTones" : "appearanceScreens").focus();
+}
+$("appearanceBtn").addEventListener("click", () => openAppearance(false));
+$("startupToneBtn").addEventListener("click", () => openAppearance(true));
+$("appearanceScreens").addEventListener("click", () => selectAppearancePane(false));
+$("appearanceTones").addEventListener("click", () => selectAppearancePane(true));
 $("appearanceClose").addEventListener("click", () => $("appearanceDlg").close());
 $("appearanceDlg").addEventListener("cancel", e => { if (appearanceBusy) e.preventDefault(); });
 $("appearanceRead").addEventListener("click", readAppearance);
@@ -2150,11 +2860,18 @@ $("appearanceBackup").addEventListener("change", async e => {
 });
 $("confirmNo").addEventListener("click", () => { $("confirmDlg").close(); pendingTarget = pendingCurrent = null; setNotice("Upload canceled. Nothing was written."); });
 $("confirmYes").addEventListener("click", () => { $("confirmDlg").close(); finishUpload(); });
-$("saveCsv").addEventListener("click", () => {
-  saveFile(`channels-${stamp()}.csv`, exportCsv(), "text/csv");
+$("openFile").addEventListener("click", () => $("fileIn").click());
+$("saveCsv").addEventListener("click", async () => {
+  try {
+    if (await saveFile(`channels-${stamp()}.csv`, exportCsv(), "text/csv") === false) return;
+  } catch (error) {
+    setNotice(describeError(error), "err");
+    return;
+  }
   setDirty(false);
   const mixed = chans.filter(c => c.tone === "Mixed").length;
-  setNotice("Saved the CSV to your Downloads folder." + (mixed ? ` ${mixed} channels use mixed tones a CSV can't hold, so those were saved without tones.` : ""), mixed ? "err" : "ok");
+  const location = globalThis.desktopCps ? "Saved the CSV." : "Saved the CSV to your Downloads folder.";
+  setNotice(location + (mixed ? ` ${mixed} channels use mixed tones a CSV can't hold, so those were saved without tones.` : ""), mixed ? "err" : "ok");
 });
 $("fileIn").addEventListener("change", async e => {
   const file = e.target.files[0];
@@ -2175,9 +2892,6 @@ $("fileIn").addEventListener("change", async e => {
   } catch (err) {
     setNotice(err.message + " Your current list is unchanged.", "err");
   }
-});
-document.querySelector(".filebtn").addEventListener("keydown", e => {
-  if (e.key === "Enter" || e.key === " ") { e.preventDefault(); $("fileIn").click(); }
 });
 window.addEventListener("beforeunload", e => {
   if (dirty || busy || appearanceBusy || draftsBusy || watchBusy || satBusy || Object.keys(pendingArt).length || pendingBackgroundClear || $("radioTheme").value !== "" || tuneDirty || $("bootSound").value !== "") {

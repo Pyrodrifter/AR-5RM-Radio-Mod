@@ -1561,6 +1561,8 @@ fn main() {
             Ok(px) => {
                 let a = addr::BACKGROUND_ADDR as usize;
                 nor[a..a + px.len()].copy_from_slice(&px);
+                let marker = addr::BACKGROUND_MARKER_ADDR as usize;
+                nor[marker..marker + 4].copy_from_slice(b"BG01");
             }
             Err(e) => eprintln!("{file}: {e}"),
         }

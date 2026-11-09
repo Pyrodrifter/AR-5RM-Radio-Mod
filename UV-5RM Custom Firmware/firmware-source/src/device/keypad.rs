@@ -37,9 +37,9 @@ pub enum KeyId {
 }
 
 impl KeyId {
-    fn supports_long(self) -> bool {
-        matches!(
-            self,
+    fn supports_long(self, power_shortcut: bool) -> bool {
+        match self {
+            KeyId::Digit8 => power_shortcut,
             KeyId::Up
                 | KeyId::Down
                 | KeyId::Vm
@@ -49,8 +49,9 @@ impl KeyId {
                 | KeyId::Digit0
                 | KeyId::Exit
                 | KeyId::Side1
-                | KeyId::Side2
-        )
+                | KeyId::Side2 => true,
+            _ => false,
+        }
     }
 
     fn supports_repeat(self) -> bool {
@@ -161,7 +162,7 @@ impl<'a> Keypad<'a> {
         None
     }
 
-    pub fn poll(&mut self, syst: &mut SYST) {
+    pub fn poll(&mut self, syst: &mut SYST, power_shortcut: bool) {
         let now = uptime::now();
         let elapsed = now.wrapping_sub(self.last_poll);
         self.last_poll = now;
@@ -177,7 +178,7 @@ impl<'a> Keypad<'a> {
             if let Some(key) = self.stable {
                 self.hold_ticks += elapsed as u32;
                 if !self.long_fired
-                    && key.supports_long()
+                    && key.supports_long(power_shortcut)
                     && self.hold_ticks >= LONG_PRESS_TICKS
                 {
                     self.long_fired = true;

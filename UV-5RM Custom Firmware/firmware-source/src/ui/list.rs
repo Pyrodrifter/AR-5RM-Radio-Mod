@@ -3,7 +3,7 @@ use embedded_graphics::mono_font::{MonoFont, MonoTextStyle};
 use crate::ui::fonts::FONT_6X10;
 use embedded_graphics::pixelcolor::Rgb565;
 use embedded_graphics::prelude::*;
-use embedded_graphics::primitives::{PrimitiveStyle, Rectangle};
+use embedded_graphics::primitives::Rectangle;
 use embedded_graphics::text::Text;
 
 use super::theme;
@@ -14,6 +14,8 @@ const ROW_HEIGHT: i32 = FONT_6X10.character_size.height as i32 + 4;
 const TITLE_HEIGHT: i32 = ROW_HEIGHT;
 const LIST_TOP: i32 = TITLE_HEIGHT;
 const VISIBLE_ROWS: usize = ((SCREEN_H - LIST_TOP) / ROW_HEIGHT) as usize;
+const PANEL_X: i32 = 2;
+const PANEL_W: i32 = SCREEN_W - 2 * PANEL_X;
 const RIGHT_MARGIN: i32 = 4;
 
 const ARROW_GAP: i32 = 6;
@@ -203,23 +205,22 @@ fn draw_full<D>(
 ) where
     D: DrawTarget<Color = Rgb565>,
 {
+    fill(lcd, 0, 0, SCREEN_W, SCREEN_H, theme::t().bg);
     draw_title(lcd, title, selected, total);
 
     for slot in 0..VISIBLE_ROWS {
         draw_row(lcd, source, top + slot, selected, show_arrows, total, slot);
     }
-    let bottom = LIST_TOP + VISIBLE_ROWS as i32 * ROW_HEIGHT;
-    fill(lcd, 0, bottom, SCREEN_W, SCREEN_H - bottom, theme::t().bg);
 }
 
-fn fill<D>(lcd: &mut D, x: i32, y: i32, w: i32, h: i32, color: Rgb565)
+#[inline(never)]
+pub(super) fn fill<D>(lcd: &mut D, x: i32, y: i32, w: i32, h: i32, color: Rgb565)
 where
     D: DrawTarget<Color = Rgb565>,
 {
-    Rectangle::new(Point::new(x, y), Size::new(w as u32, h as u32))
-        .into_styled(PrimitiveStyle::with_fill(color))
-        .draw(lcd)
-        .ok();
+    if w > 0 && h > 0 {
+        lcd.fill_solid(&Rectangle::new(Point::new(x, y), Size::new(w as u32, h as u32)), color).ok();
+    }
 }
 
 /// The pixel 6x10 with a pixel of letter spacing: crisp at this size.
@@ -238,10 +239,10 @@ where
     D: DrawTarget<Color = Rgb565>,
 {
     let t = theme::t();
-    fill(lcd, 0, 0, SCREEN_W, TITLE_HEIGHT - 1, t.bg);
-    fill(lcd, 0, TITLE_HEIGHT - 1, SCREEN_W, 1, t.card_hi);
+    fill(lcd, PANEL_X, 0, PANEL_W, TITLE_HEIGHT - 1, t.card);
+    fill(lcd, PANEL_X, TITLE_HEIGHT - 1, PANEL_W, 1, t.card_hi);
     let baseline = FONT_6X10.baseline as i32 + 2;
-    txt(lcd, title, 4, baseline, t.accent);
+    txt(lcd, title, 6, baseline, t.accent);
     if total > 1 {
         let mut pos: TextBuf<10> = TextBuf::new();
         super::num(&mut pos, selected as u32 + 1, 1);
@@ -263,18 +264,17 @@ fn draw_row<D>(
     D: DrawTarget<Color = Rgb565>,
 {
     let row_top = LIST_TOP + slot as i32 * ROW_HEIGHT;
-    let is_selected = index < total && index == selected;
     let t = theme::t();
-    fill(lcd, 0, row_top, SCREEN_W, ROW_HEIGHT, if is_selected { t.card_hi } else { t.bg });
-
     if index >= total {
-        return; // blank row below the end of a shorter list
+        fill(lcd, PANEL_X, row_top + 1, PANEL_W, ROW_HEIGHT - 1, t.bg);
+        return;
     }
 
+    let is_selected = index == selected;
+    fill(lcd, PANEL_X, row_top + 1, PANEL_W, ROW_HEIGHT - 1, if is_selected { t.card_hi } else { t.card });
     let baseline = row_top + FONT_6X10.baseline as i32 + 2;
     if is_selected {
-        // A soft highlight with an accent bar at its left edge.
-        fill(lcd, 0, row_top, 3, ROW_HEIGHT, t.accent);
+        fill(lcd, PANEL_X, row_top + 1, 2, ROW_HEIGHT - 1, t.accent);
     }
     let fg = if is_selected { t.value } else { t.text };
 
@@ -394,13 +394,7 @@ fn draw_cursor_box<D>(
     let cursor_x = x0 + cursor_index as i32 * char_w;
     let t = theme::t();
     let inverted = t.bg;
-    Rectangle::new(
-        Point::new(cursor_x, row_top),
-        Size::new(char_w as u32, ROW_HEIGHT as u32),
-    )
-    .into_styled(PrimitiveStyle::with_fill(fg))
-    .draw(lcd)
-    .ok();
+    fill(lcd, cursor_x, row_top + 1, char_w, ROW_HEIGHT - 1, fg);
 
     let mut ch_buf = [0u8; 4];
     Text::new(

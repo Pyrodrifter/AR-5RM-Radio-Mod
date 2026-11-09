@@ -88,6 +88,28 @@ function run(body) {
   `, ctx);
 }
 
+test("bulk edit changes only the chosen fields and is all-or-nothing", () => run(`
+  const mk = (num, freq, extra = {}) => ({ num, name: "CH" + num, freq, duplex: "", offset: "0", tone: "", rtone: "88.5", ctone: "88.5",
+    dcs: "023", rxdcs: "023", pol: "NN", mode: "FM", skip: "", powerRaw: 2, powerText: "", note: "keep me", extra: null, csvRow: null, ...extra });
+  const list = [mk(1, "462.562500"), mk(2, "146.520000", { tone: "Mixed", rawCodes: [1, 2] }), mk(3, "156.800000", { duplex: "off" })];
+  assert.deepEqual(applyBulk(list, { tone: "TSQL", toneVal: "100.0", mode: "NFM", powerRaw: 1, scan: false }), []);
+  for (const c of list) {
+    assert.equal(c.tone, "TSQL"); assert.equal(c.ctone, "100.0"); assert.equal(c.mode, "NFM");
+    assert.equal(c.powerRaw, 1); assert.equal(c.skip, "S"); assert.equal(c.note, "keep me"); assert.ok(c.edited);
+  }
+  assert.equal(list[1].rawCodes, undefined);
+  assert.equal(list[2].duplex, "off");
+  assert.equal(encode(list[0])[8] | encode(list[0])[9] << 8, 1000);
+  const before = JSON.stringify(list);
+  const errors = applyBulk(list, { duplex: "+", mode: "AM" });
+  assert.equal(errors.length, 3);
+  assert.match(errors[0], /offset/);
+  assert.equal(JSON.stringify(list), before);
+  assert.deepEqual(applyBulk(list, { tone: "DTCS", toneVal: "23" }), []);
+  assert.equal(list[2].dcs, "023");
+  assert.deepEqual(applyBulk(list, {}), []);
+`));
+
 test("RTTTL import keeps notes, rests and dotted timing", () => run(`
   const tune = importRtttl("sample:d=4,o=4,b=120:a,p,8a.");
   assert.equal(tune, "25, 17\\n0, 17\\n25, 13");
@@ -287,6 +309,18 @@ test("read-back detects corrupted artwork and leaves the backup available", () =
   await writeAppearance();
   assert.match($("appearanceStatus").textContent, /Read-back failed/);
   assert.equal(downloads.length, 1);
+  assert.ok(pendingArt.startup);
+`));
+
+test("an asynchronous backup failure stops before any radio write", () => run(`
+  port = new AppearanceRadio(true);
+  await readAppearance();
+  pendingArt = { startup: { bytes: new Uint8Array(ART_BYTES), name: "startup" } };
+  saveFile = async () => { throw new Error("Could not save the backup"); };
+  await writeAppearance();
+  assert.match($("appearanceStatus").textContent, /Could not save the backup/);
+  assert.equal(port.artWrites.length, 0);
+  assert.equal(port.settingsWrites, 0);
   assert.ok(pendingArt.startup);
 `));
 

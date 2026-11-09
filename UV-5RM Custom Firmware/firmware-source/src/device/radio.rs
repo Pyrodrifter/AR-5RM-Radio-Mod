@@ -944,7 +944,7 @@ impl<'a> Radio<'a> {
         #[cfg(not(feature = "ar5rm-nrf"))]
         self.fd6818.pa_enable(syst, self.cfg.power);
         #[cfg(feature = "ar5rm-nrf")]
-        self.fd6818.pa_enable(syst, self.cfg.tx_freq_hz);
+        self.fd6818.pa_enable(syst, self.cfg.tx_freq_hz, self.cfg.power);
 
         self.fd6818
             .set_band_quiet(Self::band_of(self.cfg.tx_freq_hz) == Band::Uhf);

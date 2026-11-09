@@ -8,16 +8,18 @@ and customize the display and startup sound from a local browser tool.
 > **Check the hardware ID and back up your radio before flashing.** The tested
 > hardware has no documented recovery path back to its factory firmware. A bad
 > flash can brick the radio. Use the included programming tools after flashing.
-> CHIRP CSV import and export are supported by the CPS, but CHIRP cannot program
-> the custom firmware directly.
+> CHIRP support is limited to CSV import and export through the CPS.
+
+Download the AR-5RM NRF firmware kit and portable Windows CPS from
+[GitHub Releases](https://github.com/Pyrodrifter/AR-5RM-Radio-Mod/releases).
 
 ## What it adds
 
 | Feature | What it does |
 |---|---|
 | **TEXT** | Sends messages up to 50 characters, retries delivery, saves messages, and alerts on receipt. Load up to eight reusable drafts from the AR-5RM CPS. |
-| **RADIO WATCH** | Scans named lists of saved channels and lets you listen to recent hits. Optional CPS install replaces SPECTRUM. |
-| **SATELLITE RX** | Uses a pass plan from the CPS to track an FM downlink with receive Doppler correction. Optional CPS install replaces BAND SWEEP. |
+| **RADIO WATCH** | Scans named lists of saved channels and lets you listen to recent hits. |
+| **SATELLITE RX** | Uses a pass plan from the CPS to track an FM downlink with Doppler correction. |
 | **FM RADIO** | The redesigned broadcast FM app adds a signal meter and an auto-scan that fills empty preset slots. Available as a separate app package. |
 | **Scan modes** | Press Band to switch between Weather, Police/Fire/EMS, Air, Repeaters, FRS, GMRS, MURS and more, or type a custom range |
 | **BAND SWEEP** | Sweeps a whole band for activity |
@@ -46,8 +48,11 @@ Radios that look identical can have different chips. Check the hardware identifi
 The `ar5rm-nrf` source feature targets the AR-5RM that identifies itself as
 `5RHNRF`. Its FD6818 startup and low-power PA values come from the published
 [5RH NRF v0.14 reference image](https://github.com/amoxu/Baofeng-UV-5RM-5RH-RE/tree/main/factory_firmware/NRF_FD6818).
-On AR-5RM v0.21 and v0.22, the custom firmware booted and all nine apps passed installation read-back. The radios exchanged a TEXT ping and acknowledgment. FM receive, broadcast FM and the day/night shortcut were tested. With the AM squelch update and MONITOR off, the radio
-played ATIS on 132.300 MHz at SQL 3 and stayed quiet on 132.400 MHz.
+On AR-5RM v0.21 and v0.22, the custom firmware booted and all nine base apps
+passed installation read-back. The radios exchanged a TEXT ping and
+acknowledgment. FM receive, broadcast FM, and the day/night shortcut were
+tested. With the AM squelch update and MONITOR off, the radio played ATIS on
+132.300 MHz at SQL 3 and stayed quiet on 132.400 MHz.
 
 The persistence build skips the factory format. On first boot it checks that
 the private SPI flash region at `0x1A0000..0x1BA000` is erased, then copies
@@ -60,6 +65,8 @@ byte. A short press of the upper side key opens FM with the default assignment
 and the FM app installed.
 
 ### Custom CPS for the AR-5RM
+
+For a standalone Windows app, see [AR-5RM CPS Desktop](desktop-cps/README.md).
 
 Open [AR-5RM_CPS.html](AR-5RM_CPS.html) in Chrome or Edge on Windows. It runs
 locally. Connect the programming cable with the radio on its normal screen,
@@ -114,7 +121,8 @@ Then power on while holding both side buttons and check the bootloader with `py 
 py source-changes\flash_bf.py "..\AR-5RM Firmware\AR-5RM_NRF_ROUNDED.BF" COM3 cb85e213682bb96dfa8718642719b8c5714ef204b18c029ff353bd0c1328bf94
 ```
 
-The firmware image must be encoded with `source-changes\wrap_bf.py`. Do not wrap a raw binary with only a header: the bootloader acknowledges it but the application will not boot. A custom firmware image can be reinstalled through the bootloader. The stock application image has not been recovered.
+The bootloader requires an encoded `.BF` image. The bundled image is ready to
+flash. To package a build from source, use `source-changes\wrap_bf.py`.
 
 After the radio boots to its main screen and you confirm that it receives, run
 the app installer. The `--preserve-stock` option requires verified blank slots
@@ -234,12 +242,19 @@ cargo build --release --manifest-path firmware-source/Cargo.toml --config firmwa
 py source-changes/elf2bin.py C:/t/fw/thumbv7em-none-eabi/release/bf5rh-fw fw.bin
 ```
 
-For AR-5RM NRF, add `--features ar5rm-nrf` to the Cargo command and set the
-size flags in the same PowerShell session before building. Package the output
-as a one-region application `.BF` using `source-changes\wrap_bf.py`.
+For AR-5RM NRF, use Rust 1.99.1, add `--features ar5rm-nrf` to the Cargo
+command, and set the size flags in the same PowerShell session before building.
 
 ```powershell
 $env:RUSTFLAGS = '-C link-arg=-Tlink.x -C link-arg=--icf=all -C llvm-args=-enable-machine-outliner=always'
+```
+
+Package the raw binary as a one-region application `.BF`. The wrapper takes
+the path to a factory firmware collection and validates its encoder against
+at least five `.BF` files in subdirectories of that collection.
+
+```powershell
+py source-changes\wrap_bf.py fw.bin fw.BF PATH_TO_FACTORY_IMAGES
 ```
 
 `source-changes` holds the patches against upstream and the PC tools. `source-changes/simulator` runs
@@ -261,6 +276,7 @@ for an interactive preview of the radio UI and controls.
 - Firmware base: [bf-5rh-firmware-open](https://github.com/sophiel-meow/bf-5rh-firmware-open)
 - Modem settings researched from the UV-K5 community's
   [messenger firmware](https://github.com/kamilsss655/uv-k5-firmware-custom)
-- Licensed under GPL-3.0, the same as the firmware it's built on. See `LICENSE`.
+- The CPS uses satellite.js for pass prediction. See its [MIT license](UV-5RM%20Custom%20Firmware/source-changes/vendor/satellite-LICENSE.md).
+- Firmware and project code are licensed under GPL-3.0. See [LICENSE](LICENSE).
 
 Provided as is, with no warranty.

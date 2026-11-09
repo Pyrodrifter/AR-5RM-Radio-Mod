@@ -3,6 +3,8 @@ use super::overlay;
 use super::{scan, App};
 use cortex_m::peripheral::SYST;
 
+pub(super) const POWER_CODE: u8 = 7;
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum KeyFunction {
     None,
@@ -50,7 +52,7 @@ pub(super) fn from_u8(v: u8) -> KeyFunction {
         #[cfg(feature = "ar5rm-nrf")]
         5 => KeyFunction::FmRadio,
         6 => KeyFunction::Scan,
-        7 => KeyFunction::Power,
+        POWER_CODE => KeyFunction::Power,
         8 => KeyFunction::Flashlight,
         // 9 => search (now app)
         10 => KeyFunction::Reverse,
@@ -60,6 +62,7 @@ pub(super) fn from_u8(v: u8) -> KeyFunction {
     }
 }
 
+#[cfg_attr(feature = "ar5rm-nrf", inline(never))]
 pub(super) fn invoke(app: &mut App, syst: &mut SYST, func: KeyFunction) {
     match func {
         KeyFunction::None | KeyFunction::TxTone => {}

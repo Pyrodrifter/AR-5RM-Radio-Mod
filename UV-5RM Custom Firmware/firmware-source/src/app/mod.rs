@@ -833,7 +833,11 @@ impl<'a> App<'a> {
 
     // key dispatch
     pub fn poll_keys(&mut self, syst: &mut SYST) {
-        self.keypad.poll(syst);
+        let power_shortcut = cfg!(feature = "ar5rm-nrf")
+            && self.mode == Mode::Standby
+            && self.dtmf_dial.is_none()
+            && self.input.len == 0;
+        self.keypad.poll(syst, power_shortcut);
         while let Some(ev) = self.keypad.pop_event() {
             keys::dispatch(self, syst, ev);
         }

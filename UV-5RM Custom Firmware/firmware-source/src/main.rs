@@ -343,11 +343,15 @@ fn main() -> ! {
         } else {
             0
         };
-        match boot_mode {
-            1 | 2 => ui::draw_boot_logo(&mut display, &mut app),
-            _ => {}
-        }
+        let _animated = matches!(boot_mode, 1 | 2) && ui::draw_boot_logo(&mut display, &mut app, 0);
         backlight.on();
+        #[cfg(feature = "ar5rm-nrf")]
+        if _animated {
+            for step in 1..=3 {
+                delay_ms(150);
+                ui::draw_boot_logo(&mut display, &mut app, step);
+            }
+        }
         if boot_mode != 0 {
             if app.settings().boot_sound_enabled {
                 let tune = app.settings().boot_tune;
@@ -358,7 +362,7 @@ fn main() -> ! {
 
             #[cfg(feature = "ar5rm-nrf")]
             if !app.settings().boot_sound_enabled {
-                delay_ms(650);
+                delay_ms(if _animated { 200 } else { 650 });
             }
             #[cfg(not(feature = "ar5rm-nrf"))]
             {

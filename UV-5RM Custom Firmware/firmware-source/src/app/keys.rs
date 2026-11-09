@@ -133,7 +133,7 @@ fn dispatch_standby(app: &mut App, syst: &mut SYST, ev: KeyEvent) {
         KeyEventKind::Long => match ev.key {
             KeyId::Asterisk => app.key_lock = !app.key_lock,
             KeyId::Pound => scan::enter(app, syst),
-            KeyId::Side1 | KeyId::Side2 | KeyId::Band => {
+            KeyId::Side1 | KeyId::Side2 | KeyId::Band | KeyId::Digit8 => {
                 let func = keyfn::from_u8(long_function(app, ev.key));
                 keyfn::invoke(app, syst, func);
             }
@@ -180,6 +180,8 @@ fn short_function(app: &App, key: KeyId) -> u8 {
 
 fn long_function(app: &App, key: KeyId) -> u8 {
     match key {
+        #[cfg(feature = "ar5rm-nrf")]
+        KeyId::Digit8 => keyfn::POWER_CODE,
         KeyId::Side1 => app.settings.side1_long,
         KeyId::Side2 => app.settings.side2_long,
         KeyId::Band => app.settings.band_long,

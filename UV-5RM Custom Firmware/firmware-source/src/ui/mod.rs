@@ -17,32 +17,34 @@ use crate::device::display::Display;
 use cortex_m::peripheral::SYST;
 use embedded_graphics::pixelcolor::Rgb565;
 use embedded_graphics::prelude::*;
-use embedded_graphics::primitives::{PrimitiveStyle, Rectangle};
 
 pub(crate) const SCREEN_W: i32 = crate::drivers::st7735::WIDTH as i32;
 pub(crate) const SCREEN_H: i32 = crate::drivers::st7735::HEIGHT as i32;
 
+#[cfg_attr(feature = "ar5rm-nrf", cold, inline(never))]
 pub(crate) fn draw_boot_logo(
     display: &mut Display<'_>,
     app: &mut app::App<'_>,
-) {
-    backdrop::draw_image(
-        display.as_draw_target(),
-        &mut |addr, buf| app.storage_mut().read_raw(addr, buf),
-        0,
-        SCREEN_H,
-        false,
-    );
+    _step: i32,
+) -> bool {
+    let lcd = display.as_draw_target();
+    let mut read = |addr, buf: &mut [u8]| app.storage_mut().read_raw(addr, buf);
+    if _step == 0 {
+        backdrop::draw_image(lcd, &mut read, 0, SCREEN_H, false);
+    }
+    #[cfg(feature = "ar5rm-nrf")]
+    if _step != 0 || backdrop::is_carrier_lock(&mut read) {
+        backdrop::draw_carrier_step(lcd, &mut read, _step);
+        return true;
+    }
+    false
 }
 
 pub(crate) fn clear_strip<D>(lcd: &mut D, y: i32, h: i32)
 where
     D: DrawTarget<Color = Rgb565>,
 {
-    Rectangle::new(Point::new(0, y), Size::new(SCREEN_W as u32, h as u32))
-        .into_styled(PrimitiveStyle::with_fill(theme::t().bg))
-        .draw(lcd)
-        .ok();
+    list::fill(lcd, 0, y, SCREEN_W, h, theme::t().bg);
 }
 
 #[derive(Clone, Copy, PartialEq)]

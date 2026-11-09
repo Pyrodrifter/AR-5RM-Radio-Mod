@@ -630,10 +630,12 @@ impl<'a> Fd6818<'a> {
         self.write_reg(syst, REG_PA, value);
     }
 
-    /// Low-power PA drive from the stock 5RH NRF v0.14 routine at 0x08009DDC.
+    /// PA drive from the stock 5RH NRF v0.14 routine at 0x08009DDC.
     #[cfg(feature = "ar5rm-nrf")]
-    pub fn pa_enable(&mut self, syst: &mut SYST, tx_hz: u32) {
-        let gain = if (155_000_000..175_000_000).contains(&tx_hz) {
+    pub fn pa_enable(&mut self, syst: &mut SYST, tx_hz: u32, power: Power) {
+        let gain = if cfg!(feature = "ar5rm-nrf-bench-full-power") && power != Power::Low {
+            0xFF
+        } else if (155_000_000..175_000_000).contains(&tx_hz) {
             0xC3
         } else {
             0xD7
