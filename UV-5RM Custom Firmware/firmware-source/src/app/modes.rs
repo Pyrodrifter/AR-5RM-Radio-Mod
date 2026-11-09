@@ -17,19 +17,16 @@ pub(crate) struct ChanMode {
 
 const ALL: &[(u16, u16)] = &[(1, MAX_CHANNEL_NUM + 1)];
 
-pub(crate) const MODES: [ChanMode; 13] = [
+/// Channel groups for this radio's channel plan: marine, FRS/GMRS/MURS and
+/// PMR446 blocks, then local and amateur channels from 400 up.
+pub(crate) const MODES: [ChanMode; 8] = [
     ChanMode { name: "ALL", short: "ALL", ranges: ALL },
-    ChanMode { name: "WEATHER", short: "WX", ranges: &[(1, 7)] },
-    ChanMode { name: "POLICE FIRE EMS", short: "PD/FD", ranges: &[(14, 105)] },
-    ChanMode { name: "FED & GOV", short: "FED", ranges: &[(106, 146)] },
-    ChanMode { name: "UTILITIES", short: "UTIL", ranges: &[(147, 157)] },
-    ChanMode { name: "RAILROAD", short: "RAIL", ranges: &[(158, 167)] },
-    ChanMode { name: "AIR TRAFFIC", short: "AIR", ranges: &[(168, 233)] },
-    ChanMode { name: "REPEATERS", short: "RPT", ranges: &[(234, 304), (327, 344)] },
-    ChanMode { name: "FRS", short: "FRS", ranges: &[(305, 326)] },
-    ChanMode { name: "GMRS", short: "GMRS", ranges: &[(305, 344)] },
-    ChanMode { name: "MURS", short: "MURS", ranges: &[(345, 349)] },
-    ChanMode { name: "FRS GMRS MURS", short: "F/G/M", ranges: &[(305, 349)] },
+    ChanMode { name: "MARINE", short: "SEA", ranges: &[(1, 89)] },
+    ChanMode { name: "MURS", short: "MURS", ranges: &[(90, 99)] },
+    ChanMode { name: "FRS", short: "FRS", ranges: &[(101, 122)] },
+    ChanMode { name: "GMRS", short: "GMRS", ranges: &[(123, 199)] },
+    ChanMode { name: "PMR446", short: "PMR", ranges: &[(300, 399)] },
+    ChanMode { name: "LOCAL", short: "LOCAL", ranges: &[(400, MAX_CHANNEL_NUM + 1)] },
     // Channel list stays open here; the scan itself sweeps the typed range.
     ChanMode { name: "CUSTOM RANGE", short: "RANGE", ranges: ALL },
 ];

@@ -1475,6 +1475,7 @@ fn selftest(host: &mut Host, dir: &Path) -> bool {
     }
     emu().settings = saved;
     host.go(Screen::Home);
+    host.go(Screen::Home);
     // The whole window, radio body and all, with MENU on the LCD.
     let skin = Skin::new(3);
     let mut win = vec![0u32; skin.width * skin.height];
@@ -1565,9 +1566,13 @@ fn main() {
         }
     }
     if let Some(img) = value("--image") {
-        // A CHIRP/radio_read.py image: its first 0x8000 bytes are the channels.
+        // A CHIRP/radio_read.py image (channels in its first 0x8000 bytes) or
+        // backup_radio.py's radio_channels.bin (1000 channels, 32000 bytes).
         match std::fs::read(&img) {
-            Ok(d) if d.len() >= 0x8000 => nor[..0x8000].copy_from_slice(&d[..0x8000]),
+            Ok(d) if d.len() >= 32_000 => {
+                let n = d.len().min(0x8000);
+                nor[..n].copy_from_slice(&d[..n]);
+            }
             Ok(_) => eprintln!("{img}: too short for a channel image"),
             Err(e) => eprintln!("{img}: {e}"),
         }
